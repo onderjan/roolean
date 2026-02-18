@@ -3,6 +3,7 @@ import RooleCheck
 inductive Character
   | TabSpace
   | LineBreak
+  | Semicolon
   | ParenOpen
   | ParenClose
   | Other (c: Char)
@@ -16,6 +17,7 @@ deriving Repr
 
 inductive Current
   | Start (token: Token)
+  | Comment
   | Empty
 deriving Repr
 
@@ -23,6 +25,7 @@ def new_current (character: Character): Current :=
   match character with
   | Character.TabSpace => Current.Empty
   | Character.LineBreak => Current.Empty
+  | Character.Semicolon => Current.Comment
   | Character.ParenOpen => Current.Start Token.ParenOpen
   | Character.ParenClose => Current.Start Token.ParenClose
   | Character.Other c => Current.Start (Token.Text (String.singleton c))
@@ -36,10 +39,11 @@ def lex_init: Lexer := { current := Current.Empty, tokens := List.nil }
 
 def lex_classify (char: Char) : Character :=
   match char with
-    | '(' => Character.ParenOpen
-    | ')' => Character.ParenClose
     | '\t' | ' '  => Character.TabSpace
     | '\r' | '\n'  => Character.LineBreak
+    | ';' => Character.Semicolon
+    | '(' => Character.ParenOpen
+    | ')' => Character.ParenClose
     | _ => Character.Other char
 
 def lex_start_update (token: Token) (next: Character) : (Option Token) × Current :=
@@ -51,14 +55,16 @@ def lex_start_update (token: Token) (next: Character) : (Option Token) × Curren
     | Token.Text text, next  => ((Token.Text text), new_current next)
     | token,next => (token, new_current next)
 
-def lex_empty_update (next: Character) : (Option Token) × Current :=
+def lex_comment_update (next: Character) : Current :=
   match next with
-    | next => (none, new_current next)
+    | Character.LineBreak => Current.Empty
+    | _ => Current.Comment
 
 
 def lex_update (current: Current) (next: Character) : (Option Token) × Current :=
   match current with
     | Current.Start (token) => lex_start_update token next
+    | Current.Comment => (none, lex_comment_update next)
     | Current.Empty => (none, new_current next)
 
 def lex_char (lexer: Lexer) (char: Char) : Lexer :=
