@@ -11,7 +11,9 @@ inductive Character
   | ParenOpen
   -- printable_char
   | ParenClose
+  | Letter (c: Char)
   | Digit (digit: Fin 10)
+  | SymbolSpecial (c: Char)
   -- TODO
   | Other (c: Char)
 deriving Repr
@@ -21,130 +23,115 @@ inductive Token
   | ParenClose
   | Numeral (num: Nat)
   | Text (text: String)
-  -- TODO fail instead of giving an invalid token
-  | Invalid
 deriving Repr
 
--- Determines the state state of the lexer.
-inductive State
-  -- State holding a start of a token.
-  | Start (token: Token)
-  -- State within a comment, waiting for a line break.
-  | Comment
-  -- State holds no token and not within a comment.
-  | Empty
+
+inductive ELexerLocation where
+  | Basic
+  | SymbolEnd
 deriving Repr
 
-def new_state (character: Character): State :=
-  match character with
-  -- whitespace, no token nor comment
-  | Character.TabSpace | Character.LineBreak => State.Empty
-  -- semicolon, start a comment
-  | Character.Semicolon => State.Comment
-  -- each parenthesis is a token
-  | Character.ParenOpen => State.Start Token.ParenOpen
-  | Character.ParenClose => State.Start Token.ParenClose
-  -- digit, start a numeral
-  | Character.Digit d => State.Start (Token.Numeral d)
-  -- TODO
-  | Character.Other c => State.Start (Token.Text (String.singleton c))
-
-
--- Lexer contained start of a token, return an optionally produced token and new lexer state.
-def lex_start_update (token: Token) (next: Character) : (Option Token) × State :=
-  match token, next with
-    -- incoming whitespace, produce the token and clear the state state
-    | token, Character.TabSpace | token, Character.LineBreak => (token, State.Empty)
-    -- we have a number, digit incoming
-    | Token.Numeral number, Character.Digit digit =>
-      if number == 0 then
-        -- numbers starting with the digit zero, except for zero, are disallowed
-        -- TODO error
-        (some Token.Invalid, State.Empty)
-      else
-        -- multiply the previous numeral by base and add digit
-        (none, State.Start (Token.Numeral (number * 10 + digit)))
-    -- TODO
-    | Token.Text text, Character.Other next_char =>
-        (none, State.Start (Token.Text (String.push text next_char)))
-    | Token.Text text, next  => ((Token.Text text), new_state next)
-    -- could not update the state token, produce it and start a new one
-    | token,next => (token, new_state next)
-
--- Lexer contained start of a comment, return the new lexer state.
-def lex_comment_update (next: Character) : State :=
-  match next with
-    -- incoming line break, get back to non-comment empty state
-    | Character.LineBreak => State.Empty
-    -- not a line break, remain in the comment state
-    | _ => State.Comment
-
--- From a state lexer state and a character, return an optionally produced token and new lexer state.
-def lex_update (state: State) (next: Character) : (Option Token) × State :=
-  match state with
-    | State.Start (token) => lex_start_update token next
-    | State.Comment => (none, lex_comment_update next)
-    | State.Empty => (none, new_state next)
-
-structure Lexer where
-  state: State
-  tokens: (List Token)
-
-def lex_init: Lexer := { state := State.Empty, tokens := List.nil }
+structure ELexer where
+  location: ELexerLocation
+  char: Char
+  remaining: List Char
+  tokens: List Token
+deriving Repr
 
 def lex_classify (char: Char) : Character :=
-  let code := Char.toNat char
-  let zero_code := Char.toNat '0'
-  if code >= zero_code && code < zero_code + 10 then
-    Character.Digit ((Fin.ofNat 10) (code - zero_code))
+  if char >= '0' && char <= '9' then
+    let value := (Char.toNat char) - (Char.toNat '0')
+    Character.Digit ((Fin.ofNat 10) value)
+  else if (char >= 'a' && char <= 'z')
+    || (char >= 'A' && char <= 'Z') then
+    Character.Letter char
   else match char with
     | '\t' | ' '  => Character.TabSpace
     | '\r' | '\n'  => Character.LineBreak
     | ';' => Character.Semicolon
     | '(' => Character.ParenOpen
     | ')' => Character.ParenClose
+    | '~' | '!' | '@' | '$' | '%' | '^' | '&' | '*' | '_'
+    | '-' | '+' | '=' | '<' | '>' | '.' | '?' | '/' => Character.SymbolSpecial char
     | _ => Character.Other char
 
+structure Lexer where
+  tokens: List Token
 
--- Update the lexer with a new character.
-def lex_char (lexer: Lexer) (char: Char) : Lexer :=
-  -- classify the character and update the lexer
-  let (produced, state) := lex_update lexer.state (lex_classify char)
-  -- if a token was produced, add it to the list
-  let tokens := if let some produced := produced then
-    List.cons produced lexer.tokens
-  else
-    lexer.tokens
+def add_token(lexer: Lexer) (token: Token): Lexer :=
+{ tokens := (List.cons (token) lexer.tokens) }
 
-  { tokens, state }
+def lex_symbol (list: List Char) (string: String): Except Unit (List Char × Token) :=
+  match list with
+    | [] => pure ([], Token.Text string)
+    | char :: tail =>
+      match lex_classify char with
+        | Character.Letter char | Character.SymbolSpecial char =>
+          lex_symbol tail (String.push string char)
+        | Character.Digit digit =>
+          let char := Char.ofNat (Char.toNat '0' + Fin.toNat digit)
+          lex_symbol tail (String.push string char)
+        | Character.ParenOpen | Character.ParenClose
+        | Character.TabSpace | Character.LineBreak => pure (list, Token.Text string)
+        | _ => Except.error ()
 
--- Finish lexing, produce a list of tokens.
-def lex_finish (lexer: Lexer) : List Token :=
-  let tokens := match lexer.state with
-    -- a token start is still waiting, add it to the list
-    | State.Start (token) => List.cons token lexer.tokens
-    -- nothing is waiting
-    | State.Comment | State.Empty => lexer.tokens
-  -- reverse the list as we added each new token to its start
-  List.reverse tokens
+def lex_digit (list: List Char) (num: Nat): Except Unit (List Char × Token) :=
+  match list with
+    | [] => pure ([], Token.Numeral num)
+    | char :: tail =>
+      match lex_classify char with
+        | Character.Digit digit =>
+          let num := num * 10 + digit
+          lex_digit tail num
+        | Character.ParenOpen | Character.ParenClose
+        | Character.TabSpace | Character.LineBreak => pure (list, Token.Numeral num)
+        | _ => Except.error ()
 
-def lex_iter {α : Type} [Std.Iterator α Id Char] [Std.IteratorLoop α Id Id]
-  (it: Std.Iter (α:=α) Char): List Token :=
-    let lexer := Std.Iter.fold lex_char lex_init it
-    lex_finish lexer
+def lex_comment (list: List Char): List Char :=
+  match list with
+    | [] => []
+    | char :: tail =>
+      match lex_classify char with
+        | Character.LineBreak => tail
+        | _ => lex_comment tail
 
-def process: IO (List Token) := do
+-- TODO termination proof
+partial def lex_rec (list: List Char) (tokens: List Token): Except ELexer (List Token) :=
+  match list with
+    | [] => pure tokens
+    | char :: tail =>
+      match lex_classify char with
+      | Character.Letter char | Character.SymbolSpecial char =>
+         match lex_symbol tail (String.singleton char) with
+         | Except.ok (tail, token) => lex_rec tail (token :: tokens)
+         | Except.error () =>
+            Except.error { location := ELexerLocation.SymbolEnd, remaining := tail, tokens, char }
+      | Character.Digit digit =>
+         match lex_digit tail digit with
+         | Except.ok (tail, token) => lex_rec tail (token :: tokens)
+         | Except.error () =>
+            Except.error { location := ELexerLocation.SymbolEnd, remaining := tail, tokens, char }
+      | Character.ParenOpen => lex_rec tail (Token.ParenOpen :: tokens)
+      | Character.ParenClose => lex_rec tail (Token.ParenClose :: tokens)
+      | Character.Semicolon =>
+          let tail := lex_comment tail
+          lex_rec tail tokens
+      | Character.TabSpace | Character.LineBreak => lex_rec tail tokens
+      | _ => Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+
+def lex (list: List Char): Except ELexer (List Token) := do
+  (lex_rec list List.nil).map List.reverse
+
+def process: IO (Except ELexer (List Token)) := do
   let string ← IO.FS.readFile "benchmarks/addsub.smt2"
   IO.println s!"Read:\n---\n{string}\n---\n"
-  let iter := String.chars string
-  let init := lex_init
-  let lexer := Std.Iter.fold lex_char init iter
-  pure (lex_finish lexer)
-
+  let chars := Std.Iter.toList (String.chars string)
+  let lexed := lex chars
+  pure lexed
 
 def main : IO Unit := do
   let _discard ← process
 
-#eval lex_iter (List.iter ['5', '7'])
+ -- #eval lex (['a', 'b'])
 
-#eval process
+ #eval process
