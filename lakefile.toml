@@ -1,0 +1,10 @@
+name = "roole-check"
+version = "0.1.0"
+defaultTargets = ["roole-check"]
+
+[[lean_lib]]
+name = "RooleCheck"
+
+[[lean_exe]]
+name = "roole-check"
+root = "Main"
