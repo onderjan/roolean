@@ -8,18 +8,17 @@ inductive Character
 deriving Repr
 
 inductive Token
-  | Whitespace
   | ParenOpen
   | ParenClose
   | Text (text: String)
 deriving Repr
 
-def new_token (character: Character): Token :=
+def new_token (character: Character): Option Token :=
   match character with
-  | Character.Whitespace => Token.Whitespace
-  | Character.ParenOpen => Token.ParenOpen
-  | Character.ParenClose => Token.ParenClose
-  | Character.Other c => Token.Text (String.singleton c)
+  | Character.Whitespace => none
+  | Character.ParenOpen => some Token.ParenOpen
+  | Character.ParenClose => some Token.ParenClose
+  | Character.Other c => some (Token.Text (String.singleton c))
 
 structure Lexer where
   current: Option Token
