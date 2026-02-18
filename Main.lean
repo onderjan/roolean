@@ -78,9 +78,14 @@ def lex_char (lexer: Lexer) (char: Char) : Lexer :=
   { tokens, current }
 
 def lex_finish (lexer: Lexer) : List Token :=
-  List.reverse lexer.tokens
+  -- add the current token if there is one
+  let tokens := match lexer.current with
+    | Current.Start (token) => List.cons token lexer.tokens
+    | Current.Comment | Current.Empty => lexer.tokens
+  List.reverse tokens
 
 def lex_fold (init: Lexer) (char: Char) : Lexer :=
+
   lex_char init char
 
 def lex: IO (List Token) := do
