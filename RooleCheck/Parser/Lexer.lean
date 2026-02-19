@@ -141,6 +141,7 @@ def lexSimpleSymbolOrReserved (list: List Char) (name: String): List Char × Tok
     | "HEXADECIMAL" => Token.Reserved Reserved.Hexadecimal
     | "NUMERAL" => Token.Reserved Reserved.Numeral
     | "STRING" => Token.Reserved Reserved.String
+    | "_" => Token.Reserved Reserved.Underscore
     | "!" => Token.Reserved Reserved.ExclamationMark
     | "as" => Token.Reserved Reserved.As
     | "lambda" => Token.Reserved Reserved.Lambda
