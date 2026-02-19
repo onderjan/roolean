@@ -8,7 +8,8 @@ inductive Token
   | Decimal (numer: Nat) (minus_log_10: Nat)
   | Hexadecimal (num: Nat)
   | Binary (num: Nat)
-  -- TODO string, reserved, symbol, keyword
+  | Symbol (name: String)
+  -- TODO string, reserved, keyword
   | Text (text: String)
 deriving Repr
 
@@ -31,16 +32,29 @@ structure Lexer where
 def addToken(lexer: Lexer) (token: Token): Lexer :=
 { tokens := (List.cons (token) lexer.tokens) }
 
-def lexSymbol (list: List Char) (string: String): List Char × Token :=
+def lexSimpleSymbol (list: List Char) (name: String): List Char × Token :=
   match list with
-    | [] => ([], Token.Text string)
+    | [] => ([], Token.Symbol name)
     | char :: tail =>
       match charClass char with
         | CharClass.Letter char | CharClass.Digit char | CharClass.Special char =>
-          lexSymbol tail (String.push string char)
+          lexSimpleSymbol tail (String.push name char)
         | CharClass.Dot =>
-          lexSymbol tail (String.push string '.')
-        | _ => (list, Token.Text string)
+          lexSimpleSymbol tail (String.push name '.')
+        | _ => (list, Token.Symbol name)
+
+def lexQuotedSymbol (list: List Char) (name: String): Except Unit (List Char × Token) :=
+  match list with
+    | [] => Except.error () -- forbidden as the symbol must be totally enclosed by pipes
+    | char :: tail =>
+      let classified := charClass char
+      match classified with
+        | CharClass.Backslash => Except.error () -- backslash forbidden in quoted symbols
+        | CharClass.Pipe => pure (tail, Token.Symbol name) -- end quoted symbol
+        | _ => if isPrintableOrWhitespace classified then
+            lexQuotedSymbol tail (name.push char)
+          else
+            Except.error () -- forbidden as not printable or whitespace
 
 def lexFraction (list: List Char) (numer: Nat) (minus_log_10: Nat): List Char × Token :=
   -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
@@ -122,15 +136,30 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
         lexRec tail tokens
       | CharClass.ParenOpen => lexRec tail (Token.ParenOpen :: tokens)
       | CharClass.ParenClose => lexRec tail (Token.ParenClose :: tokens)
+
       | CharClass.Semicolon =>
           -- semicolon starts a comment
           let tail := lexComment tail
           lexRec tail tokens
+
       | CharClass.Digit c =>
         -- digit starts a numeral or a decimal
         let digit := (Char.toNat c) - (Char.toNat '0')
         let (tail, token) := lexNumeralOrDecimal tail digit
         lexRec tail (token :: tokens)
+
+      | CharClass.Letter c | CharClass.Special c =>
+        -- letter or special starts a symbol
+        let (tail, token) := lexSimpleSymbol tail (String.singleton c)
+        lexRec tail (token :: tokens)
+
+      | CharClass.Pipe =>
+        -- quoted symbol
+        match lexQuotedSymbol tail "" with
+          | Except.ok (tail, token) => lexRec tail (token :: tokens)
+          | Except.error () =>
+              Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+
       | CharClass.Hash =>
         -- decide whether to lex hexadecimal or binary with the next character
         match tail with
@@ -148,10 +177,6 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
               Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
           | _ => Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
 
-      | CharClass.Letter c | CharClass.Special c =>
-        -- letter or special starts a symbol
-        let (tail, token) := lexSymbol tail (String.singleton c)
-        lexRec tail (token :: tokens)
       -- TODO quoted symbols (start with pipe), etc.
       | _ => Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
 

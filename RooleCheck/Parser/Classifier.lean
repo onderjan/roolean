@@ -36,10 +36,22 @@ inductive CharClass
   | NonAscii (c: Char)
 deriving Repr
 
-def isPrintableChar (c: CharClass) : Bool :=
+def isPrintable (c: CharClass) : Bool :=
   -- everything except TAB, line-breaks (LF, CR), and other non-printable
   match c with
-    | .OtherNonPrintable _ | .Tab | .LineBreak  => false
+    | .Tab | .LineBreak | .OtherNonPrintable _  => false
+    | _ => true
+
+def isWhitespace (c: CharClass) : Bool :=
+  -- only TAB, line-breaks (LF, CR), and space (' ')
+  match c with
+    | .Tab | .LineBreak | .Space => true
+    | _ => false
+
+def isPrintableOrWhitespace (c: CharClass) : Bool :=
+  -- everything except other non-printable
+  match c with
+    | .OtherNonPrintable _ => false
     | _ => true
 
 def isWhitespaceChar (c: CharClass) : Bool :=
