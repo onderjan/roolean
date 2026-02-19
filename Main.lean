@@ -1,5 +1,22 @@
 import RooleCheck.Parser.Classifier
 
+inductive Reserved
+  | Binary
+  | Decimal
+  | Hexadecimal
+  | Numeral
+  | String
+  | Underscore
+  | ExclamationMark
+  | As
+  | Lambda
+  | Let
+  | Exists
+  | Forall
+  | Match
+  | Par
+deriving Repr
+
 inductive Token
   | ParenOpen
   | ParenClose
@@ -9,9 +26,9 @@ inductive Token
   | Hexadecimal (num: Nat)
   | Binary (num: Nat)
   | Symbol (name: String)
+  | Reserved (value: Reserved)
   | String (literal: String)
-  -- TODO string, reserved, keyword
-  | Text (text: String)
+  | Keyword (name: String)
 deriving Repr
 
 
@@ -111,25 +128,45 @@ def lexStringLiteral (list: List Char) (literal: String): Except Unit (List Char
             Except.error () -- forbidden as not printable or whitespace
 
 
-def lexSimpleSymbol (list: List Char) (name: String): List Char × Token :=
+def lexSimpleSymbolString (list: List Char) (name: String): List Char × String :=
   match list with
-    | [] => ([], Token.Symbol name)
+    | [] => ([], name)
     | char :: tail =>
       match charClass char with
         | CharClass.Letter char | CharClass.Digit char | CharClass.Special char =>
-          lexSimpleSymbol tail (String.push name char)
+          lexSimpleSymbolString tail (String.push name char)
         | CharClass.Dot =>
-          lexSimpleSymbol tail (String.push name '.')
-        | _ => (list, Token.Symbol name)
+          lexSimpleSymbolString tail (String.push name '.')
+        | _ => (list, name)
 
-def lexQuotedSymbol (list: List Char) (name: String): Except Unit (List Char × Token) :=
+def lexSimpleSymbolOrReserved (list: List Char) (name: String): List Char × Token :=
+  let (tail, name) := lexSimpleSymbolString list name
+  -- process reserved words
+  let token := match name with
+    | "BINARY" => Token.Reserved Reserved.Binary
+    | "DECIMAL" => Token.Reserved Reserved.Decimal
+    | "HEXADECIMAL" => Token.Reserved Reserved.Hexadecimal
+    | "NUMERAL" => Token.Reserved Reserved.Numeral
+    | "STRING" => Token.Reserved Reserved.String
+    | "!" => Token.Reserved Reserved.ExclamationMark
+    | "as" => Token.Reserved Reserved.As
+    | "lambda" => Token.Reserved Reserved.Lambda
+    | "let" => Token.Reserved Reserved.Let
+    | "exists" => Token.Reserved Reserved.Exists
+    | "forall" => Token.Reserved Reserved.Forall
+    | "match" => Token.Reserved Reserved.Match
+    | "par" => Token.Reserved Reserved.Par
+    | _ => Token.Symbol name
+  (tail, token)
+
+def lexQuotedSymbol (list: List Char) (name: String): Except Unit (List Char × String) :=
   match list with
     | [] => Except.error () -- forbidden as the symbol must be totally enclosed by pipes
     | char :: tail =>
       let classified := charClass char
       match classified with
         | CharClass.Backslash => Except.error () -- backslash forbidden in quoted symbols
-        | CharClass.Pipe => pure (tail, Token.Symbol name) -- end quoted symbol
+        | CharClass.Pipe => pure (tail, name) -- end quoted symbol
         | _ => if isPrintableOrWhitespace classified then
             lexQuotedSymbol tail (name.push char)
           else
@@ -191,16 +228,23 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
           | Except.error () =>
               Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
 
+      | CharClass.Colon =>
+        -- colon starts a keyword, which continues with a simple symbol string
+        let (tail, name) := lexSimpleSymbolString tail ""
+        match name with
+          | "" => -- empty continuation is disallowed
+            Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+          | _ => lexRec tail ((Token.Keyword name) :: tokens)
 
       | CharClass.Letter c | CharClass.Special c =>
-        -- letter or special starts a symbol
-        let (tail, token) := lexSimpleSymbol tail (String.singleton c)
-        lexRec tail (token :: tokens)
+        -- letter or special starts a symbol or a reserved word
+        let (tail, token) := lexSimpleSymbolOrReserved tail (String.singleton c)
+        lexRec tail ((token) :: tokens)
 
       | CharClass.Pipe =>
         -- quoted symbol
         match lexQuotedSymbol tail "" with
-          | Except.ok (tail, token) => lexRec tail (token :: tokens)
+          | Except.ok (tail, token) => lexRec tail ((Token.Symbol token) :: tokens)
           | Except.error () =>
               Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
 
