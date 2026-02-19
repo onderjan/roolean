@@ -8,6 +8,8 @@ inductive CharClass
   | LineBreak
   -- ' ' (32)
   | Space
+  -- '"' (34)
+  | DoubleQuote
   -- '#' (35)
   | Hash
   -- '(' (40)
@@ -72,6 +74,7 @@ def charClass (c: Char) : CharClass :=
     | '\r' | '\n'  => CharClass.LineBreak
     | ' '  => CharClass.Space
     | '#' => CharClass.Hash
+    | '"' => CharClass.DoubleQuote
     | '(' => CharClass.ParenOpen
     | ')' => CharClass.ParenClose
     | '.' => CharClass.Dot
