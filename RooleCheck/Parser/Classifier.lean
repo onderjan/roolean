@@ -1,4 +1,6 @@
-inductive CharClass
+module
+
+public inductive CharClass
   -- any non-printable character except for TAB, LF, CR
   -- meaning from 0 to 32 except for those ones + 127 (DEL)
   | OtherNonPrintable (c: Char)
@@ -38,31 +40,13 @@ inductive CharClass
   | NonAscii (c: Char)
 deriving Repr
 
-def isPrintable (c: CharClass) : Bool :=
-  -- everything except TAB, line-breaks (LF, CR), and other non-printable
-  match c with
-    | .Tab | .LineBreak | .OtherNonPrintable _  => false
-    | _ => true
-
-def isWhitespace (c: CharClass) : Bool :=
-  -- only TAB, line-breaks (LF, CR), and space (' ')
-  match c with
-    | .Tab | .LineBreak | .Space => true
-    | _ => false
-
-def isPrintableOrWhitespace (c: CharClass) : Bool :=
+public def isPrintableOrWhitespace (c: CharClass) : Bool :=
   -- everything except other non-printable
   match c with
     | .OtherNonPrintable _ => false
     | _ => true
 
-def isWhitespaceChar (c: CharClass) : Bool :=
-  -- only TAB, line-breaks (LF, CR), and space (' ')
-  match c with
-    | .Tab | .LineBreak | .Space => true
-    | _ => false
-
-def charClass (c: Char) : CharClass :=
+public def classify (c: Char) : CharClass :=
   if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') then
     CharClass.Letter c
   else if c >= '0' && c <= '9' then
