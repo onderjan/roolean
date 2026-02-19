@@ -14,6 +14,8 @@ inductive CharClass
   | ParenOpen
   -- ')' (41)
   | ParenClose
+  -- '.' (45), this is also allowed in symbols
+  | Dot
   -- ':' (58)
   | Colon
   -- ';' (59)
@@ -26,7 +28,7 @@ inductive CharClass
   | Backslash
   -- '|' (124)
   | Pipe
-  -- not letters or digits but allowed in symbols (all ASCII printable)
+  -- not letters or digits or dot but allowed in symbols (all ASCII printable)
   | Special (c: Char)
   -- not in any interesting category but from 32 to 126
   | OtherAsciiPrintable (c: Char)
@@ -60,12 +62,13 @@ def charClass (c: Char) : CharClass :=
     | '#' => CharClass.Hash
     | '(' => CharClass.ParenOpen
     | ')' => CharClass.ParenClose
+    | '.' => CharClass.Dot
     | ':' => CharClass.Colon
     | ';' => CharClass.Semicolon
     | '\\' => CharClass.Backslash
     | '|' => CharClass.Pipe
     | '~' | '!' | '@' | '$' | '%' | '^' | '&' | '*' | '_'
-    | '-' | '+' | '=' | '<' | '>' | '.' | '?' | '/' => CharClass.Special c
+    | '-' | '+' | '=' | '<' | '>' | '?' | '/' => CharClass.Special c
     | _ => -- below 128 and not in any interesting class
       if Char.toNat c < 32 then
         CharClass.OtherNonPrintable c

@@ -4,7 +4,9 @@ inductive Token
   | ParenOpen
   | ParenClose
   | Numeral (num: Nat)
-  -- TODO decimal, hexadecimal, binary, string, reserved, symbol, keyword
+  -- Decimals are represented as fractions.
+  | Decimal (numer: Nat) (denom: Nat)
+  -- TODO hexadecimal, binary, string, reserved, symbol, keyword
   | Text (text: String)
 deriving Repr
 
@@ -34,17 +36,35 @@ def lexSymbol (list: List Char) (string: String): List Char × Token :=
       match charClass char with
         | CharClass.Letter char | CharClass.Digit char | CharClass.Special char =>
           lexSymbol tail (String.push string char)
+        | CharClass.Dot =>
+          lexSymbol tail (String.push string '.')
         | _ => (list, Token.Text string)
 
-def lexNumeral (list: List Char) (num: Nat): List Char × Token :=
+def lexFraction (list: List Char) (numer: Nat) (denom: Nat): List Char × Token :=
+  -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
+  -- but does not have a rule for decimals of form 7. without trailing zero
+  -- we we will accept this form too to avoid an error condition
+  match list with
+    | [] => ([], Token.Decimal numer denom)
+    | char :: tail =>
+      match charClass char with
+        | CharClass.Digit c =>
+          let digit := (Char.toNat c) - (Char.toNat '0')
+          lexFraction tail (numer * 10 + digit) (denom * 10)
+        | _ => (list, Token.Decimal numer denom)
+
+
+def lexNumeralOrDecimal (list: List Char) (num: Nat): List Char × Token :=
   match list with
     | [] => ([], Token.Numeral num)
     | char :: tail =>
       match charClass char with
         | CharClass.Digit c =>
           let digit := (Char.toNat c) - (Char.toNat '0')
-          let num := num * 10 + digit
-          lexNumeral tail num
+          lexNumeralOrDecimal tail (num * 10 + digit)
+        | CharClass.Dot =>
+          -- decimal, lex fraction, initially with numerator 1
+          lexFraction tail num 1
         | _ => (list, Token.Numeral num)
 
 def lexComment (list: List Char): List Char :=
@@ -71,7 +91,7 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
       | CharClass.Digit c =>
         -- digit starts a numeral or a decimal
         let digit := (Char.toNat c) - (Char.toNat '0')
-        let (tail, token) := lexNumeral tail digit
+        let (tail, token) := lexNumeralOrDecimal tail digit
         lexRec tail (token :: tokens)
       | CharClass.ParenOpen => lexRec tail (Token.ParenOpen :: tokens)
       | CharClass.ParenClose => lexRec tail (Token.ParenClose :: tokens)
@@ -86,7 +106,7 @@ def lex (list: List Char): Except ELexer (List Token) := do
   (lexRec list List.nil).map List.reverse
 
 def process: IO (Except ELexer (List Token)) := do
-  let string ← IO.FS.readFile "benchmarks/addsub.smt2"
+  let string ← IO.FS.readFile "benchmarks/lean.smt2"
   IO.println s!"Read:\n---\n{string}\n---\n"
   let chars := Std.Iter.toList (String.chars string)
   let lexed := lex chars
@@ -94,7 +114,5 @@ def process: IO (Except ELexer (List Token)) := do
 
 def main : IO Unit := do
   let _discard ← process
-
- -- #eval lex (['a', 'b'])
 
  #eval process
