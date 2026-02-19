@@ -38,7 +38,7 @@ structure ELexer where
   tokens: List Token
 deriving Repr
 
-def lex_classify (char: Char) : Character :=
+def lexClassify (char: Char) : Character :=
   if char >= '0' && char <= '9' then
     let value := (Char.toNat char) - (Char.toNat '0')
     Character.Digit ((Fin.ofNat 10) value)
@@ -58,69 +58,69 @@ def lex_classify (char: Char) : Character :=
 structure Lexer where
   tokens: List Token
 
-def add_token(lexer: Lexer) (token: Token): Lexer :=
+def addToken(lexer: Lexer) (token: Token): Lexer :=
 { tokens := (List.cons (token) lexer.tokens) }
 
-def lex_symbol (list: List Char) (string: String): Except Unit (List Char × Token) :=
+def lexSymbol (list: List Char) (string: String): Except Unit (List Char × Token) :=
   match list with
     | [] => pure ([], Token.Text string)
     | char :: tail =>
-      match lex_classify char with
+      match lexClassify char with
         | Character.Letter char | Character.SymbolSpecial char =>
-          lex_symbol tail (String.push string char)
+          lexSymbol tail (String.push string char)
         | Character.Digit digit =>
           let char := Char.ofNat (Char.toNat '0' + Fin.toNat digit)
-          lex_symbol tail (String.push string char)
+          lexSymbol tail (String.push string char)
         | Character.ParenOpen | Character.ParenClose
         | Character.TabSpace | Character.LineBreak => pure (list, Token.Text string)
         | _ => Except.error ()
 
-def lex_digit (list: List Char) (num: Nat): Except Unit (List Char × Token) :=
+def lexDigit (list: List Char) (num: Nat): Except Unit (List Char × Token) :=
   match list with
     | [] => pure ([], Token.Numeral num)
     | char :: tail =>
-      match lex_classify char with
+      match lexClassify char with
         | Character.Digit digit =>
           let num := num * 10 + digit
-          lex_digit tail num
+          lexDigit tail num
         | Character.ParenOpen | Character.ParenClose
         | Character.TabSpace | Character.LineBreak => pure (list, Token.Numeral num)
         | _ => Except.error ()
 
-def lex_comment (list: List Char): List Char :=
+def lexComment (list: List Char): List Char :=
   match list with
     | [] => []
     | char :: tail =>
-      match lex_classify char with
+      match lexClassify char with
         | Character.LineBreak => tail
-        | _ => lex_comment tail
+        | _ => lexComment tail
 
 -- TODO termination proof
-partial def lex_rec (list: List Char) (tokens: List Token): Except ELexer (List Token) :=
+partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List Token) :=
   match list with
     | [] => pure tokens
     | char :: tail =>
-      match lex_classify char with
+      match lexClassify char with
       | Character.Letter char | Character.SymbolSpecial char =>
-         match lex_symbol tail (String.singleton char) with
-         | Except.ok (tail, token) => lex_rec tail (token :: tokens)
+         match lexSymbol tail (String.singleton char) with
+         | Except.ok (tail, token) => lexRec tail (token :: tokens)
          | Except.error () =>
             Except.error { location := ELexerLocation.SymbolEnd, remaining := tail, tokens, char }
       | Character.Digit digit =>
-         match lex_digit tail digit with
-         | Except.ok (tail, token) => lex_rec tail (token :: tokens)
+         match lexDigit tail digit with
+         | Except.ok (tail, token) => lexRec tail (token :: tokens)
          | Except.error () =>
             Except.error { location := ELexerLocation.SymbolEnd, remaining := tail, tokens, char }
-      | Character.ParenOpen => lex_rec tail (Token.ParenOpen :: tokens)
-      | Character.ParenClose => lex_rec tail (Token.ParenClose :: tokens)
+      | Character.ParenOpen => lexRec tail (Token.ParenOpen :: tokens)
+      | Character.ParenClose => lexRec tail (Token.ParenClose :: tokens)
       | Character.Semicolon =>
-          let tail := lex_comment tail
-          lex_rec tail tokens
-      | Character.TabSpace | Character.LineBreak => lex_rec tail tokens
+          let tail := lexComment tail
+          lexRec tail tokens
+      | Character.TabSpace | Character.LineBreak => lexRec tail tokens
       | _ => Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
 
 def lex (list: List Char): Except ELexer (List Token) := do
-  (lex_rec list List.nil).map List.reverse
+  (lexRec list List.nil).map List.reverse
 
 def process: IO (Except ELexer (List Token)) := do
   let string ← IO.FS.readFile "benchmarks/addsub.smt2"
