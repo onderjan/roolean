@@ -33,17 +33,8 @@ public inductive Token
   | Keyword (name: String)
 deriving Repr
 
-
-public inductive ELexerLocation where
-  | Basic
-  | SymbolEnd
-deriving Repr
-
-public structure ELexer where
-  location: ELexerLocation
-  char: Char
-  remaining: List Char
-  tokens: List Token
+-- no error information for simplicity
+public structure ELexer
 deriving Repr
 
 structure Lexer where
@@ -214,28 +205,28 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
               let (tail, token) := lexHexadecimal tail first
               lexRec tail (token :: tokens)
             else
-              Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+              Except.error {}
           | 'b' :: first :: tail =>
             if let some first := toBinary first then
               let (tail, token) := lexBinary tail first
               lexRec tail (token :: tokens)
             else
-              Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
-          | _ => Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+              Except.error {}
+          | _ => Except.error {}
 
       | CharClass.DoubleQuote =>
         -- double quote starts a string literal
         match lexStringLiteral tail "" with
           | Except.ok (tail, token) => lexRec tail (token :: tokens)
           | Except.error () =>
-              Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+              Except.error {}
 
       | CharClass.Colon =>
         -- colon starts a keyword, which continues with a simple symbol string
         let (tail, name) := lexSimpleSymbolString tail ""
         match name with
           | "" => -- empty continuation is disallowed
-            Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+            Except.error {}
           | _ => lexRec tail ((Token.Keyword name) :: tokens)
 
       | CharClass.Letter c | CharClass.Special c =>
@@ -248,10 +239,10 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
         match lexQuotedSymbol tail "" with
           | Except.ok (tail, token) => lexRec tail ((Token.Symbol token) :: tokens)
           | Except.error () =>
-              Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+              Except.error {}
 
-      -- TODO quoted symbols (start with pipe), etc.
-      | _ => Except.error { location := ELexerLocation.Basic, remaining := tail, tokens, char }
+        -- classification disallowed here
+      | _ => Except.error {}
 
 public def lex (list: List Char): Except ELexer (List Token) := do
   (lexRec list List.nil).map List.reverse
