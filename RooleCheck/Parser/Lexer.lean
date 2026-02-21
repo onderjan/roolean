@@ -37,32 +37,32 @@ deriving Repr
 public structure ELexer
 deriving Repr
 
-def lexFraction (list: List Char) (numer: Nat) (minus_log_10: Nat): List Char × Token :=
+def lexFraction (chars: List Char) (numer: Nat) (minus_log_10: Nat): List Char × Token :=
   -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
   -- but does not have a rule for decimals of form 7. without trailing zero
   -- we we will accept this form too to avoid an error condition
-  match list with
+  match chars with
     | [] => ([], Token.Decimal numer minus_log_10)
-    | char :: tail =>
-      match classify char with
+    | c :: chars =>
+      match classify c with
         | CharClass.Digit c =>
           let digit := (Char.toNat c) - (Char.toNat '0')
-          lexFraction tail (numer * 10 + digit) (minus_log_10 + 1)
-        | _ => (list, Token.Decimal numer minus_log_10)
+          lexFraction chars (numer * 10 + digit) (minus_log_10 + 1)
+        | _ => (chars, Token.Decimal numer minus_log_10)
 
 
-def lexNumeralOrDecimal (list: List Char) (num: Nat): List Char × Token :=
-  match list with
+def lexNumeralOrDecimal (chars: List Char) (num: Nat): List Char × Token :=
+  match chars with
     | [] => ([], Token.Numeral num)
-    | char :: tail =>
-      match classify char with
+    | c :: chars =>
+      match classify c with
         | CharClass.Digit c =>
           let digit := (Char.toNat c) - (Char.toNat '0')
-          lexNumeralOrDecimal tail (num * 10 + digit)
+          lexNumeralOrDecimal chars (num * 10 + digit)
         | CharClass.Dot =>
           -- decimal, lex fraction, initially with unit multiplicand (0 in minus log10)
-          lexFraction tail num 0
-        | _ => (list, Token.Numeral num)
+          lexFraction chars num 0
+        | _ => (chars, Token.Numeral num)
 
 def toHexadecimal (c: Char): Option Nat :=
   if c >= '0' && c <= '9' then
@@ -74,14 +74,14 @@ def toHexadecimal (c: Char): Option Nat :=
   else
     none
 
-def lexHexadecimal (list: List Char) (num: Nat): List Char × Token :=
-  match list with
+def lexHexadecimal (chars: List Char) (num: Nat): List Char × Token :=
+  match chars with
     | [] => ([], Token.Hexadecimal num)
-    | char :: tail =>
-      if let some digit := toHexadecimal char then
-        lexHexadecimal tail (num * 16 + digit)
+    | c :: chars =>
+      if let some digit := toHexadecimal c then
+        lexHexadecimal chars (num * 16 + digit)
       else
-        (tail, Token.Hexadecimal num)
+        (chars, Token.Hexadecimal num)
 
 def toBinary (c: Char): Option Nat :=
   if c >= '0' && c <= '1' then
@@ -89,45 +89,45 @@ def toBinary (c: Char): Option Nat :=
   else
     none
 
-def lexBinary (list: List Char) (num: Nat): List Char × Token :=
-  match list with
+def lexBinary (chars: List Char) (num: Nat): List Char × Token :=
+  match chars with
     | [] => ([], Token.Binary num)
-    | char :: tail =>
-      if let some digit := toHexadecimal char then
-        lexBinary tail (num * 2 + digit)
+    | c :: chars =>
+      if let some digit := toHexadecimal c then
+        lexBinary chars (num * 2 + digit)
       else
-        (tail, Token.Binary num)
+        (chars, Token.Binary num)
 
-def lexStringLiteral (list: List Char) (literal: String): Except ELexer (List Char × Token) :=
-  match list with
+def lexStringLiteral (chars: List Char) (literal: String): Except ELexer (List Char × Token) :=
+  match chars with
     | [] => Except.error {} -- forbidden as the literal must be totally enclosed by double quotes
-    | char :: tail =>
-      let classified := classify char
+    | c :: chars =>
+      let classified := classify c
       match classified with
         | CharClass.DoubleQuote =>
           -- look ahead to the next character
-          match tail with
+          match chars with
             | '"' :: nextTail => lexStringLiteral nextTail (literal.push '"') -- double quote escape
-            | _ => pure (tail, Token.String literal) -- end of string literal
+            | _ => pure (chars, Token.String literal) -- end of string literal
         | _ => if isPrintableOrWhitespace classified then
-            lexStringLiteral tail (literal.push char)
+            lexStringLiteral chars (literal.push c)
           else
             Except.error {} -- forbidden as not printable or whitespace
 
 
-def lexSimpleSymbolString (list: List Char) (name: String): List Char × String :=
-  match list with
+def lexSimpleSymbolString (chars: List Char) (name: String): List Char × String :=
+  match chars with
     | [] => ([], name)
-    | char :: tail =>
-      match classify char with
+    | c :: chars =>
+      match classify c with
         | CharClass.Letter char | CharClass.Digit char | CharClass.Special char =>
-          lexSimpleSymbolString tail (String.push name char)
+          lexSimpleSymbolString chars (String.push name char)
         | CharClass.Dot =>
-          lexSimpleSymbolString tail (String.push name '.')
-        | _ => (list, name)
+          lexSimpleSymbolString chars (String.push name '.')
+        | _ => (chars, name)
 
-def lexSimpleSymbolOrReserved (list: List Char) (name: String): List Char × Token :=
-  let (tail, name) := lexSimpleSymbolString list name
+def lexSimpleSymbolOrReserved (chars: List Char) (name: String): List Char × Token :=
+  let (chars, name) := lexSimpleSymbolString chars name
   -- process reserved words
   let token := match name with
     | "BINARY" => Token.Reserved Reserved.Binary
@@ -145,97 +145,96 @@ def lexSimpleSymbolOrReserved (list: List Char) (name: String): List Char × Tok
     | "match" => Token.Reserved Reserved.Match
     | "par" => Token.Reserved Reserved.Par
     | _ => Token.Symbol name
-  (tail, token)
+  (chars, token)
 
-def lexQuotedSymbol (list: List Char) (name: String): Except ELexer (List Char × String) :=
-  match list with
+def lexQuotedSymbol (chars: List Char) (name: String): Except ELexer (List Char × String) :=
+  match chars with
     | [] => Except.error {} -- forbidden as the symbol must be totally enclosed by pipes
-    | char :: tail =>
-      let classified := classify char
+    | c :: chars =>
+      let classified := classify c
       match classified with
         | CharClass.Backslash => Except.error {} -- backslash forbidden in quoted symbols
-        | CharClass.Pipe => pure (tail, name) -- end quoted symbol
+        | CharClass.Pipe => pure (chars, name) -- end quoted symbol
         | _ => if isPrintableOrWhitespace classified then
-            lexQuotedSymbol tail (name.push char)
+            lexQuotedSymbol chars (name.push c)
           else
             Except.error {} -- forbidden as not printable or whitespace
 
 
-def lexComment (list: List Char): List Char :=
-  match list with
+def lexComment (chars: List Char): List Char :=
+  match chars with
     | [] => []
-    | char :: tail =>
-      match classify char with
-        | CharClass.LineBreak => tail
-        | _ => lexComment tail
+    | c :: chars =>
+      match classify c with
+        | CharClass.LineBreak => chars
+        | _ => lexComment chars
 
 -- TODO termination proof
-partial def lexRec (list: List Char) (tokens: Array Token): Except ELexer (Array Token) :=
-  match list with
+partial def lexRec (chars: List Char) (tokens: Array Token): Except ELexer (Array Token) :=
+  match chars with
     | [] => pure tokens
-    | char :: tail =>
-      match classify char with
+    | c :: chars =>
+      match classify c with
       | CharClass.Tab | CharClass.Space | CharClass.LineBreak =>
         -- whitespace, just continue parsing
-        lexRec tail tokens
+        lexRec chars tokens
 
       -- parentheses are tokens of their own
-      | CharClass.ParenOpen => lexRec tail (tokens.push Token.ParenOpen)
-      | CharClass.ParenClose => lexRec tail (tokens.push Token.ParenClose)
+      | CharClass.ParenOpen => lexRec chars (tokens.push Token.ParenOpen)
+      | CharClass.ParenClose => lexRec chars (tokens.push Token.ParenClose)
 
       | CharClass.Semicolon =>
           -- semicolon starts a comment
-          let tail := lexComment tail
-          lexRec tail tokens
+          lexRec (lexComment chars) tokens
 
       | CharClass.Digit c =>
         -- digit starts a numeral or a decimal
         let digit := (Char.toNat c) - (Char.toNat '0')
-        let (tail, token) := lexNumeralOrDecimal tail digit
-        lexRec tail (tokens.push token)
+        let (chars, token) := lexNumeralOrDecimal chars digit
+        lexRec chars (tokens.push token)
 
       | CharClass.Hash =>
         -- decide whether to lex hexadecimal or binary with the next character
-        match tail with
-          | 'x' :: first :: tail =>
+        match chars with
+          | 'x' :: first :: chars =>
             if let some first := toHexadecimal first then
-              let (tail, token) := lexHexadecimal tail first
-              lexRec tail (tokens.push token)
+              let (chars, token) := lexHexadecimal chars first
+              lexRec chars (tokens.push token)
             else
               Except.error {}
-          | 'b' :: first :: tail =>
+          | 'b' :: first :: chars =>
             if let some first := toBinary first then
-              let (tail, token) := lexBinary tail first
-              lexRec tail  (tokens.push token)
+              let (chars, token) := lexBinary chars first
+              lexRec chars  (tokens.push token)
             else
               Except.error {}
           | _ => Except.error {}
 
       | CharClass.DoubleQuote => do
         -- double quote starts a string literal
-        let (tail, token) ← lexStringLiteral tail ""
-        lexRec tail (tokens.push token)
+        let (chars, token) ← lexStringLiteral chars ""
+        lexRec chars (tokens.push token)
 
       | CharClass.Colon =>
         -- colon starts a keyword, which continues with a simple symbol string
-        let (tail, name) := lexSimpleSymbolString tail ""
+        let (chars, name) := lexSimpleSymbolString chars ""
         if name.isEmpty then
           Except.error {} -- empty continuation is disallowed
         else
-          lexRec tail (tokens.push (Token.Keyword name))
+          lexRec chars (tokens.push (Token.Keyword name))
 
       | CharClass.Letter c | CharClass.Special c =>
         -- letter or special starts a symbol or a reserved word
-        let (tail, token) := lexSimpleSymbolOrReserved tail (String.singleton c)
-        lexRec tail (tokens.push (token))
+        let (chars, token) := lexSimpleSymbolOrReserved chars (String.singleton c)
+        lexRec chars (tokens.push (token))
 
       | CharClass.Pipe => do
         -- quoted symbol
-        let (tail, token) ← lexQuotedSymbol tail ""
-        lexRec tail (tokens.push (Token.Symbol token))
+        let (chars, token) ← lexQuotedSymbol chars ""
+        lexRec chars (tokens.push (Token.Symbol token))
 
         -- class disallowed here
       | _ => Except.error {}
 
-public def lex (list: List Char): Except ELexer (Array Token) := do
-  lexRec list #[]
+public def lex (chars: List Char): Except ELexer (Array Token) := do
+  lexRec chars #[]
