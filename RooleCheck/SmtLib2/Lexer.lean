@@ -1,6 +1,6 @@
 module
 
-import RooleCheck.Parser.Classifier
+import RooleCheck.SmtLib2.Classifier
 
 public inductive Reserved
   | Binary

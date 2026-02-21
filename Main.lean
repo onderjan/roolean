@@ -1,4 +1,4 @@
-import RooleCheck.Parser.Parser
+import RooleCheck.SmtLib2.Parser
 
 def process: IO (Except EParser (Array SmtCommand)) := do
   let string ← IO.FS.readFile "benchmarks/lean.smt2"

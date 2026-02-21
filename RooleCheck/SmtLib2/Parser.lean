@@ -1,7 +1,6 @@
 module
 
-import RooleCheck.Parser.Lexer
-public import RooleCheck.Parser.Lexer
+public import RooleCheck.SmtLib2.Lexer
 
 public inductive SmtIndex
   | Numeral (value: Nat)
