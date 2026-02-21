@@ -18,23 +18,23 @@ inductive SmtSpecialConstant
   | String (value: String)
 deriving Repr
 
-inductive SmtExpr
+inductive SmtSExpr
   | SpecialConstant(value: SmtSpecialConstant)
   | Symbol (name: String)
   | Reserved (value: Reserved)
   | Keyword (name: String)
-  | Application (list: List SmtExpr)
+  | Exprs (list: List SmtSExpr)
 deriving Repr
 
 inductive SmtAttributeValue
   | SpecialConstant (value: SmtSpecialConstant)
   | Symbol (name: String)
-  | Application (exprs: List SmtExpr)
+  | Exprs (exprs: List SmtSExpr)
 deriving Repr
 
 inductive SmtAttribute
   | Name (name: String)
-  | NameValue (name: String) (value: SmtAttribute)
+  | NameValue (name: String) (value: SmtAttributeValue)
 deriving Repr
 
 inductive SmtSort
@@ -57,6 +57,7 @@ deriving Repr
 
 inductive SmtCommand
   | SetLogic (logic: String)
+  | SetInfo (attr: SmtAttribute)
   | DeclareConst (name: String) (sort: SmtSort)
   | Assert (term: SmtTerm)
   | CheckSat
@@ -89,6 +90,56 @@ def parseIdent (tokens: List Token) : Except Unit ((List Token) × SmtIdent) :=
       let tail ← consumeParenClose tail
       pure (tail, SmtIdent.Indexed name firstIndex nextIndices)
     else Except.error ()
+  | _ => Except.error ()
+
+def parseSpecialConstantOpt (tokens: List Token) : ((List Token) × Option SmtSpecialConstant) :=
+  match tokens with
+    | Token.Numeral value :: tail => (tail, some (SmtSpecialConstant.Numeral value))
+    | Token.Decimal numer minus_log_10 :: tail => (tail, some (SmtSpecialConstant.Decimal numer minus_log_10))
+    | Token.Hexadecimal value :: tail => (tail, some (SmtSpecialConstant.Hexadecimal value))
+    | Token.Binary value :: tail => (tail, some (SmtSpecialConstant.Binary value))
+    | Token.String value :: tail => (tail, some (SmtSpecialConstant.String value))
+    | _ => (tokens, none)
+
+-- TODO prove termination
+partial def parseSExprRevList (tokens: List Token) (exprs: List SmtSExpr) : Except Unit ((List Token) × (List SmtSExpr)) :=
+  let (tail, constant) := parseSpecialConstantOpt tokens
+  if let some constant := constant then
+    parseSExprRevList tail ((SmtSExpr.SpecialConstant constant) :: exprs)
+  else match tail with
+    | Token.Symbol name :: tail => parseSExprRevList tail ((SmtSExpr.Symbol name) :: exprs)
+    | Token.Reserved value :: tail => parseSExprRevList tail ((SmtSExpr.Reserved value) :: exprs)
+    | Token.Keyword keyword :: tail => parseSExprRevList tail ((SmtSExpr.Keyword keyword) :: exprs)
+    | Token.ParenOpen :: tail => do
+      let (tail, innerExprs) ← parseSExprRevList tail []
+      match tail with
+        | Token.ParenClose :: tail => parseSExprRevList tail ((SmtSExpr.Exprs innerExprs.reverse) :: exprs)
+        | _ => Except.error ()
+    | _ => pure (tail, exprs)
+
+
+def parseAttributeValueOpt (tokens: List Token) : Except Unit ((List Token) × Option SmtAttributeValue) :=
+  let (tail, constant) := parseSpecialConstantOpt tokens
+  if let some constant := constant then
+    pure (tail, some (SmtAttributeValue.SpecialConstant constant))
+  else match tail with
+    | Token.Symbol name :: tail => pure (tail, some (SmtAttributeValue.Symbol name))
+    | Token.ParenOpen :: tail => do
+      let (tail, exprs) ← parseSExprRevList tail []
+      match tail with
+        | Token.ParenClose :: tail => pure (tail, SmtAttributeValue.Exprs exprs.reverse)
+        | _ => Except.error ()
+    | _ => Except.error ()
+
+
+def parseAttribute (tokens: List Token) : Except Unit ((List Token) × SmtAttribute) :=
+  match tokens with
+  | Token.Keyword keyword :: tail => do
+    let (tail, value) ← parseAttributeValueOpt tail
+    if let some value := value then
+      pure (tail, SmtAttribute.NameValue keyword value)
+    else
+      pure (tail, SmtAttribute.Name keyword)
   | _ => Except.error ()
 
 
@@ -169,6 +220,13 @@ partial def parseCommands (tokens: List Token) (commands: List SmtCommand) : Exc
 
     | Token.ParenOpen :: Token.Symbol "set-logic" :: Token.Symbol logic :: Token.ParenClose :: tail =>
       parseCommands tail (SmtCommand.SetLogic logic :: commands)
+
+
+    | Token.ParenOpen :: Token.Symbol "set-info":: tail =>
+      match parseAttribute tail with
+        | Except.ok (Token.ParenClose :: tail, attr) =>
+          parseCommands tail (SmtCommand.SetInfo attr :: commands)
+        | _ => Except.error (EParser.Parser commands tokens)
 
     | Token.ParenOpen :: Token.Symbol "declare-fun" :: Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tail => do
       match parseSort tail with
