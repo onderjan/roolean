@@ -78,77 +78,77 @@ deriving Repr
 
 def consumeParenClose(tokens: List Token): Except Unit (List Token) :=
   match tokens with
-  | Token.ParenClose :: tail => pure tail
+  | Token.ParenClose :: tokens => pure tokens
   | _ => Except.error ()
 
 
 def parseIndices (tokens: List Token) (indices: Array SmtIndex) : (List Token × Array SmtIndex) :=
   match tokens with
-    | Token.Numeral value :: tail => (tail, indices.push (SmtIndex.Numeral value))
-    | Token.Symbol name :: tail => (tail, indices.push (SmtIndex.Symbol name))
+    | Token.Numeral value :: tokens => (tokens, indices.push (SmtIndex.Numeral value))
+    | Token.Symbol name :: tokens => (tokens, indices.push (SmtIndex.Symbol name))
     | _ => (tokens, indices)
 
 def parseIdent (tokens: List Token) : Except Unit ((List Token) × SmtIdent) :=
   match tokens with
-  | Token.Symbol name :: tail => pure (tail, (SmtIdent.Symbol name))
-  | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: Token.Symbol name :: tail => do
+  | Token.Symbol name :: tokens => pure (tokens, (SmtIdent.Symbol name))
+  | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: Token.Symbol name :: tokens => do
     -- indexed identifier, one or more indices
-    let (tail, indices) := parseIndices tail #[]
+    let (tokens, indices) := parseIndices tokens #[]
     if indices.isEmpty then
       Except.error ()
     else
-      let tail ← consumeParenClose tail
-      pure (tail, SmtIdent.Indexed name indices)
+      let tokens ← consumeParenClose tokens
+      pure (tokens, SmtIdent.Indexed name indices)
   | _ => Except.error ()
 
 def parseSpecialConstantOpt (tokens: List Token) : ((List Token) × Option SmtSpecialConstant) :=
   match tokens with
-    | Token.Numeral value :: tail => (tail, some (SmtSpecialConstant.Numeral value))
-    | Token.Decimal numer minus_log_10 :: tail => (tail, some (SmtSpecialConstant.Decimal numer minus_log_10))
-    | Token.Hexadecimal value :: tail => (tail, some (SmtSpecialConstant.Hexadecimal value))
-    | Token.Binary value :: tail => (tail, some (SmtSpecialConstant.Binary value))
-    | Token.String value :: tail => (tail, some (SmtSpecialConstant.String value))
+    | Token.Numeral value :: tokens => (tokens, some (SmtSpecialConstant.Numeral value))
+    | Token.Decimal numer minus_log_10 :: tokens => (tokens, some (SmtSpecialConstant.Decimal numer minus_log_10))
+    | Token.Hexadecimal value :: tokens => (tokens, some (SmtSpecialConstant.Hexadecimal value))
+    | Token.Binary value :: tokens => (tokens, some (SmtSpecialConstant.Binary value))
+    | Token.String value :: tokens => (tokens, some (SmtSpecialConstant.String value))
     | _ => (tokens, none)
 
 -- TODO prove termination
 partial def parseSExprs (tokens: List Token) (exprs: Array SmtSExpr) : Except Unit ((List Token) × (Array SmtSExpr)) :=
-  let (tail, constant) := parseSpecialConstantOpt tokens
+  let (tokens, constant) := parseSpecialConstantOpt tokens
   if let some constant := constant then
-    parseSExprs tail (exprs.push (SmtSExpr.SpecialConstant constant))
-  else match tail with
-    | Token.Symbol name :: tail => parseSExprs tail (exprs.push (SmtSExpr.Symbol name))
-    | Token.Reserved value :: tail => parseSExprs tail (exprs.push (SmtSExpr.Reserved value))
-    | Token.Keyword keyword :: tail => parseSExprs tail (exprs.push (SmtSExpr.Keyword keyword))
-    | Token.ParenOpen :: tail => do
-      let (tail, innerExprs) ← parseSExprs tail #[]
-      match tail with
-        | Token.ParenClose :: tail => parseSExprs tail (exprs.push (SmtSExpr.Exprs innerExprs))
+    parseSExprs tokens (exprs.push (SmtSExpr.SpecialConstant constant))
+  else match tokens with
+    | Token.Symbol name :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Symbol name))
+    | Token.Reserved value :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Reserved value))
+    | Token.Keyword keyword :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Keyword keyword))
+    | Token.ParenOpen :: tokens => do
+      let (tokens, innerExprs) ← parseSExprs tokens #[]
+      match tokens with
+        | Token.ParenClose :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Exprs innerExprs))
         | _ => Except.error ()
-    | _ => pure (tail, exprs)
+    | _ => pure (tokens, exprs)
 
 
 def parseAttributeValueOpt (tokens: List Token) : Except Unit ((List Token) × Option SmtAttributeValue) :=
-  let (tail, constant) := parseSpecialConstantOpt tokens
+  let (tokens, constant) := parseSpecialConstantOpt tokens
   if let some constant := constant then
-    pure (tail, some (SmtAttributeValue.SpecialConstant constant))
-  else match tail with
-    | Token.Symbol name :: tail => pure (tail, some (SmtAttributeValue.Symbol name))
-    | Token.ParenOpen :: tail => do
-      let (tail, exprs) ← parseSExprs tail #[]
-      match tail with
-        | Token.ParenClose :: tail => pure (tail, SmtAttributeValue.Exprs exprs.reverse)
+    pure (tokens, some (SmtAttributeValue.SpecialConstant constant))
+  else match tokens with
+    | Token.Symbol name :: tokens => pure (tokens, some (SmtAttributeValue.Symbol name))
+    | Token.ParenOpen :: tokens => do
+      let (tokens, exprs) ← parseSExprs tokens #[]
+      match tokens with
+        | Token.ParenClose :: tokens => pure (tokens, SmtAttributeValue.Exprs exprs.reverse)
         | _ => Except.error ()
     | _ => Except.error ()
 
 
 def parseAttribute (tokens: List Token) : Except Unit ((List Token) × SmtAttribute) :=
   match tokens with
-  | Token.Keyword keyword :: tail => do
-    let (tail, value) ← parseAttributeValueOpt tail
+  | Token.Keyword keyword :: tokens => do
+    let (tokens, value) ← parseAttributeValueOpt tokens
     if let some value := value then
-      pure (tail, SmtAttribute.NameValue keyword value)
+      pure (tokens, SmtAttribute.NameValue keyword value)
     else
-      pure (tail, SmtAttribute.Name keyword)
+      pure (tokens, SmtAttribute.Name keyword)
   | _ => Except.error ()
 
 
@@ -157,89 +157,89 @@ mutual
 partial def parseSortApplication (tokens: List Token) (ident: SmtIdent) (sorts: Array SmtSort)
   : Except Unit ((List Token) × SmtSort)  := do
   -- only simple sorts implemented
-    let (tail, sort) ← parseSort tokens
-    parseSortApplication tail ident (sorts.push sort)
+    let (tokens, sort) ← parseSort tokens
+    parseSortApplication tokens ident (sorts.push sort)
 
 partial def parseSort (tokens: List Token) : Except Unit ((List Token) × SmtSort) := do
   match tokens with
     | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
       -- sort consists of an indexed ident
-      let (tail, ident) ← parseIdent tokens
-      pure (tail, SmtSort.Ident ident)
+      let (tokens, ident) ← parseIdent tokens
+      pure (tokens, SmtSort.Ident ident)
 
-    | Token.ParenOpen :: tail =>
+    | Token.ParenOpen :: tokens =>
       -- sort consists of an application
-      let (tail, ident) ← parseIdent tail
-      parseSortApplication tail ident #[]
+      let (tokens, ident) ← parseIdent tokens
+      parseSortApplication tokens ident #[]
     | _ => -- sort consists of an ident
-      let (tail, ident) ← parseIdent tokens
-      pure (tail, SmtSort.Ident ident)
+      let (tokens, ident) ← parseIdent tokens
+      pure (tokens, SmtSort.Ident ident)
 end
 
 def parseQualifiedIdent (tokens: List Token) : Except Unit ((List Token) × SmtQualifiedIdent) := do
   -- TODO qualification
-  let (tail, ident) ← parseIdent tokens
-  pure (tail, SmtQualifiedIdent.Ident ident)
+  let (tokens, ident) ← parseIdent tokens
+  pure (tokens, SmtQualifiedIdent.Ident ident)
 
 -- TODO prove termination
 mutual
 partial def parseTermApplication (tokens: List Token)
               (ident: SmtQualifiedIdent) (terms: Array SmtTerm): Except Unit ((List Token) × SmtTerm)  := do
   match tokens with
-    | Token.ParenClose :: tail =>
+    | Token.ParenClose :: tokens =>
       if terms.isEmpty then
         Except.error ()
       else
-        pure (tail, SmtTerm.Application ident terms)
+        pure (tokens, SmtTerm.Application ident terms)
     | _ =>
-      let (tail, term) ← parseTerm tokens
-      parseTermApplication tail ident (terms.push term)
+      let (tokens, term) ← parseTerm tokens
+      parseTermApplication tokens ident (terms.push term)
 
 partial def parseLetBindings (tokens: List Token) (bindings: Array (String × SmtTerm))
   : Except Unit ((List Token) × Array (String × SmtTerm)) :=
   match tokens with
-    | Token.ParenOpen :: Token.Symbol name :: tail => do
-      let (tail, term) ← parseTerm tail
-      let tail ← consumeParenClose tail
-      parseLetBindings tail (bindings.push (name, term))
+    | Token.ParenOpen :: Token.Symbol name :: tokens => do
+      let (tokens, term) ← parseTerm tokens
+      let tokens ← consumeParenClose tokens
+      parseLetBindings tokens (bindings.push (name, term))
     | _ => pure (tokens, bindings)
 
 partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTerm) := do
-  let (tail, constant) := parseSpecialConstantOpt tokens
+  let (tokens, constant) := parseSpecialConstantOpt tokens
   if let some constant := constant then
-    pure (tail, SmtTerm.SpecialConstant constant)
+    pure (tokens, SmtTerm.SpecialConstant constant)
   else match tokens with
-    | Token.Numeral value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value))
-    | Token.Decimal numer minus_log_10 :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal numer minus_log_10))
-    | Token.Hexadecimal value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value))
-    | Token.Binary value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value))
-    | Token.String value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
+    | Token.Numeral value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value))
+    | Token.Decimal numer minus_log_10 :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal numer minus_log_10))
+    | Token.Hexadecimal value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value))
+    | Token.Binary value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value))
+    | Token.String value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
 
     | Token.Symbol _ :: _ =>
       -- normal identifier
-      let (tail, ident) ← parseIdent tokens
-      pure (tail, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
+      let (tokens, ident) ← parseIdent tokens
+      pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
 
     | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
       -- qualified identifier
-      let (tail, ident) ← parseIdent tokens
-      pure (tail, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
+      let (tokens, ident) ← parseIdent tokens
+      pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
 
-    | Token.ParenOpen :: Token.Reserved Reserved.Let :: Token.ParenOpen :: tail =>
+    | Token.ParenOpen :: Token.Reserved Reserved.Let :: Token.ParenOpen :: tokens =>
       -- let
-      let (tail, bindings) ← parseLetBindings tail #[]
+      let (tokens, bindings) ← parseLetBindings tokens #[]
       if bindings.isEmpty then
         Except.error ()
       else
-        let tail ← consumeParenClose tail
-        let (tail, term) ← parseTerm tail
-        let tail ← consumeParenClose tail
-        pure (tail, SmtTerm.Let bindings term)
+        let tokens ← consumeParenClose tokens
+        let (tokens, term) ← parseTerm tokens
+        let tokens ← consumeParenClose tokens
+        pure (tokens, SmtTerm.Let bindings term)
 
-    | Token.ParenOpen :: tail =>
+    | Token.ParenOpen :: tokens =>
       -- application
-      let (tail, ident) ← parseQualifiedIdent tail
-      parseTermApplication tail ident #[]
+      let (tokens, ident) ← parseQualifiedIdent tokens
+      parseTermApplication tokens ident #[]
 
     -- unsupported: lambda, forall, exists, match, !
 
@@ -251,40 +251,40 @@ partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Ex
   match tokens with
     | [] => pure commands
 
-    | Token.ParenOpen :: Token.Symbol "set-logic" :: Token.Symbol logic :: Token.ParenClose :: tail =>
-      parseCommands tail (commands.push (SmtCommand.SetLogic logic))
+    | Token.ParenOpen :: Token.Symbol "set-logic" :: Token.Symbol logic :: Token.ParenClose :: tokens =>
+      parseCommands tokens (commands.push (SmtCommand.SetLogic logic))
 
 
-    | Token.ParenOpen :: Token.Symbol "set-info":: tail =>
-      match parseAttribute tail with
-        | Except.ok (Token.ParenClose :: tail, attr) =>
-          parseCommands tail (commands.push (SmtCommand.SetInfo attr))
+    | Token.ParenOpen :: Token.Symbol "set-info":: tokens =>
+      match parseAttribute tokens with
+        | Except.ok (Token.ParenClose :: tokens, attr) =>
+          parseCommands tokens (commands.push (SmtCommand.SetInfo attr))
         | _ => Except.error (EParser.Parser commands tokens)
 
-    | Token.ParenOpen :: Token.Symbol "declare-fun" :: Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tail => do
-      match parseSort tail with
-        | Except.ok (Token.ParenClose :: tail, sort) =>
-          parseCommands tail (commands.push (SmtCommand.DeclareConst name sort))
+    | Token.ParenOpen :: Token.Symbol "declare-fun" :: Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens => do
+      match parseSort tokens with
+        | Except.ok (Token.ParenClose :: tokens, sort) =>
+          parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
         | _ => Except.error (EParser.Parser commands tokens)
 
-    | Token.ParenOpen :: Token.Symbol "declare-const" :: Token.Symbol name :: tail => do
-      match parseSort tail with
-        | Except.ok (Token.ParenClose :: tail, sort) =>
-          parseCommands tail (commands.push (SmtCommand.DeclareConst name sort))
+    | Token.ParenOpen :: Token.Symbol "declare-const" :: Token.Symbol name :: tokens => do
+      match parseSort tokens with
+        | Except.ok (Token.ParenClose :: tokens, sort) =>
+          parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
         | _ => Except.error (EParser.Parser commands tokens)
 
 
-    | Token.ParenOpen :: Token.Symbol "assert":: tail =>
-      match parseTerm tail with
-        | Except.ok (Token.ParenClose :: tail, term) =>
-          parseCommands tail (commands.push (SmtCommand.Assert term))
+    | Token.ParenOpen :: Token.Symbol "assert":: tokens =>
+      match parseTerm tokens with
+        | Except.ok (Token.ParenClose :: tokens, term) =>
+          parseCommands tokens (commands.push (SmtCommand.Assert term))
         | _ => Except.error (EParser.Parser commands tokens)
 
-    | Token.ParenOpen :: Token.Symbol "check-sat" :: Token.ParenClose :: tail =>
-      parseCommands tail (commands.push (SmtCommand.CheckSat))
+    | Token.ParenOpen :: Token.Symbol "check-sat" :: Token.ParenClose :: tokens =>
+      parseCommands tokens (commands.push (SmtCommand.CheckSat))
 
-    | Token.ParenOpen :: Token.Symbol "exit" :: Token.ParenClose :: tail =>
-      parseCommands tail (commands.push (SmtCommand.Exit))
+    | Token.ParenOpen :: Token.Symbol "exit" :: Token.ParenClose :: tokens =>
+      parseCommands tokens (commands.push (SmtCommand.Exit))
 
     | _ => Except.error (EParser.Parser commands tokens)
 
