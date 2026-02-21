@@ -73,7 +73,7 @@ deriving Repr
 
 inductive EParser where
   | Lexer (err: ELexer)
-  | Parser (commands: Array SmtCommand) (tokens: List Token)
+  | Parser
 deriving Repr
 
 def consumeParenClose(tokens: List Token): Except Unit (List Token) :=
@@ -259,26 +259,26 @@ partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Ex
       match parseAttribute tokens with
         | Except.ok (Token.ParenClose :: tokens, attr) =>
           parseCommands tokens (commands.push (SmtCommand.SetInfo attr))
-        | _ => Except.error (EParser.Parser commands tokens)
+        | _ => Except.error EParser.Parser
 
     | Token.ParenOpen :: Token.Symbol "declare-fun" :: Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens => do
       match parseSort tokens with
         | Except.ok (Token.ParenClose :: tokens, sort) =>
           parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-        | _ => Except.error (EParser.Parser commands tokens)
+        | _ => Except.error EParser.Parser
 
     | Token.ParenOpen :: Token.Symbol "declare-const" :: Token.Symbol name :: tokens => do
       match parseSort tokens with
         | Except.ok (Token.ParenClose :: tokens, sort) =>
           parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-        | _ => Except.error (EParser.Parser commands tokens)
+        | _ => Except.error EParser.Parser
 
 
     | Token.ParenOpen :: Token.Symbol "assert":: tokens =>
       match parseTerm tokens with
         | Except.ok (Token.ParenClose :: tokens, term) =>
           parseCommands tokens (commands.push (SmtCommand.Assert term))
-        | _ => Except.error (EParser.Parser commands tokens)
+        | _ => Except.error EParser.Parser
 
     | Token.ParenOpen :: Token.Symbol "check-sat" :: Token.ParenClose :: tokens =>
       parseCommands tokens (commands.push (SmtCommand.CheckSat))
@@ -286,7 +286,7 @@ partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Ex
     | Token.ParenOpen :: Token.Symbol "exit" :: Token.ParenClose :: tokens =>
       parseCommands tokens (commands.push (SmtCommand.Exit))
 
-    | _ => Except.error (EParser.Parser commands tokens)
+    | _ => Except.error EParser.Parser
 
 def parse (chars: List Char): Except EParser (Array SmtCommand) :=
   match lex chars with
