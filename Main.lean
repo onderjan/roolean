@@ -7,7 +7,8 @@ deriving Repr
 
 inductive SmtIdent
   | Symbol (name: String)
-  | Indexed (name: String) (firstIndex: SmtIndex) (nextIndices: List SmtIndex)
+  -- there must be at least one index
+  | Indexed (name: String) (indices: List SmtIndex)
 deriving Repr
 
 inductive SmtSpecialConstant
@@ -43,15 +44,21 @@ inductive SmtSort
 deriving Repr
 
 inductive SmtQualifiedIdent
-  -- qualified idents not implemented
+  -- 'as' qualified idents not implemented
   | Ident (ident: SmtIdent)
 deriving Repr
+
+structure SmtVariableBinding where
+  symbol: String
+  term: SmtTerm
 
 inductive SmtTerm
   | SpecialConstant (constant: SmtSpecialConstant)
   | QualifiedIdent (qualified: SmtQualifiedIdent)
   -- there must be at least one term
   | Application (qualified: SmtQualifiedIdent) (terms: List SmtTerm)
+  -- there must be at least one binding
+  | Let (bindings: List (String × SmtTerm)) (term: SmtTerm)
   -- TODO let, lambda, forall, exists, match, !
 deriving Repr
 
@@ -75,7 +82,7 @@ def consumeParenClose(tokens: List Token): Except Unit (List Token) :=
   | _ => Except.error ()
 
 
-def parseIndices (tokens: List Token) (indices: List SmtIndex) : (List Token × List SmtIndex) :=
+def parseIndexRevList (tokens: List Token) (indices: List SmtIndex) : (List Token × List SmtIndex) :=
   match tokens with
     | Token.Numeral value :: tail => (tail, SmtIndex.Numeral value :: indices)
     | Token.Symbol name :: tail => (tail, SmtIndex.Symbol name :: indices)
@@ -86,9 +93,10 @@ def parseIdent (tokens: List Token) : Except Unit ((List Token) × SmtIdent) :=
   | Token.Symbol name :: tail => pure (tail, (SmtIdent.Symbol name))
   | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: Token.Symbol name :: tail => do
     -- indexed identifier, one or more indices
-    if let (tail, firstIndex :: nextIndices) := parseIndices tail [] then
+    let (tail, indices) := parseIndexRevList tail []
+    if let firstIndex :: nextIndices := indices.reverse then
       let tail ← consumeParenClose tail
-      pure (tail, SmtIdent.Indexed name firstIndex nextIndices)
+      pure (tail, SmtIdent.Indexed name (firstIndex :: nextIndices))
     else Except.error ()
   | _ => Except.error ()
 
@@ -184,26 +192,52 @@ partial def parseTermApplication (tokens: List Token)
       let (tail, term) ← parseTerm tokens
       parseTermApplication tail ident (term :: revTerms)
 
-partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTerm) := do
+partial def parseLetBindingRevList (tokens: List Token) (bindings: List (String × SmtTerm))
+  : Except Unit ((List Token) × List (String × SmtTerm)) :=
   match tokens with
+    | Token.ParenOpen :: Token.Symbol name :: tail => do
+      let (tail, term) ← parseTerm tail
+      let tail ← consumeParenClose tail
+      parseLetBindingRevList tail ((name, term) :: bindings)
+    | _ => pure (tokens, bindings)
+
+partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTerm) := do
+  let (tail, constant) := parseSpecialConstantOpt tokens
+  if let some constant := constant then
+    pure (tail, SmtTerm.SpecialConstant constant)
+  else match tokens with
     | Token.Numeral value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value))
     | Token.Decimal numer minus_log_10 :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal numer minus_log_10))
     | Token.Hexadecimal value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value))
     | Token.Binary value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value))
     | Token.String value :: tail => pure (tail, SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
+
     | Token.Symbol _ :: _ =>
       -- normal identifier
       let (tail, ident) ← parseIdent tokens
       pure (tail, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
+
     | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
       -- qualified identifier
       let (tail, ident) ← parseIdent tokens
       pure (tail, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
-    -- TODO let, lambda, forall, exists, match, !
+
+    | Token.ParenOpen :: Token.Reserved Reserved.Let :: Token.ParenOpen :: tail =>
+      -- let
+      let (tail, bindings) ← parseLetBindingRevList tail []
+      let tail ← consumeParenClose tail
+      let (tail, term) ← parseTerm tail
+      let tail ← consumeParenClose tail
+      match bindings with
+        | firstBinding :: nextBindings => pure (tail, SmtTerm.Let (firstBinding :: nextBindings) term)
+        | _ => Except.error ()
+
     | Token.ParenOpen :: tail =>
       -- application
       let (tail, ident) ← parseQualifiedIdent tail
       parseTermApplication tail ident []
+
+    -- unsupported: lambda, forall, exists, match, !
 
     | _ => Except.error ()
 end
@@ -268,4 +302,4 @@ def process: IO (Except EParser (List SmtCommand)) := do
 def main : IO Unit := do
   let _discard ← process
 
- #eval process
+#eval process
