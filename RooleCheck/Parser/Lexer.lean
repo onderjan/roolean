@@ -62,7 +62,7 @@ def lexNumeralOrDecimal (chars: List Char) (num: Nat): List Char × Token :=
         | CharClass.Dot =>
           -- decimal, lex fraction, initially with unit multiplicand (0 in minus log10)
           lexFraction chars num 0
-        | _ => (chars, Token.Numeral num)
+        | _ => (c :: chars, Token.Numeral num)
 
 def toHexadecimal (c: Char): Option Nat :=
   if c >= '0' && c <= '9' then
@@ -81,7 +81,7 @@ def lexHexadecimal (chars: List Char) (num: Nat): List Char × Token :=
       if let some digit := toHexadecimal c then
         lexHexadecimal chars (num * 16 + digit)
       else
-        (chars, Token.Hexadecimal num)
+        (c :: chars, Token.Hexadecimal num)
 
 def toBinary (c: Char): Option Nat :=
   if c >= '0' && c <= '1' then
@@ -96,7 +96,7 @@ def lexBinary (chars: List Char) (num: Nat): List Char × Token :=
       if let some digit := toHexadecimal c then
         lexBinary chars (num * 2 + digit)
       else
-        (chars, Token.Binary num)
+        (c :: chars, Token.Binary num)
 
 def lexStringLiteral (chars: List Char) (literal: String): Except ELexer (List Char × Token) :=
   match chars with
@@ -124,7 +124,7 @@ def lexSimpleSymbolString (chars: List Char) (name: String): List Char × String
           lexSimpleSymbolString chars (String.push name char)
         | CharClass.Dot =>
           lexSimpleSymbolString chars (String.push name '.')
-        | _ => (chars, name)
+        | _ => (c :: chars, name)
 
 def lexSimpleSymbolOrReserved (chars: List Char) (name: String): List Char × Token :=
   let (chars, name) := lexSimpleSymbolString chars name
