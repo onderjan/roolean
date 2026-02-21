@@ -176,7 +176,7 @@ def lexComment (list: List Char): List Char :=
         | _ => lexComment tail
 
 -- TODO termination proof
-partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List Token) :=
+partial def lexRec (list: List Char) (tokens: Array Token): Except ELexer (Array Token) :=
   match list with
     | [] => pure tokens
     | char :: tail =>
@@ -184,8 +184,8 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
       | CharClass.Tab | CharClass.Space | CharClass.LineBreak =>
         -- whitespace, just continue parsing
         lexRec tail tokens
-      | CharClass.ParenOpen => lexRec tail (Token.ParenOpen :: tokens)
-      | CharClass.ParenClose => lexRec tail (Token.ParenClose :: tokens)
+      | CharClass.ParenOpen => lexRec tail (tokens.push Token.ParenOpen)
+      | CharClass.ParenClose => lexRec tail (tokens.push Token.ParenClose)
 
       | CharClass.Semicolon =>
           -- semicolon starts a comment
@@ -196,7 +196,7 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
         -- digit starts a numeral or a decimal
         let digit := (Char.toNat c) - (Char.toNat '0')
         let (tail, token) := lexNumeralOrDecimal tail digit
-        lexRec tail (token :: tokens)
+        lexRec tail (tokens.push token)
 
       | CharClass.Hash =>
         -- decide whether to lex hexadecimal or binary with the next character
@@ -204,13 +204,13 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
           | 'x' :: first :: tail =>
             if let some first := toHexadecimal first then
               let (tail, token) := lexHexadecimal tail first
-              lexRec tail (token :: tokens)
+              lexRec tail (tokens.push token)
             else
               Except.error {}
           | 'b' :: first :: tail =>
             if let some first := toBinary first then
               let (tail, token) := lexBinary tail first
-              lexRec tail (token :: tokens)
+              lexRec tail  (tokens.push token)
             else
               Except.error {}
           | _ => Except.error {}
@@ -218,7 +218,7 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
       | CharClass.DoubleQuote =>
         -- double quote starts a string literal
         match lexStringLiteral tail "" with
-          | Except.ok (tail, token) => lexRec tail (token :: tokens)
+          | Except.ok (tail, token) => lexRec tail (tokens.push token)
           | Except.error () =>
               Except.error {}
 
@@ -228,22 +228,22 @@ partial def lexRec (list: List Char) (tokens: List Token): Except ELexer (List T
         match name with
           | "" => -- empty continuation is disallowed
             Except.error {}
-          | _ => lexRec tail ((Token.Keyword name) :: tokens)
+          | _ => lexRec tail (tokens.push (Token.Keyword name))
 
       | CharClass.Letter c | CharClass.Special c =>
         -- letter or special starts a symbol or a reserved word
         let (tail, token) := lexSimpleSymbolOrReserved tail (String.singleton c)
-        lexRec tail ((token) :: tokens)
+        lexRec tail (tokens.push (token))
 
       | CharClass.Pipe =>
         -- quoted symbol
         match lexQuotedSymbol tail "" with
-          | Except.ok (tail, token) => lexRec tail ((Token.Symbol token) :: tokens)
+          | Except.ok (tail, token) => lexRec tail (tokens.push (Token.Symbol token))
           | Except.error () =>
               Except.error {}
 
         -- classification disallowed here
       | _ => Except.error {}
 
-public def lex (list: List Char): Except ELexer (List Token) := do
-  (lexRec list List.nil).map List.reverse
+public def lex (list: List Char): Except ELexer (Array Token) := do
+  lexRec list #[]

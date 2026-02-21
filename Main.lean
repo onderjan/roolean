@@ -291,6 +291,7 @@ partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Ex
 def parse (chars: List Char): Except EParser (Array SmtCommand) :=
   match lex chars with
     | Except.ok tokens => do
+      let tokens := tokens.toList
       let parsed ← parseCommands tokens #[]
       pure parsed
     | Except.error err => Except.error (EParser.Lexer err)
