@@ -39,11 +39,11 @@ deriving Repr
 
 inductive SmtSort
   | Ident (ident: SmtIdent)
-  | Application (ident: SmtIdent) (firstSort: SmtSort) (nextSorts: List SmtSort)
+  -- sort applications not implemented
 deriving Repr
 
 inductive SmtQualifiedIdent
-  -- TODO qualification
+  -- qualified idents not implemented
   | Ident (ident: SmtIdent)
 deriving Repr
 
@@ -146,14 +146,9 @@ def parseAttribute (tokens: List Token) : Except Unit ((List Token) × SmtAttrib
 -- TODO prove termination
 mutual
 partial def parseSortApplication (tokens: List Token) (ident: SmtIdent) (revSorts: List SmtSort): Except Unit ((List Token) × SmtSort)  := do
-  match tokens with
-    | Token.ParenClose :: tail =>
-      match revSorts.reverse with
-        | firstSort :: nextSorts => pure (tail, SmtSort.Application ident firstSort nextSorts)
-        | _ => Except.error ()
-    | _ =>
-      let (tail, sort) ← parseSort tokens
-      parseSortApplication tail ident (sort :: revSorts)
+  -- only simple sorts implemented
+    let (tail, sort) ← parseSort tokens
+    parseSortApplication tail ident (sort :: revSorts)
 
 partial def parseSort (tokens: List Token) : Except Unit ((List Token) × SmtSort) := do
   match tokens with
