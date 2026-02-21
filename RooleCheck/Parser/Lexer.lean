@@ -37,12 +37,6 @@ deriving Repr
 public structure ELexer
 deriving Repr
 
-structure Lexer where
-  tokens: List Token
-
-def addToken(lexer: Lexer) (token: Token): Lexer :=
-{ tokens := (List.cons (token) lexer.tokens) }
-
 def lexFraction (list: List Char) (numer: Nat) (minus_log_10: Nat): List Char × Token :=
   -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
   -- but does not have a rule for decimals of form 7. without trailing zero
@@ -104,9 +98,9 @@ def lexBinary (list: List Char) (num: Nat): List Char × Token :=
       else
         (tail, Token.Binary num)
 
-def lexStringLiteral (list: List Char) (literal: String): Except Unit (List Char × Token) :=
+def lexStringLiteral (list: List Char) (literal: String): Except ELexer (List Char × Token) :=
   match list with
-    | [] => Except.error () -- forbidden as the literal must be totally enclosed by double quotes
+    | [] => Except.error {} -- forbidden as the literal must be totally enclosed by double quotes
     | char :: tail =>
       let classified := classify char
       match classified with
@@ -118,7 +112,7 @@ def lexStringLiteral (list: List Char) (literal: String): Except Unit (List Char
         | _ => if isPrintableOrWhitespace classified then
             lexStringLiteral tail (literal.push char)
           else
-            Except.error () -- forbidden as not printable or whitespace
+            Except.error {} -- forbidden as not printable or whitespace
 
 
 def lexSimpleSymbolString (list: List Char) (name: String): List Char × String :=
@@ -153,18 +147,18 @@ def lexSimpleSymbolOrReserved (list: List Char) (name: String): List Char × Tok
     | _ => Token.Symbol name
   (tail, token)
 
-def lexQuotedSymbol (list: List Char) (name: String): Except Unit (List Char × String) :=
+def lexQuotedSymbol (list: List Char) (name: String): Except ELexer (List Char × String) :=
   match list with
-    | [] => Except.error () -- forbidden as the symbol must be totally enclosed by pipes
+    | [] => Except.error {} -- forbidden as the symbol must be totally enclosed by pipes
     | char :: tail =>
       let classified := classify char
       match classified with
-        | CharClass.Backslash => Except.error () -- backslash forbidden in quoted symbols
+        | CharClass.Backslash => Except.error {} -- backslash forbidden in quoted symbols
         | CharClass.Pipe => pure (tail, name) -- end quoted symbol
         | _ => if isPrintableOrWhitespace classified then
             lexQuotedSymbol tail (name.push char)
           else
-            Except.error () -- forbidden as not printable or whitespace
+            Except.error {} -- forbidden as not printable or whitespace
 
 
 def lexComment (list: List Char): List Char :=
@@ -184,6 +178,8 @@ partial def lexRec (list: List Char) (tokens: Array Token): Except ELexer (Array
       | CharClass.Tab | CharClass.Space | CharClass.LineBreak =>
         -- whitespace, just continue parsing
         lexRec tail tokens
+
+      -- parentheses are tokens of their own
       | CharClass.ParenOpen => lexRec tail (tokens.push Token.ParenOpen)
       | CharClass.ParenClose => lexRec tail (tokens.push Token.ParenClose)
 
@@ -215,34 +211,30 @@ partial def lexRec (list: List Char) (tokens: Array Token): Except ELexer (Array
               Except.error {}
           | _ => Except.error {}
 
-      | CharClass.DoubleQuote =>
+      | CharClass.DoubleQuote => do
         -- double quote starts a string literal
-        match lexStringLiteral tail "" with
-          | Except.ok (tail, token) => lexRec tail (tokens.push token)
-          | Except.error () =>
-              Except.error {}
+        let (tail, token) ← lexStringLiteral tail ""
+        lexRec tail (tokens.push token)
 
       | CharClass.Colon =>
         -- colon starts a keyword, which continues with a simple symbol string
         let (tail, name) := lexSimpleSymbolString tail ""
-        match name with
-          | "" => -- empty continuation is disallowed
-            Except.error {}
-          | _ => lexRec tail (tokens.push (Token.Keyword name))
+        if name.isEmpty then
+          Except.error {} -- empty continuation is disallowed
+        else
+          lexRec tail (tokens.push (Token.Keyword name))
 
       | CharClass.Letter c | CharClass.Special c =>
         -- letter or special starts a symbol or a reserved word
         let (tail, token) := lexSimpleSymbolOrReserved tail (String.singleton c)
         lexRec tail (tokens.push (token))
 
-      | CharClass.Pipe =>
+      | CharClass.Pipe => do
         -- quoted symbol
-        match lexQuotedSymbol tail "" with
-          | Except.ok (tail, token) => lexRec tail (tokens.push (Token.Symbol token))
-          | Except.error () =>
-              Except.error {}
+        let (tail, token) ← lexQuotedSymbol tail ""
+        lexRec tail (tokens.push (Token.Symbol token))
 
-        -- classification disallowed here
+        -- class disallowed here
       | _ => Except.error {}
 
 public def lex (list: List Char): Except ELexer (Array Token) := do
