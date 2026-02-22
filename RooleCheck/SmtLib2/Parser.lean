@@ -4,13 +4,13 @@ public import RooleCheck.SmtLib2.Lexer
 
 public inductive SmtIndex
   | Numeral (value: Nat)
-  | Symbol (name: String)
+  | Symbol (name: String8)
 deriving Repr
 
 public inductive SmtIdent
-  | Symbol (name: String)
+  | Symbol (name: String8)
   -- there must be at least one index
-  | Indexed (name: String) (indices: Array SmtIndex)
+  | Indexed (name: String8) (indices: Array SmtIndex)
 deriving Repr
 
 public inductive SmtSpecialConstant
@@ -18,26 +18,26 @@ public inductive SmtSpecialConstant
   | Decimal (numer: Nat) (minus_log_10: Nat)
   | Hexadecimal (value: Nat)
   | Binary (value: Nat)
-  | String (value: String)
+  | String (value: String8)
 deriving Repr
 
 public inductive SmtSExpr
   | SpecialConstant(value: SmtSpecialConstant)
-  | Symbol (name: String)
+  | Symbol (name: String8)
   | Reserved (value: Reserved)
-  | Keyword (name: String)
+  | Keyword (name: String8)
   | Exprs (exprs: Array SmtSExpr)
 deriving Repr
 
 public inductive SmtAttributeValue
   | SpecialConstant (value: SmtSpecialConstant)
-  | Symbol (name: String)
+  | Symbol (name: String8)
   | Exprs (exprs: Array SmtSExpr)
 deriving Repr
 
 public inductive SmtAttribute
-  | Name (name: String)
-  | NameValue (name: String) (value: SmtAttributeValue)
+  | Name (name: String8)
+  | NameValue (name: String8) (value: SmtAttributeValue)
 deriving Repr
 
 public inductive SmtSort
@@ -56,14 +56,14 @@ public inductive SmtTerm
   -- there must be at least one term
   | Application (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   -- there must be at least one binding
-  | Let (bindings: Array (String × SmtTerm)) (term: SmtTerm)
+  | Let (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
   -- TODO let, lambda, forall, exists, match, !
 deriving Repr
 
 public inductive SmtCommand
-  | SetLogic (logic: String)
+  | SetLogic (logic: String8)
   | SetInfo (attr: SmtAttribute)
-  | DeclareConst (name: String) (sort: SmtSort)
+  | DeclareConst (name: String8) (sort: SmtSort)
   | Assert (term: SmtTerm)
   | CheckSat
   | Exit
@@ -193,8 +193,8 @@ partial def parseTermApplication (tokens: List Token)
       let (tokens, term) ← parseTerm tokens
       parseTermApplication tokens ident (terms.push term)
 
-partial def parseLetBindings (tokens: List Token) (bindings: Array (String × SmtTerm))
-  : Except Unit ((List Token) × Array (String × SmtTerm)) :=
+partial def parseLetBindings (tokens: List Token) (bindings: Array (String8 × SmtTerm))
+  : Except Unit ((List Token) × Array (String8 × SmtTerm)) :=
   match tokens with
     | Token.ParenOpen :: Token.Symbol name :: tokens => do
       let (tokens, term) ← parseTerm tokens
@@ -245,48 +245,60 @@ partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTer
 end
 
 -- TODO prove termination
-partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Except EParser (Array SmtCommand) :=
+partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Except EParser (Array SmtCommand) := do
   match tokens with
     | [] => pure commands
+    | Token.ParenOpen :: Token.Symbol commandName :: tokens =>
+      match commandName.toString? with
 
-    | Token.ParenOpen :: Token.Symbol "set-logic" :: Token.Symbol logic :: Token.ParenClose :: tokens =>
-      parseCommands tokens (commands.push (SmtCommand.SetLogic logic))
+        | some "set-logic" =>
+          if let Token.Symbol logic :: Token.ParenClose :: tokens := tokens then
+            parseCommands tokens (commands.push (SmtCommand.SetLogic logic))
+          else Except.error EParser.Parser
 
+        | some "set-info" =>
+          match parseAttribute tokens with
+            | Except.ok (Token.ParenClose :: tokens, attr) =>
+              parseCommands tokens (commands.push (SmtCommand.SetInfo attr))
+            | _ => Except.error EParser.Parser
 
-    | Token.ParenOpen :: Token.Symbol "set-info":: tokens =>
-      match parseAttribute tokens with
-        | Except.ok (Token.ParenClose :: tokens, attr) =>
-          parseCommands tokens (commands.push (SmtCommand.SetInfo attr))
+        | some "declare-fun" =>
+          if let Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens := tokens then
+            match parseSort tokens with
+              | Except.ok (Token.ParenClose :: tokens, sort) =>
+                parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
+              | _ => Except.error EParser.Parser
+          else Except.error EParser.Parser
+
+        | some "declare-const" =>
+          if let Token.Symbol name :: tokens := tokens then
+            match parseSort tokens with
+              | Except.ok (Token.ParenClose :: tokens, sort) =>
+                parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
+              | _ => Except.error EParser.Parser
+          else Except.error EParser.Parser
+
+        | some "assert" =>
+          match parseTerm tokens with
+            | Except.ok (Token.ParenClose :: tokens, term) =>
+              parseCommands tokens (commands.push (SmtCommand.Assert term))
+            | _ => Except.error EParser.Parser
+
+        | some "check-sat" =>
+          if let Token.ParenClose :: tokens := tokens then
+            parseCommands tokens (commands.push (SmtCommand.CheckSat))
+          else Except.error EParser.Parser
+
+        | some "exit" =>
+          if let Token.ParenClose :: tokens := tokens then
+            parseCommands tokens (commands.push (SmtCommand.Exit))
+          else Except.error EParser.Parser
+
         | _ => Except.error EParser.Parser
-
-    | Token.ParenOpen :: Token.Symbol "declare-fun" :: Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens => do
-      match parseSort tokens with
-        | Except.ok (Token.ParenClose :: tokens, sort) =>
-          parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-        | _ => Except.error EParser.Parser
-
-    | Token.ParenOpen :: Token.Symbol "declare-const" :: Token.Symbol name :: tokens => do
-      match parseSort tokens with
-        | Except.ok (Token.ParenClose :: tokens, sort) =>
-          parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-        | _ => Except.error EParser.Parser
-
-
-    | Token.ParenOpen :: Token.Symbol "assert":: tokens =>
-      match parseTerm tokens with
-        | Except.ok (Token.ParenClose :: tokens, term) =>
-          parseCommands tokens (commands.push (SmtCommand.Assert term))
-        | _ => Except.error EParser.Parser
-
-    | Token.ParenOpen :: Token.Symbol "check-sat" :: Token.ParenClose :: tokens =>
-      parseCommands tokens (commands.push (SmtCommand.CheckSat))
-
-    | Token.ParenOpen :: Token.Symbol "exit" :: Token.ParenClose :: tokens =>
-      parseCommands tokens (commands.push (SmtCommand.Exit))
 
     | _ => Except.error EParser.Parser
 
-public def parse (chars: List Char): Except EParser (Array SmtCommand) :=
+public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
   match lex chars with
     | Except.ok tokens => do
       let tokens := tokens.toList

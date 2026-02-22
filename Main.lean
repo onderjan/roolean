@@ -1,10 +1,10 @@
 import RooleCheck.SmtLib2.Parser
 import Std.Data.HashMap.Basic
+import RooleCheck.SmtLib2.Lexer
 
 def load (filename: String): IO (Except EParser (Array SmtCommand)) := do
-  let string ← IO.FS.readFile filename
-  IO.println s!"Read:\n---\n{string}\n---\n"
-  let chars := Std.Iter.toList (String.chars string)
+  let byteArray ← IO.FS.readBinFile filename
+  let chars := byteArray.toList
   pure (parse chars)
 
 structure BitvectorType where
@@ -16,14 +16,17 @@ deriving Repr
 
 def processVariableType (sort: SmtSort): Except EExecutor BitvectorType :=
   match sort with
-    | SmtSort.Ident (SmtIdent.Indexed "BitVec" #[width]) =>
-      match width with
-        | SmtIndex.Numeral width =>
-          if width < UInt32.size then
-            pure {width := UInt32.ofNat width}
-          else
-            Except.error {} -- we support only 32-bit widths
-        | _ => Except.error {} -- bitvector width must be a numeral
+    | SmtSort.Ident (SmtIdent.Indexed typename #[width]) =>
+      if let some "BitVec" := typename.toString? then
+        match width with
+          | SmtIndex.Numeral width =>
+            if width < UInt32.size then
+              pure {width := UInt32.ofNat width}
+            else
+              Except.error {} -- we support only 32-bit widths
+          | _ => Except.error {} -- bitvector width must be a numeral
+      else
+        Except.error {} -- expected bitvector
     | _ => Except.error {} -- expected bitvector
 
 inductive UniOperator
@@ -95,7 +98,7 @@ deriving Repr
 
 end
 
-abbrev VariableMap := Std.HashMap String USize
+abbrev VariableMap := Std.HashMap String8 USize
 
 -- TODO prove termination
 mutual
@@ -175,6 +178,10 @@ partial def execApplication (variables: VariableMap) (qualified: SmtQualifiedIde
     | SmtQualifiedIdent.Ident (SmtIdent.Symbol symbol) => pure symbol
     | _ => return Except.error {} -- we only support application symbols
 
+  let name ← match name.toString? with
+    | some name => pure name
+    | none => return Except.error {} -- must be ASCII
+
   let result ← match name with
     | "not" | "bvnot" => execUniOp variables UniOperator.Not terms
     | "bvneg" => execUniOp variables UniOperator.Neg terms
@@ -222,7 +229,7 @@ partial def execApplication (variables: VariableMap) (qualified: SmtQualifiedIde
 
   pure result
 
-partial def execLet (variables: VariableMap) (bindings: Array (String × SmtTerm)) (term: SmtTerm)
+partial def execLet (variables: VariableMap) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
   : IO (Except EExecutor Formula) := do
   IO.println s!"Let"
   pure (Except.error {}) -- TODO implement
@@ -236,12 +243,12 @@ partial def execTerm (variables: VariableMap) (term: SmtTerm): IO ((Except EExec
 
 end
 
-def execCheckSat (variables: Array (String × BitvectorType)) (assertions: Array SmtTerm) := do
+def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Array SmtTerm) := do
   -- combine assertions
   let assertion := if assertions.isEmpty then
-    SmtTerm.SpecialConstant (SmtSpecialConstant.String "true")
+    SmtTerm.SpecialConstant (SmtSpecialConstant.String (String8.fromUTF8 "true"))
   else
-    SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol "and")) assertions
+    SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) assertions
   IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nCombined assertion: {reprStr assertion}"
 
   let mut variableMap: VariableMap := {}
@@ -256,13 +263,13 @@ def execCheckSat (variables: Array (String × BitvectorType)) (assertions: Array
 
 def execCommands (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := do
   let mut qf_bv := false
-  let mut variables: Array (String × BitvectorType) := {}
+  let mut variables: Array (String8 × BitvectorType) := {}
   let mut assertions: Array SmtTerm := {}
 
   for command in commands do
     match command with
       | .SetLogic logic =>
-        if logic == "QF_BV" || logic == "ALL" then
+        if logic == String8.fromUTF8 "QF_BV" || logic == String8.fromUTF8 "ALL" then
           qf_bv := true
         else
           return Except.error {}
