@@ -44,7 +44,7 @@ def lexFraction (chars: List Char8) (numer: Nat) (minus_log_10: Nat): List Char8
   match chars with
     | [] => ([], Token.Decimal numer minus_log_10)
     | c :: chars =>
-      match classify c with
+      match CharClass.ofChar8 c with
         | CharClass.Digit c =>
           let digit := (c.toNat) - ('0'.toNat)
           lexFraction chars (numer * 10 + digit) (minus_log_10 + 1)
@@ -55,7 +55,7 @@ def lexNumeralOrDecimal (chars: List Char8) (num: Nat): List Char8 × Token :=
   match chars with
     | [] => ([], Token.Numeral num)
     | c :: chars =>
-      match classify c with
+      match CharClass.ofChar8 c with
         | CharClass.Digit c =>
           let digit := (c.toNat) - ('0'.toNat)
           lexNumeralOrDecimal chars (num * 10 + digit)
@@ -102,18 +102,18 @@ def lexStringLiteral (chars: List Char8) (literal: String8): Except ELexer (List
   match chars with
     | [] => Except.error {} -- forbidden as the literal must be totally enclosed by double quotes
     | c :: chars =>
-      let classified := classify c
+      let classified := CharClass.ofChar8 c
       match classified with
         | CharClass.DoubleQuote =>
           -- look ahead to the next character
           match chars with
             | nextChar :: nextTail =>
-              if let CharClass.DoubleQuote := (classify nextChar) then
+              if let CharClass.DoubleQuote := (CharClass.ofChar8 nextChar) then
                 lexStringLiteral nextTail (literal.push nextChar) -- double quote escape
               else
                 pure (chars, Token.String literal) -- end of string literal
             | _ => pure (chars, Token.String literal) -- end of string literal
-        | _ => if isPrintableOrWhitespace classified then
+        | _ => if classified.isPrintableOrWhitespace then
             lexStringLiteral chars (literal.push c)
           else
             Except.error {} -- forbidden as not printable or whitespace
@@ -123,7 +123,7 @@ def lexSimpleSymbolString (chars: List Char8) (name: String8): List Char8 × Str
   match chars with
     | [] => ([], name)
     | c :: chars =>
-      match classify c with
+      match CharClass.ofChar8 c with
         | CharClass.Letter char | CharClass.Digit char | CharClass.Special char =>
           lexSimpleSymbolString chars (name.push char)
         | CharClass.Dot =>
@@ -160,11 +160,11 @@ def lexQuotedSymbol (chars: List Char8) (name: String8): Except ELexer (List Cha
   match chars with
     | [] => Except.error {} -- forbidden as the symbol must be totally enclosed by pipes
     | c :: chars =>
-      let classified := classify c
+      let classified := CharClass.ofChar8 c
       match classified with
         | CharClass.Backslash => Except.error {} -- backslash forbidden in quoted symbols
         | CharClass.Pipe => pure (chars, name) -- end quoted symbol
-        | _ => if isPrintableOrWhitespace classified then
+        | _ => if classified.isPrintableOrWhitespace then
             lexQuotedSymbol chars (name.push c)
           else
             Except.error {} -- forbidden as not printable or whitespace
@@ -174,7 +174,7 @@ def lexComment (chars: List Char8): List Char8 :=
   match chars with
     | [] => []
     | c :: chars =>
-      match classify c with
+      match CharClass.ofChar8 c with
         | CharClass.LineBreak => chars
         | _ => lexComment chars
 
@@ -183,7 +183,7 @@ partial def lexRec (chars: List Char8) (tokens: Array Token): Except ELexer (Arr
   match chars with
     | [] => pure tokens
     | c :: chars =>
-      match classify c with
+      match CharClass.ofChar8 c with
       | CharClass.Tab | CharClass.Space | CharClass.LineBreak =>
         -- whitespace, just continue parsing
         lexRec chars tokens

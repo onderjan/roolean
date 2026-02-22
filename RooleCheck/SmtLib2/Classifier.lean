@@ -42,13 +42,13 @@ public inductive CharClass
   | NonAscii (c: Char8)
 deriving Repr
 
-public def isPrintableOrWhitespace (c: CharClass) : Bool :=
+public def CharClass.isPrintableOrWhitespace (c: CharClass) : Bool :=
   -- everything except other non-printable
   match c with
     | .OtherNonPrintable _ => false
     | _ => true
 
-public def classify (c: Char8) : CharClass :=
+public def CharClass.ofChar8 (c: Char8) : CharClass :=
   if (c >= 'a'.toUInt8 && c <= 'z'.toUInt8) || (c >= 'A'.toUInt8 && c <= 'Z'.toUInt8) then
     CharClass.Letter c
   else if c >= '0'.toUInt8 && c <= '9'.toUInt8 then
