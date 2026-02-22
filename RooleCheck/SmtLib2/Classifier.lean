@@ -1,8 +1,6 @@
 module
 
--- SMT-LIB supports arbitrary 8-bit encodings
--- Represent characters by 8-bit unsigned integers
-public abbrev Char8 := UInt8
+public import RooleCheck.SmtLib2.String8
 
 public inductive CharClass
   -- any non-printable character except for TAB, LF, CR
