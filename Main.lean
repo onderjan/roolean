@@ -1,6 +1,5 @@
 import RooleCheck.SmtLib2.Parser
 import Std.Data.HashMap.Basic
-import RooleCheck.SmtLib2.Lexer
 
 def load (filename: String): IO (Except EParser (Array SmtCommand)) := do
   let byteArray ← IO.FS.readBinFile filename

@@ -1,6 +1,7 @@
 module
 
-public import RooleCheck.SmtLib2.Classifier
+import RooleCheck.SmtLib2.CharClass
+public import RooleCheck.SmtLib2.String8
 
 public inductive Reserved
   | Binary
