@@ -1,6 +1,9 @@
 module
 
-public import RooleCheck.SmtLib2.Lexer
+public import RooleCheck.SmtLib2.String8
+public import RooleCheck.SmtLib2.Reserved
+
+import RooleCheck.SmtLib2.Lexer
 
 public inductive SmtIndex
   | Numeral (value: Nat)
@@ -70,7 +73,7 @@ public inductive SmtCommand
 deriving Repr
 
 public inductive EParser where
-  | Lexer (err: ELexer)
+  | Lexer
   | Parser
 deriving Repr
 
@@ -304,4 +307,4 @@ public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
       let tokens := tokens.toList
       let parsed ← parseCommands tokens #[]
       pure parsed
-    | Except.error err => Except.error (EParser.Lexer err)
+    | Except.error {} => Except.error EParser.Lexer

@@ -2,23 +2,7 @@ module
 
 import RooleCheck.SmtLib2.CharClass
 public import RooleCheck.SmtLib2.String8
-
-public inductive Reserved
-  | Binary
-  | Decimal
-  | Hexadecimal
-  | Numeral
-  | String
-  | Underscore
-  | ExclamationMark
-  | As
-  | Lambda
-  | Let
-  | Exists
-  | Forall
-  | Match
-  | Par
-deriving Repr
+public import RooleCheck.SmtLib2.Reserved
 
 public inductive Token
   | ParenOpen
