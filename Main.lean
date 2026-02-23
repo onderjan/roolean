@@ -99,9 +99,7 @@ end
 
 abbrev VariableMap := Std.HashMap String8 USize
 
--- TODO prove termination
-mutual
-partial def execSpecialConstant (constant: SmtSpecialConstant)
+def execSpecialConstant (constant: SmtSpecialConstant)
   : (Except EExecutor) Formula := do
   let (value, width) ← match constant with
 
@@ -118,20 +116,37 @@ partial def execSpecialConstant (constant: SmtSpecialConstant)
   else
     Except.error {} -- we support only 32-bit widths
 
-partial def execQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
-  : IO ((Except EExecutor) Formula) := do
+
+def execQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
+  : (Except EExecutor) Formula := do
 
   let name ← match qualified with
   | SmtQualifiedIdent.Ident (SmtIdent.Symbol name) => pure name
-  | SmtQualifiedIdent.Ident (SmtIdent.Indexed ..) =>
-    return (Except.error {})-- we do not support indexed ident here
+  | SmtQualifiedIdent.Ident (SmtIdent.Indexed name indexed) =>
+    -- try to process the form (_ bvX n)
+    if let some value := (name.dropPrefix? (String8.fromUTF8 "bv")) >>= (λ (a) => a.toString?) then
+      -- the number should be decimal
+      if let some value := String.toNat? value then
+        match indexed with
+          | #[SmtIndex.Numeral width _] =>
+              if width < UInt32.size then
+                return (Formula.Constant { value, width := width.toUInt32 })
+              else
+                Except.error {} -- we only support widths that fit 32 bits
+          | _ => Except.error {} -- bvX should have a single index, width
+      else
+        Except.error {}-- we do not support indexed idents other than bvX where X is a decimal
+
+    else
+      Except.error {}-- we do not support indexed idents other than bvX
 
   match variables.get? name with
-  | some varIndex => pure (Except.ok (Formula.Variable varIndex))
-  | none =>
-  IO.println "Variable {name} not found"
-  pure (Except.error {}) -- variable not found
+  | some varIndex => pure (Formula.Variable varIndex)
+  | none => Except.error {} -- variable not found
 
+
+-- TODO prove termination
+mutual
 partial def execUniOp (variables: VariableMap) (op: UniOperator) (terms: Array SmtTerm)
   : IO ((Except EExecutor) Formula) := do
   match terms with
@@ -248,7 +263,7 @@ partial def execLet (variables: VariableMap) (bindings: Array (String8 × SmtTer
 partial def execTerm (variables: VariableMap) (term: SmtTerm): IO ((Except EExecutor) Formula) :=
   match term with
   | SmtTerm.SpecialConstant constant => pure (execSpecialConstant constant)
-  | SmtTerm.QualifiedIdent qualified => execQualifiedIdent variables qualified
+  | SmtTerm.QualifiedIdent qualified => pure (execQualifiedIdent variables qualified)
   | SmtTerm.Application qualified terms => execApplication variables qualified terms
   | SmtTerm.Let bindings term => execLet variables bindings term
 

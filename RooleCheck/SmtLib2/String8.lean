@@ -9,8 +9,30 @@ public structure String8 where
   inner: ByteArray
 deriving instance BEq, Hashable for String8
 
+
+public def String8.length (s: String8) : Nat := s.inner.size
+
 public def String8.push (s: String8) (c: Char8) : String8 :=
   { inner := (s.inner.push c) }
+
+public def String8.startsWith (str: String8) (strPrefix: String8) : Bool :=
+  if strPrefix.inner.size > str.inner.size then
+    false
+  else Id.run do
+    let mut result := true
+    for i in Array.range strPrefix.inner.size do
+      -- TODO prove that i is in range
+      if strPrefix.inner[i]? != str.inner[i]? then
+        result := false
+        break
+    true
+
+public def String8.dropPrefix? (str: String8) (strPrefix: String8) : Option String8 :=
+  if str.startsWith strPrefix then
+    let withoutPrefix := str.inner.extract strPrefix.length str.length
+    some { inner := withoutPrefix }
+  else
+    none
 
 public def String8.toString? (s: String8) : Option String := do
   let mut string := ""
