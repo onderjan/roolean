@@ -75,3 +75,5 @@ public def CharClass.ofChar8 (c: Char8) : CharClass :=
         CharClass.OtherNonPrintable c
       else
         CharClass.OtherAsciiPrintable c
+
+public def CharClass.toChar8 (c: CharClass): Char8 := 'X'.toUInt8
