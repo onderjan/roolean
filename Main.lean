@@ -13,7 +13,7 @@ deriving Repr
 structure EExecutor
 deriving Repr
 
-def processVariableType (sort: SmtSort): Except EExecutor BitvectorType :=
+def processVariableSort (sort: SmtSort): Except EExecutor BitvectorType :=
   match sort with
     | SmtSort.Ident (SmtIdent.Indexed typename #[width]) =>
       if let some "BitVec" := typename.toString? then
@@ -101,10 +101,22 @@ abbrev VariableMap := Std.HashMap String8 USize
 
 -- TODO prove termination
 mutual
-partial def execSpecialConstant (variables: VariableMap) (constant: SmtSpecialConstant)
-  : IO ((Except EExecutor) Formula) := do
-  IO.println "Special constant"
-  pure (Except.error {}) -- TODO implement
+partial def execSpecialConstant (constant: SmtSpecialConstant)
+  : (Except EExecutor) Formula := do
+  let (value, width) ← match constant with
+
+    | SmtSpecialConstant.Hexadecimal value numDigits =>
+      pure (value, numDigits * 4) -- in hexadecimal, each digit represents 4 bits
+
+    | SmtSpecialConstant.Binary value numDigits =>
+      pure (value, numDigits) -- in binary, each digit represents 1 bit
+
+    | _ => Except.error {} -- not a QF_BV constant, decimals can be "constants" only through bvX
+
+  if width < UInt32.size then
+    pure (Formula.Constant { value, width := UInt32.ofNat width })
+  else
+    Except.error {} -- we support only 32-bit widths
 
 partial def execQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
   : IO ((Except EExecutor) Formula) := do
@@ -235,7 +247,7 @@ partial def execLet (variables: VariableMap) (bindings: Array (String8 × SmtTer
 
 partial def execTerm (variables: VariableMap) (term: SmtTerm): IO ((Except EExecutor) Formula) :=
   match term with
-  | SmtTerm.SpecialConstant constant => execSpecialConstant variables constant
+  | SmtTerm.SpecialConstant constant => pure (execSpecialConstant constant)
   | SmtTerm.QualifiedIdent qualified => execQualifiedIdent variables qualified
   | SmtTerm.Application qualified terms => execApplication variables qualified terms
   | SmtTerm.Let bindings term => execLet variables bindings term
@@ -281,7 +293,7 @@ def execCommands (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := d
           return Except.error {}
       | .SetInfo _ => continue -- ignore info
       | .DeclareConst name sort =>
-        match processVariableType sort with
+        match processVariableSort sort with
           | Except.ok type => variables := variables.push (name, type)
           | Except.error err => return Except.error err
       | .Assert term => assertions := assertions.push term
