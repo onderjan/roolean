@@ -17,10 +17,10 @@ public inductive SmtIdent
 deriving Repr
 
 public inductive SmtSpecialConstant
-  | Numeral (value: Nat) (length: Nat)
-  | Decimal (value: Nat) (length: Nat) (denominatorLength: Nat)
-  | Hexadecimal (value: Nat) (length: Nat)
-  | Binary (value: Nat) (length: Nat)
+  | Numeral (value: Nat) (numDigits: Nat)
+  | Decimal (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat)
+  | Hexadecimal (value: Nat) (numDigits: Nat)
+  | Binary (value: Nat) (numDigits: Nat)
   | String (value: String8)
 deriving Repr
 
@@ -104,11 +104,11 @@ def parseIdent (tokens: List Token) : Except Unit ((List Token) × SmtIdent) :=
 
 def parseSpecialConstantOpt (tokens: List Token) : ((List Token) × Option SmtSpecialConstant) :=
   match tokens with
-    | Token.Numeral value length :: tokens => (tokens, some (SmtSpecialConstant.Numeral value length))
-    | Token.Decimal value numeratorLength denominatorLength :: tokens =>
-      (tokens, some (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
-    | Token.Hexadecimal value length :: tokens => (tokens, some (SmtSpecialConstant.Hexadecimal value length))
-    | Token.Binary value length :: tokens => (tokens, some (SmtSpecialConstant.Binary value length))
+    | Token.Numeral value numDigits :: tokens => (tokens, some (SmtSpecialConstant.Numeral value numDigits))
+    | Token.Decimal value numNumeratorDigits numDenominatorDigits :: tokens =>
+      (tokens, some (SmtSpecialConstant.Decimal value numNumeratorDigits numDenominatorDigits))
+    | Token.Hexadecimal value numDigits :: tokens => (tokens, some (SmtSpecialConstant.Hexadecimal value numDigits))
+    | Token.Binary value numDigits :: tokens => (tokens, some (SmtSpecialConstant.Binary value numDigits))
     | Token.String value :: tokens => (tokens, some (SmtSpecialConstant.String value))
     | _ => (tokens, none)
 

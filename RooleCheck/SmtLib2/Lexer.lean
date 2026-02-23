@@ -7,10 +7,10 @@ public import RooleCheck.SmtLib2.Reserved
 public inductive Token
   | ParenOpen
   | ParenClose
-  | Numeral (value: Nat) (length: Nat)
-  | Decimal (value: Nat) (numeratorLength: Nat) (denominatorLength: Nat)
-  | Hexadecimal (value: Nat) (length: Nat)
-  | Binary (value: Nat) (length: Nat)
+  | Numeral (value: Nat) (numDigits: Nat)
+  | Decimal (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat)
+  | Hexadecimal (value: Nat) (numDigits: Nat)
+  | Binary (value: Nat) (numDigits: Nat)
   | Symbol (name: String8)
   | Reserved (value: Reserved)
   | String (literal: String8)
@@ -21,32 +21,32 @@ deriving Repr
 public structure ELexer
 deriving Repr
 
-def lexFraction (chars: List Char8) (value: Nat) (numeratorLength: Nat) (denominatorLength: Nat): List Char8 × Token :=
+def lexFraction (chars: List Char8) (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat): List Char8 × Token :=
   -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
   -- but does not have a rule for decimals of form 7. without trailing zero
   -- we we will accept this form too to avoid an error condition
   match chars with
-    | [] => ([], Token.Decimal value numeratorLength denominatorLength)
+    | [] => ([], Token.Decimal value numNumeratorDigits numDenominatorDigits)
     | c :: chars =>
       match CharClass.ofChar8 c with
         | CharClass.Digit c =>
           let digit := (c.toNat) - ('0'.toNat)
-          lexFraction chars (value * 10 + digit) numeratorLength (denominatorLength + 1)
-        | _ => (chars, Token.Decimal value numeratorLength denominatorLength)
+          lexFraction chars (value * 10 + digit) numNumeratorDigits (numDenominatorDigits + 1)
+        | _ => (chars, Token.Decimal value numNumeratorDigits numDenominatorDigits)
 
 
-def lexNumeralOrDecimal (chars: List Char8) (value: Nat) (length: Nat): List Char8 × Token :=
+def lexNumeralOrDecimal (chars: List Char8) (value: Nat) (numDigits: Nat): List Char8 × Token :=
   match chars with
-    | [] => ([], Token.Numeral value length)
+    | [] => ([], Token.Numeral value numDigits)
     | c :: chars =>
       match CharClass.ofChar8 c with
         | CharClass.Digit c =>
           let digit := (c.toNat) - ('0'.toNat)
-          lexNumeralOrDecimal chars (value * 10 + digit) (length + 1)
+          lexNumeralOrDecimal chars (value * 10 + digit) (numDigits + 1)
         | CharClass.Dot =>
           -- decimal, lex fraction, initially with unit multiplicand (0 in minus log10)
-          lexFraction chars value length 0
-        | _ => (c :: chars, Token.Numeral value length)
+          lexFraction chars value numDigits 0
+        | _ => (c :: chars, Token.Numeral value numDigits)
 
 def toHexadecimal (c: Char8): Option Nat :=
   if c >= '0'.toUInt8 && c <= '9'.toUInt8 then
@@ -58,14 +58,14 @@ def toHexadecimal (c: Char8): Option Nat :=
   else
     none
 
-def lexHexadecimal (chars: List Char8) (value: Nat) (length: Nat): List Char8 × Token :=
+def lexHexadecimal (chars: List Char8) (value: Nat) (numDigits: Nat): List Char8 × Token :=
   match chars with
-    | [] => ([], Token.Hexadecimal value length)
+    | [] => ([], Token.Hexadecimal value numDigits)
     | c :: chars =>
       if let some digit := toHexadecimal c then
-        lexHexadecimal chars (value * 16 + digit) (length + 1)
+        lexHexadecimal chars (value * 16 + digit) (numDigits + 1)
       else
-        (c :: chars, Token.Hexadecimal value length)
+        (c :: chars, Token.Hexadecimal value numDigits)
 
 def toBinary (c: Char8): Option Nat :=
   if c >= '0'.toUInt8 && c <= '1'.toUInt8 then
@@ -73,14 +73,14 @@ def toBinary (c: Char8): Option Nat :=
   else
     none
 
-def lexBinary (chars: List Char8) (value: Nat) (length: Nat): List Char8 × Token :=
+def lexBinary (chars: List Char8) (value: Nat) (numDigits: Nat): List Char8 × Token :=
   match chars with
-    | [] => ([], Token.Binary value length)
+    | [] => ([], Token.Binary value numDigits)
     | c :: chars =>
       if let some digit := toHexadecimal c then
-        lexBinary chars (value * 2 + digit) (length + 1)
+        lexBinary chars (value * 2 + digit) (numDigits + 1)
       else
-        (c :: chars, Token.Binary value length)
+        (c :: chars, Token.Binary value numDigits)
 
 def lexStringLiteral (chars: List Char8) (literal: String8): Except ELexer (List Char8 × Token) :=
   match chars with

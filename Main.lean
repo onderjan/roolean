@@ -61,8 +61,8 @@ inductive BiOperator
 deriving Repr
 
 structure Constant where
-  width: UInt32
   value: Nat
+  width: UInt32
 deriving Repr
 
 mutual
