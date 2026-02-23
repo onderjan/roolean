@@ -242,7 +242,7 @@ partial def execTerm (variables: VariableMap) (term: SmtTerm): IO ((Except EExec
 
 end
 
-def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Array SmtTerm) := do
+def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Array SmtTerm): IO (Except EExecutor Unit) := do
   -- combine assertions
   let assertion := if assertions.isEmpty then
     SmtTerm.SpecialConstant (SmtSpecialConstant.String (String8.fromUTF8 "true"))
@@ -256,7 +256,14 @@ def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Arra
     variableMap := variableMap.insert name index
     index := index + 1
 
-  execTerm variableMap assertion
+  let result ← execTerm variableMap assertion
+  match result with
+    | Except.ok formula =>
+      IO.println s!"CheckSat formula: {reprStr formula}"
+      pure (Except.ok ())
+    | Except.error err =>
+      IO.println s!"CheckSat error: {reprStr err}"
+      pure (Except.error err)
 
 
 
@@ -278,7 +285,12 @@ def execCommands (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := d
           | Except.ok type => variables := variables.push (name, type)
           | Except.error err => return Except.error err
       | .Assert term => assertions := assertions.push term
-      | .CheckSat => let _ ← execCheckSat variables assertions
+      | .CheckSat =>
+        let result ← execCheckSat variables assertions
+        match result with
+          | Except.ok () => pure ()
+          | Except.error err => return Except.error err
+
       | .Exit => break
   pure (Except.ok ())
 
