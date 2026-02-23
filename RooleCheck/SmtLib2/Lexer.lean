@@ -7,11 +7,10 @@ public import RooleCheck.SmtLib2.Reserved
 public inductive Token
   | ParenOpen
   | ParenClose
-  | Numeral (num: Nat)
-  -- Decimals are represented with minus-log10 multiplicand.
-  | Decimal (numer: Nat) (minus_log_10: Nat)
-  | Hexadecimal (num: Nat)
-  | Binary (num: Nat)
+  | Numeral (value: Nat) (length: Nat)
+  | Decimal (value: Nat) (numeratorLength: Nat) (denominatorLength: Nat)
+  | Hexadecimal (value: Nat) (length: Nat)
+  | Binary (value: Nat) (length: Nat)
   | Symbol (name: String8)
   | Reserved (value: Reserved)
   | String (literal: String8)
@@ -22,32 +21,32 @@ deriving Repr
 public structure ELexer
 deriving Repr
 
-def lexFraction (chars: List Char8) (numer: Nat) (minus_log_10: Nat): List Char8 × Token :=
+def lexFraction (chars: List Char8) (value: Nat) (numeratorLength: Nat) (denominatorLength: Nat): List Char8 × Token :=
   -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
   -- but does not have a rule for decimals of form 7. without trailing zero
   -- we we will accept this form too to avoid an error condition
   match chars with
-    | [] => ([], Token.Decimal numer minus_log_10)
+    | [] => ([], Token.Decimal value numeratorLength denominatorLength)
     | c :: chars =>
       match CharClass.ofChar8 c with
         | CharClass.Digit c =>
           let digit := (c.toNat) - ('0'.toNat)
-          lexFraction chars (numer * 10 + digit) (minus_log_10 + 1)
-        | _ => (chars, Token.Decimal numer minus_log_10)
+          lexFraction chars (value * 10 + digit) numeratorLength (denominatorLength + 1)
+        | _ => (chars, Token.Decimal value numeratorLength denominatorLength)
 
 
-def lexNumeralOrDecimal (chars: List Char8) (num: Nat): List Char8 × Token :=
+def lexNumeralOrDecimal (chars: List Char8) (value: Nat) (length: Nat): List Char8 × Token :=
   match chars with
-    | [] => ([], Token.Numeral num)
+    | [] => ([], Token.Numeral value length)
     | c :: chars =>
       match CharClass.ofChar8 c with
         | CharClass.Digit c =>
           let digit := (c.toNat) - ('0'.toNat)
-          lexNumeralOrDecimal chars (num * 10 + digit)
+          lexNumeralOrDecimal chars (value * 10 + digit) (length + 1)
         | CharClass.Dot =>
           -- decimal, lex fraction, initially with unit multiplicand (0 in minus log10)
-          lexFraction chars num 0
-        | _ => (c :: chars, Token.Numeral num)
+          lexFraction chars value length 0
+        | _ => (c :: chars, Token.Numeral value length)
 
 def toHexadecimal (c: Char8): Option Nat :=
   if c >= '0'.toUInt8 && c <= '9'.toUInt8 then
@@ -59,14 +58,14 @@ def toHexadecimal (c: Char8): Option Nat :=
   else
     none
 
-def lexHexadecimal (chars: List Char8) (num: Nat): List Char8 × Token :=
+def lexHexadecimal (chars: List Char8) (value: Nat) (length: Nat): List Char8 × Token :=
   match chars with
-    | [] => ([], Token.Hexadecimal num)
+    | [] => ([], Token.Hexadecimal value length)
     | c :: chars =>
       if let some digit := toHexadecimal c then
-        lexHexadecimal chars (num * 16 + digit)
+        lexHexadecimal chars (value * 16 + digit) (length + 1)
       else
-        (c :: chars, Token.Hexadecimal num)
+        (c :: chars, Token.Hexadecimal value length)
 
 def toBinary (c: Char8): Option Nat :=
   if c >= '0'.toUInt8 && c <= '1'.toUInt8 then
@@ -74,14 +73,14 @@ def toBinary (c: Char8): Option Nat :=
   else
     none
 
-def lexBinary (chars: List Char8) (num: Nat): List Char8 × Token :=
+def lexBinary (chars: List Char8) (value: Nat) (length: Nat): List Char8 × Token :=
   match chars with
-    | [] => ([], Token.Binary num)
+    | [] => ([], Token.Binary value length)
     | c :: chars =>
       if let some digit := toHexadecimal c then
-        lexBinary chars (num * 2 + digit)
+        lexBinary chars (value * 2 + digit) (length + 1)
       else
-        (c :: chars, Token.Binary num)
+        (c :: chars, Token.Binary value length)
 
 def lexStringLiteral (chars: List Char8) (literal: String8): Except ELexer (List Char8 × Token) :=
   match chars with
@@ -184,7 +183,7 @@ partial def lexRec (chars: List Char8) (tokens: Array Token): Except ELexer (Arr
       | CharClass.Digit c =>
         -- digit starts a numeral or a decimal
         let digit := (c.toNat) - ('0'.toNat)
-        let (chars, token) := lexNumeralOrDecimal chars digit
+        let (chars, token) := lexNumeralOrDecimal chars digit 0
         lexRec chars (tokens.push token)
 
       | CharClass.Hash =>
@@ -194,13 +193,13 @@ partial def lexRec (chars: List Char8) (tokens: Array Token): Except ELexer (Arr
             match Char.ofUInt8 specifier with
               | 'x' =>
                 if let some first := toHexadecimal first then
-                  let (chars, token) := lexHexadecimal chars first
+                  let (chars, token) := lexHexadecimal chars first 0
                   lexRec chars (tokens.push token)
                 else
                   Except.error {}
               | 'b' =>
                 if let some first := toBinary first then
-                  let (chars, token) := lexBinary chars first
+                  let (chars, token) := lexBinary chars first 0
                   lexRec chars  (tokens.push token)
                 else
                   Except.error {}

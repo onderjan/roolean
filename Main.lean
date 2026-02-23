@@ -18,7 +18,7 @@ def processVariableType (sort: SmtSort): Except EExecutor BitvectorType :=
     | SmtSort.Ident (SmtIdent.Indexed typename #[width]) =>
       if let some "BitVec" := typename.toString? then
         match width with
-          | SmtIndex.Numeral width =>
+          | SmtIndex.Numeral width _width_num_length =>
             if width < UInt32.size then
               pure {width := UInt32.ofNat width}
             else

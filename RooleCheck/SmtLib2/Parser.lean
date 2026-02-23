@@ -6,7 +6,7 @@ public import RooleCheck.SmtLib2.Reserved
 import RooleCheck.SmtLib2.Lexer
 
 public inductive SmtIndex
-  | Numeral (value: Nat)
+  | Numeral (value: Nat) (length: Nat)
   | Symbol (name: String8)
 deriving Repr
 
@@ -17,10 +17,10 @@ public inductive SmtIdent
 deriving Repr
 
 public inductive SmtSpecialConstant
-  | Numeral (value: Nat)
-  | Decimal (numer: Nat) (minus_log_10: Nat)
-  | Hexadecimal (value: Nat)
-  | Binary (value: Nat)
+  | Numeral (value: Nat) (length: Nat)
+  | Decimal (value: Nat) (length: Nat) (denominatorLength: Nat)
+  | Hexadecimal (value: Nat) (length: Nat)
+  | Binary (value: Nat) (length: Nat)
   | String (value: String8)
 deriving Repr
 
@@ -85,7 +85,7 @@ def consumeParenClose(tokens: List Token): Except Unit (List Token) :=
 
 def parseIndices (tokens: List Token) (indices: Array SmtIndex) : (List Token × Array SmtIndex) :=
   match tokens with
-    | Token.Numeral value :: tokens => (tokens, indices.push (SmtIndex.Numeral value))
+    | Token.Numeral value length :: tokens => (tokens, indices.push (SmtIndex.Numeral value length))
     | Token.Symbol name :: tokens => (tokens, indices.push (SmtIndex.Symbol name))
     | _ => (tokens, indices)
 
@@ -104,10 +104,11 @@ def parseIdent (tokens: List Token) : Except Unit ((List Token) × SmtIdent) :=
 
 def parseSpecialConstantOpt (tokens: List Token) : ((List Token) × Option SmtSpecialConstant) :=
   match tokens with
-    | Token.Numeral value :: tokens => (tokens, some (SmtSpecialConstant.Numeral value))
-    | Token.Decimal numer minus_log_10 :: tokens => (tokens, some (SmtSpecialConstant.Decimal numer minus_log_10))
-    | Token.Hexadecimal value :: tokens => (tokens, some (SmtSpecialConstant.Hexadecimal value))
-    | Token.Binary value :: tokens => (tokens, some (SmtSpecialConstant.Binary value))
+    | Token.Numeral value length :: tokens => (tokens, some (SmtSpecialConstant.Numeral value length))
+    | Token.Decimal value numeratorLength denominatorLength :: tokens =>
+      (tokens, some (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
+    | Token.Hexadecimal value length :: tokens => (tokens, some (SmtSpecialConstant.Hexadecimal value length))
+    | Token.Binary value length :: tokens => (tokens, some (SmtSpecialConstant.Binary value length))
     | Token.String value :: tokens => (tokens, some (SmtSpecialConstant.String value))
     | _ => (tokens, none)
 
@@ -210,10 +211,11 @@ partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTer
   if let some constant := constant then
     pure (tokens, SmtTerm.SpecialConstant constant)
   else match tokens with
-    | Token.Numeral value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value))
-    | Token.Decimal numer minus_log_10 :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal numer minus_log_10))
-    | Token.Hexadecimal value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value))
-    | Token.Binary value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value))
+    | Token.Numeral value length :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value length))
+    | Token.Decimal value numeratorLength denominatorLength :: tokens =>
+        pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
+    | Token.Hexadecimal value length :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value length))
+    | Token.Binary value length :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value length))
     | Token.String value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
 
     | Token.Symbol _ :: _ =>
