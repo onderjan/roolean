@@ -2,6 +2,7 @@ module
 
 public import RooleCheck.SmtLib2.String8
 public import RooleCheck.SmtLib2.Reserved
+public import RooleCheck.SmtLib2.Error
 
 import RooleCheck.SmtLib2.Lexer
 
@@ -72,9 +73,14 @@ public inductive SmtCommand
   | Exit
 deriving Repr
 
-public inductive EParser where
-  | Lexer
+public inductive ParserError where
+  | Lexer (err: LexerError)
   | Parser
+deriving Repr
+
+
+public structure EParser where
+  type: ParserError
 deriving Repr
 
 def consumeParenClose(tokens: List Token): Except Unit (List Token) :=
@@ -259,49 +265,49 @@ partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Ex
         | some "set-logic" =>
           if let Token.Symbol logic :: Token.ParenClose :: tokens := tokens then
             parseCommands tokens (commands.push (SmtCommand.SetLogic logic))
-          else Except.error EParser.Parser
+          else Except.error (EParser.mk ParserError.Parser)
 
         | some "set-info" =>
           match parseAttribute tokens with
             | Except.ok (Token.ParenClose :: tokens, attr) =>
               parseCommands tokens (commands.push (SmtCommand.SetInfo attr))
-            | _ => Except.error EParser.Parser
+            | _ => Except.error (EParser.mk ParserError.Parser)
 
         | some "declare-fun" =>
           if let Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens := tokens then
             match parseSort tokens with
               | Except.ok (Token.ParenClose :: tokens, sort) =>
                 parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-              | _ => Except.error EParser.Parser
-          else Except.error EParser.Parser
+              | _ => Except.error (EParser.mk ParserError.Parser)
+          else Except.error (EParser.mk ParserError.Parser)
 
         | some "declare-const" =>
           if let Token.Symbol name :: tokens := tokens then
             match parseSort tokens with
               | Except.ok (Token.ParenClose :: tokens, sort) =>
                 parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-              | _ => Except.error EParser.Parser
-          else Except.error EParser.Parser
+              | _ => Except.error (EParser.mk ParserError.Parser)
+          else Except.error (EParser.mk ParserError.Parser)
 
         | some "assert" =>
           match parseTerm tokens with
             | Except.ok (Token.ParenClose :: tokens, term) =>
               parseCommands tokens (commands.push (SmtCommand.Assert term))
-            | _ => Except.error EParser.Parser
+            | _ => Except.error (EParser.mk ParserError.Parser)
 
         | some "check-sat" =>
           if let Token.ParenClose :: tokens := tokens then
             parseCommands tokens (commands.push (SmtCommand.CheckSat))
-          else Except.error EParser.Parser
+          else Except.error (EParser.mk ParserError.Parser)
 
         | some "exit" =>
           if let Token.ParenClose :: tokens := tokens then
             parseCommands tokens (commands.push (SmtCommand.Exit))
-          else Except.error EParser.Parser
+          else Except.error (EParser.mk ParserError.Parser)
 
-        | _ => Except.error EParser.Parser
+        | _ => Except.error (EParser.mk ParserError.Parser)
 
-    | _ => Except.error EParser.Parser
+    | _ => Except.error (EParser.mk ParserError.Parser)
 
 public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
   match lex chars with
@@ -309,4 +315,4 @@ public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
       let tokens := tokens.toList
       let parsed ← parseCommands tokens #[]
       pure parsed
-    | Except.error {} => Except.error EParser.Lexer
+    | Except.error err => Except.error (EParser.mk (ParserError.Lexer err.type))

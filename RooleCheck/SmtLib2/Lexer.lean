@@ -3,6 +3,7 @@ module
 import RooleCheck.SmtLib2.CharClass
 public import RooleCheck.SmtLib2.String8
 public import RooleCheck.SmtLib2.Reserved
+public import RooleCheck.SmtLib2.Error
 
 public inductive Token
   | ParenOpen
@@ -15,10 +16,6 @@ public inductive Token
   | Reserved (value: Reserved)
   | String (literal: String8)
   | Keyword (name: String8)
-deriving Repr
-
--- no error information for simplicity
-public structure ELexer
 deriving Repr
 
 def lexFraction (chars: List Char8) (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat): List Char8 × Token :=
@@ -84,7 +81,9 @@ def lexBinary (chars: List Char8) (value: Nat) (numDigits: Nat): List Char8 × T
 
 def lexStringLiteral (chars: List Char8) (literal: String8): Except ELexer (List Char8 × Token) :=
   match chars with
-    | [] => Except.error {} -- forbidden as the literal must be totally enclosed by double quotes
+    | [] =>
+      -- forbidden as the literal must be totally enclosed by double quotes
+      Except.error (ELexer.mk LexerError.UnclosedStringLiteral)
     | c :: chars =>
       let classified := CharClass.ofChar8 c
       match classified with
@@ -100,7 +99,8 @@ def lexStringLiteral (chars: List Char8) (literal: String8): Except ELexer (List
         | _ => if classified.isPrintableOrWhitespace then
             lexStringLiteral chars (literal.push c)
           else
-            Except.error {} -- forbidden as not printable or whitespace
+            -- forbidden as not printable or whitespace
+            Except.error (ELexer.mk LexerError.ForbiddenCharInString)
 
 
 def lexSimpleSymbolString (chars: List Char8) (name: String8): List Char8 × String8 :=
@@ -142,16 +142,21 @@ def lexSimpleSymbolOrReserved (chars: List Char8) (name: String8): List Char8 ×
 
 def lexQuotedSymbol (chars: List Char8) (name: String8): Except ELexer (List Char8 × String8) :=
   match chars with
-    | [] => Except.error {} -- forbidden as the symbol must be totally enclosed by pipes
+    | [] =>
+      -- forbidden as the symbol must be totally enclosed by pipes
+      Except.error (ELexer.mk LexerError.UnclosedQuotedSymbol)
     | c :: chars =>
       let classified := CharClass.ofChar8 c
       match classified with
-        | CharClass.Backslash => Except.error {} -- backslash forbidden in quoted symbols
+        | CharClass.Backslash =>
+          -- backslash forbidden in quoted symbols
+          Except.error (ELexer.mk LexerError.BackslashInQuotedSymbol)
         | CharClass.Pipe => pure (chars, name) -- end quoted symbol
         | _ => if classified.isPrintableOrWhitespace then
             lexQuotedSymbol chars (name.push c)
           else
-            Except.error {} -- forbidden as not printable or whitespace
+            -- forbidden as not printable or whitespace
+            Except.error (ELexer.mk LexerError.ForbiddenCharInQuotedSymbol)
 
 
 def lexComment (chars: List Char8): List Char8 :=
@@ -196,15 +201,15 @@ partial def lexRec (chars: List Char8) (tokens: Array Token): Except ELexer (Arr
                   let (chars, token) := lexHexadecimal chars first 0
                   lexRec chars (tokens.push token)
                 else
-                  Except.error {}
+                  Except.error (ELexer.mk LexerError.HexadecimalDigitExpected)
               | 'b' =>
                 if let some first := toBinary first then
                   let (chars, token) := lexBinary chars first 0
                   lexRec chars  (tokens.push token)
                 else
-                  Except.error {}
-              | _ => Except.error {}
-          | _ => Except.error {}
+                  Except.error (ELexer.mk LexerError.BinaryDigitExpected)
+              | _ => Except.error (ELexer.mk LexerError.BaseSelectionExpected)
+          | _ => Except.error (ELexer.mk LexerError.BaseSelectionExpected)
 
       | CharClass.DoubleQuote => do
         -- double quote starts a string literal
@@ -215,7 +220,8 @@ partial def lexRec (chars: List Char8) (tokens: Array Token): Except ELexer (Arr
         -- colon starts a keyword, which continues with a simple symbol string
         let (chars, name) := lexSimpleSymbolString chars String8.empty
         if name.isEmpty then
-          Except.error {} -- empty continuation is disallowed
+          -- empty continuation is disallowed
+          Except.error (ELexer.mk LexerError.KeywordNameExpected)
         else
           lexRec chars (tokens.push (Token.Keyword name))
 
@@ -230,7 +236,7 @@ partial def lexRec (chars: List Char8) (tokens: Array Token): Except ELexer (Arr
         lexRec chars (tokens.push (Token.Symbol token))
 
         -- class disallowed here
-      | _ => Except.error {}
+      | _ => Except.error (ELexer.mk LexerError.UnexpectedCharacter)
 
 public def lex (chars: List Char8): Except ELexer (Array Token) := do
   lexRec chars #[]
