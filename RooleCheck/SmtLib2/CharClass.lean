@@ -48,6 +48,32 @@ public def CharClass.isPrintableOrWhitespace (c: CharClass) : Bool :=
     | .OtherNonPrintable _ => false
     | _ => true
 
+public def CharClass.toDecimal? (c: CharClass) : Option Nat :=
+  match c with
+    | CharClass.Digit c => some (c.toNat - '0'.toNat)
+    | _ => none
+
+public def CharClass.toHexadecimal? (c: CharClass): Option Nat :=
+  match c with
+    | CharClass.Digit c =>
+      some (c.toNat - '0'.toNat)
+    | CharClass.Letter c =>
+      if c >= 'a'.toUInt8 && c <= 'f'.toUInt8 then
+        some (10 + (c.toNat - 'a'.toNat))
+      else if c >= 'A'.toUInt8 && c <= 'F'.toUInt8 then
+        some (10 + (c.toNat - 'A'.toNat))
+      else none
+    | _ => none
+
+public def CharClass.toBinary? (c: CharClass): Option Nat :=
+  match c with
+    | CharClass.Digit c =>
+      if c >= '0'.toUInt8 && c <= '1'.toUInt8 then
+        some (c.toNat - '0'.toNat)
+      else
+        none
+    | _ => none
+
 @[match_pattern] def CharTab := '\t'.toUInt8
 @[match_pattern] def CharCarriageReturn := '\r'.toUInt8
 @[match_pattern] def CharLineFeed := '\n'.toUInt8
@@ -108,7 +134,6 @@ public def CharClass.ofChar8 (c: Char8) : CharClass :=
       else
         CharClass.OtherAsciiPrintable c
 
--- TODO implement and make sure it toChar8(ofChar8(c)) = c
 public def CharClass.toChar8 (c: CharClass): Char8 :=
   match c with
   | Tab => CharTab
@@ -125,9 +150,9 @@ public def CharClass.toChar8 (c: CharClass): Char8 :=
   | OtherNonPrintable c | LineBreak c | Digit c | Letter c
   | Special c | OtherAsciiPrintable c | NonAscii c => c
 
-theorem CharClass.injective(c: Char8): CharClass.toChar8 (CharClass.ofChar8 c) = c := by
-  -- rw [CharClass.ofChar8.eq_def]
 
+theorem CharClass.injective(c: Char8): CharClass.toChar8 (CharClass.ofChar8 c) = c := by
+  -- rewrite using ofChar8
   rw [CharClass.ofChar8.eq_def]
 
   split; simp [CharClass.toChar8] -- letters
@@ -136,6 +161,7 @@ theorem CharClass.injective(c: Char8): CharClass.toChar8 (CharClass.ofChar8 c) =
 
   -- split ofChar8 match
   split
+
   -- use toChar8, simplify classes and characters to UInt8
   all_goals simp [CharClass.toChar8, OfNat.ofNat, Char.toUInt8, CharTab, CharSpace, CharDoubleQuote, CharHash,
     CharParenOpen, CharParenClose, CharDot, CharColon, CharSemicolon,
@@ -151,29 +177,3 @@ theorem CharClass.injective(c: Char8): CharClass.toChar8 (CharClass.ofChar8 c) =
   -- prove OtherNonPrintable and OtherAsciiPrintable
   simp at h; symm; exact h
   simp at h; symm; exact h
-
-public def CharClass.toDecimal? (c: CharClass) : Option Nat :=
-  match c with
-    | CharClass.Digit c => some (c.toNat - '0'.toNat)
-    | _ => none
-
-public def CharClass.toHexadecimal? (c: CharClass): Option Nat :=
-  match c with
-    | CharClass.Digit c =>
-      some (c.toNat - '0'.toNat)
-    | CharClass.Letter c =>
-      if c >= 'a'.toUInt8 && c <= 'f'.toUInt8 then
-        some (10 + (c.toNat - 'a'.toNat))
-      else if c >= 'A'.toUInt8 && c <= 'F'.toUInt8 then
-        some (10 + (c.toNat - 'A'.toNat))
-      else none
-    | _ => none
-
-public def CharClass.toBinary? (c: CharClass): Option Nat :=
-  match c with
-    | CharClass.Digit c =>
-      if c >= '0'.toUInt8 && c <= '1'.toUInt8 then
-        some (c.toNat - '0'.toNat)
-      else
-        none
-    | _ => none
