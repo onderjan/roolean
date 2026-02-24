@@ -23,24 +23,28 @@ structure Chars where
 
 def Chars.empty : Chars := { list := [] }
 
-def Chars.length (chars: Chars) : Nat := chars.list.length
+instance : SizeOf ( Chars ) where
+  sizeOf a := a.list.length
 
-theorem Chars.emptyLengthZero: (Chars.empty).length = 0 := by
-  rw [Chars.empty]; rw[Chars.length]; simp
+
+-- def Chars.length (chars: Chars) : Nat := chars.list.length
+
+theorem Chars.emptySizeZero: SizeOf.sizeOf (Chars.empty) = 0 := by
+  rw [Chars.empty, instSizeOfChars]; simp
 
 def Chars.eat (chars: Chars) : Option (CharClass × Chars) :=
   match chars.list with
     | [] => none
     | c :: list => some (c, { list })
 
-theorem eatDecLength : Chars.eat old = some result → result.snd.length + 1 = old.length := by
+theorem eatDecSize : Chars.eat old = some result → sizeOf result.snd + 1 = sizeOf old := by
   intros h
   rw[Chars.eat] at h
   split at h
   { contradiction }
   {
     simp at h;
-    rw[Chars.length]; rw[Chars.length];
+    rw[sizeOf, instSizeOfChars]; simp;
     rw [Eq.comm] at h
     simp [h];
     rename_i h2;
@@ -48,26 +52,26 @@ theorem eatDecLength : Chars.eat old = some result → result.snd.length + 1 = o
   }
 
 
-theorem eatLowerLength : Chars.eat old = some result → result.snd.length < old.length := by
+theorem eatLowerSize : Chars.eat old = some result → sizeOf result.snd < sizeOf old := by
   intros h
   rw[Chars.eat] at h
   split at h
   { contradiction }
   {
     simp at h;
-    rw[Chars.length]; rw[Chars.length];
+    rw[instSizeOfChars];
     rw [Eq.comm] at h
     simp [h];
     rename_i h2;
     simp [h2]
   }
 
-theorem eatNone : (Chars.eat old = none) → (old.length = 0) := by
+theorem eatNone : (Chars.eat old = none) → (sizeOf old = 0) := by
   intros h
   rw[Chars.eat] at h
   split at h
   {
-    rw[Chars.length]
+    rw[instSizeOfChars]
     rename_i h1
     simp
     exact h1
@@ -85,13 +89,13 @@ def lexFraction (chars: Chars) (value: Nat) (numNumeratorDigits: Nat) (numDenomi
           let digit := (c.toNat) - ('0'.toNat)
           lexFraction chars (value * 10 + digit) numNumeratorDigits (numDenominatorDigits + 1)
     | _ => (chars, Token.Decimal value numNumeratorDigits numDenominatorDigits)
-termination_by chars.length decreasing_by simp [eatLowerLength __h]
+termination_by chars decreasing_by simp [eatLowerSize __h]
 
-theorem lexFractionLengthLe (old: Chars) (v: Nat) (n: Nat) (d: Nat) : (lexFraction old v n d).fst.length <= old.length := by
+theorem lexFractionLengthLe (old: Chars) (v: Nat) (n: Nat) (d: Nat) : sizeOf (lexFraction old v n d).fst <= sizeOf old := by
   fun_induction lexFraction
 
   rename_i h1 h2 h3
-  have h1 := eatDecLength h1; simp at h1
+  have h1 := eatDecSize h1; simp at h1
   rw [Eq.comm] at h1
   simp [h1]
   have h3 := Nat.le_succ_of_le h3; simp at h3
@@ -109,21 +113,19 @@ def lexNumeralOrDecimal (chars: Chars) (value: Nat) (numDigits: Nat): Chars × T
       -- decimal, lex fraction, initially with unit multiplicand (0 in minus log10)
       lexFraction chars value numDigits 0
     | _ => (chars, Token.Numeral value numDigits)
-termination_by chars.length decreasing_by simp [eatLowerLength h]
+termination_by chars decreasing_by simp [eatLowerSize h]
 
-set_option trace.grind.ematch.instance true
-
-theorem lexNumeralOrDecimalLengthLe : (lexNumeralOrDecimal old v n).fst.length <= old.length := by
+theorem lexNumeralOrDecimalSizeLe : sizeOf (lexNumeralOrDecimal old v n).fst <= sizeOf old := by
   fun_induction lexNumeralOrDecimal
 
   rename_i h1 h2 h3
-  have h1 := eatDecLength h1; simp at h1
+  have h1 := eatDecSize h1; simp at h1
   rw [Eq.comm] at h1; simp [h1]
   have h3 := Nat.le_succ_of_le h3; simp at h3
   exact h3
 
   rename_i h1
-  have h1 := eatDecLength h1; simp at h1
+  have h1 := eatDecSize h1; simp at h1
   rw [Eq.comm] at h1; simp [h1]
   rename_i value numDigits chars _
 
@@ -163,7 +165,7 @@ def lexHexadecimal (chars: Chars) (value: Nat) (numDigits: Nat): Except ELexer (
   else
     -- had non-digit, zero digits disallowed
     Except.error (ELexer.mk LexerError.BinaryDigitExpected)
-termination_by chars.length decreasing_by simp [eatLowerLength __h]
+termination_by chars decreasing_by simp [eatLowerSize __h]
 
 def toBinary (c: CharClass): Option Nat :=
   match c with
@@ -193,7 +195,7 @@ def lexBinary (chars: Chars) (value: Nat) (numDigits: Nat): Except ELexer (Chars
     Except.error (ELexer.mk LexerError.BinaryDigitExpected)
 
 
-termination_by chars.length decreasing_by simp [eatLowerLength __h]
+termination_by chars decreasing_by simp [eatLowerSize __h]
 
 def lexHexadecimalOrBinary (chars: Chars): Except ELexer (Chars × Token) := do
   -- decide whether to lex hexadecimal or binary with the next character
@@ -224,13 +226,13 @@ def lexStringLiteral (chars: Chars) (literal: String8): Except ELexer (Chars × 
           else
             -- forbidden as not printable or whitespace
             Except.error (ELexer.mk LexerError.ForbiddenCharInString)
-termination_by chars.length decreasing_by
-  have h1 := eatDecLength __h1; simp at h1; rw[Eq.comm] at h1
-  have h2 := eatDecLength __h2; simp at h2; rw[Eq.comm] at h2
+termination_by chars decreasing_by
+  have h1 := eatDecSize __h1; simp at h1; rw[Eq.comm] at h1
+  have h2 := eatDecSize __h2; simp at h2; rw[Eq.comm] at h2
   simp [h1, h2]
   rw[Nat.lt_add_one_iff]
   simp
-  have h1 := eatDecLength __h1; simp at h1
+  have h1 := eatDecSize __h1; simp at h1
   rw[Eq.comm] at h1
   simp [h1]
 
@@ -242,7 +244,7 @@ def lexSimpleSymbolString (chars: Chars) (name: String8): Chars × String8 :=
     | some (CharClass.Dot, chars) =>
           lexSimpleSymbolString chars (name.push (CharClass.Dot.toChar8))
     | _ => (chars, name)
-termination_by chars.length decreasing_by repeat simp [eatLowerLength __h]
+termination_by chars decreasing_by repeat simp [eatLowerSize __h]
 
 def lexSimpleSymbolOrReserved (chars: Chars) (name: String8): Chars × Token :=
   let (chars, name) := lexSimpleSymbolString chars name
@@ -289,7 +291,7 @@ def lexQuotedSymbol (chars: Chars) (name: String8): Except ELexer (Chars × Stri
       else
         -- forbidden as not printable or whitespace
         Except.error (ELexer.mk LexerError.ForbiddenCharInQuotedSymbol)
-termination_by chars.length decreasing_by simp [eatLowerLength __h]
+termination_by chars decreasing_by simp [eatLowerSize __h]
 
 
 def lexComment (chars: Chars): Chars :=
@@ -297,20 +299,20 @@ def lexComment (chars: Chars): Chars :=
     | none => Chars.empty -- no problem ending file on a comment
     | some (CharClass.LineBreak, chars) => chars -- end comment
     | some (_, chars) => lexComment chars -- continue comment
-termination_by chars.length decreasing_by simp [eatLowerLength __h]
+termination_by chars decreasing_by simp [eatLowerSize __h]
 
-theorem lexCommentLengthLe : (lexComment old).length <= old.length := by
+theorem lexCommentLengthLe : sizeOf (lexComment old) <= sizeOf old := by
   fun_induction lexComment
-  simp [Chars.emptyLengthZero]
+  simp [Chars.emptySizeZero]
 
   rename_i h
-  have h := eatLowerLength h
+  have h := eatLowerSize h
   simp at h
   have h := Nat.le_of_lt h
   exact h
 
   rename_i h1 h2
-  have h1 := eatLowerLength h1; simp at h1
+  have h1 := eatLowerSize h1; simp at h1
   have h1 := Nat.le_of_lt h1
   simp at h2
   exact Nat.le_trans h2 h1
