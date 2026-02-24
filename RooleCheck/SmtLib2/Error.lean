@@ -15,6 +15,7 @@ public inductive LexerError
   | BinaryDigitExpected
   | BaseSelectionExpected
   | KeywordNameExpected
+  | KeywordReserved
   | UnexpectedCharacter
 deriving Repr
 

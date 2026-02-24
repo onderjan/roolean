@@ -9,7 +9,7 @@ public inductive CharClass
   -- TAB (9)
   | Tab
   -- LF (10) / CR (13)
-  | LineBreak
+  | LineBreak (c: Char8)
   -- ' ' (32)
   | Space
   -- '"' (34)
@@ -57,7 +57,7 @@ public def CharClass.ofChar8 (c: Char8) : CharClass :=
     CharClass.NonAscii c
   else match Char.ofUInt8 c with
     | '\t' => CharClass.Tab
-    | '\r' | '\n'  => CharClass.LineBreak
+    | '\r' | '\n'  => CharClass.LineBreak c
     | ' '  => CharClass.Space
     | '#' => CharClass.Hash
     | '"' => CharClass.DoubleQuote
@@ -76,4 +76,46 @@ public def CharClass.ofChar8 (c: Char8) : CharClass :=
       else
         CharClass.OtherAsciiPrintable c
 
-public def CharClass.toChar8 (c: CharClass): Char8 := 'X'.toUInt8
+-- TODO implement and make sure it toChar8(ofChar8(c)) = c
+public def CharClass.toChar8 (c: CharClass): Char8 :=
+  match c with
+  | Tab => '\t'.toUInt8
+  | Space => ' '.toUInt8
+  | DoubleQuote => '"'.toUInt8
+  | Hash => '#'.toUInt8
+  | ParenOpen => '('.toUInt8
+  | ParenClose => ')'.toUInt8
+  | Dot => '.'.toUInt8
+  | Colon => ':'.toUInt8
+  | Semicolon => ';'.toUInt8
+  | Backslash => '\\'.toUInt8
+  | Pipe => '|'.toUInt8
+  | OtherNonPrintable c | LineBreak c | Digit c | Letter c
+  | Special c | OtherAsciiPrintable c | NonAscii c => c
+
+
+public def CharClass.toDecimal? (c: CharClass) : Option Nat :=
+  match c with
+    | CharClass.Digit c => some (c.toNat - '0'.toNat)
+    | _ => none
+
+public def CharClass.toHexadecimal? (c: CharClass): Option Nat :=
+  match c with
+    | CharClass.Digit c =>
+      some (c.toNat - '0'.toNat)
+    | CharClass.Letter c =>
+      if c >= 'a'.toUInt8 && c <= 'f'.toUInt8 then
+        some (10 + (c.toNat - 'a'.toNat))
+      else if c >= 'A'.toUInt8 && c <= 'F'.toUInt8 then
+        some (10 + (c.toNat - 'A'.toNat))
+      else none
+    | _ => none
+
+public def CharClass.toBinary? (c: CharClass): Option Nat :=
+  match c with
+    | CharClass.Digit c =>
+      if c >= '0'.toUInt8 && c <= '1'.toUInt8 then
+        some (c.toNat - '0'.toNat)
+      else
+        none
+    | _ => none

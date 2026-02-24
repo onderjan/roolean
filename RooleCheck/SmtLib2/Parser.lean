@@ -309,6 +309,7 @@ partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Ex
 
     | _ => Except.error (EParser.mk ParserError.Parser)
 
+/-
 public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
   match lex chars with
     | Except.ok tokens => do
@@ -316,3 +317,4 @@ public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
       let parsed ← parseCommands tokens #[]
       pure parsed
     | Except.error err => Except.error (EParser.mk (ParserError.Lexer err.type))
+-/

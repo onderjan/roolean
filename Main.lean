@@ -1,10 +1,16 @@
+import RooleCheck.SmtLib2.Lexer
 import RooleCheck.SmtLib2.Parser
+
 import Std.Data.HashMap.Basic
 
 def load (filename: String): IO (Except EParser (Array SmtCommand)) := do
   let byteArray ← IO.FS.readBinFile filename
   let chars := byteArray.toList
-  pure (parse chars)
+
+  let lexed := lex chars
+  IO.println s!"Lexed: {reprStr lexed}"
+  pure (Except.error (EParser.mk ParserError.Parser))
+ --pure (parse chars)
 
 structure BitvectorType where
   width: UInt32
