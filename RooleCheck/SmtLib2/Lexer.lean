@@ -338,7 +338,7 @@ partial def lexRec (chars: Chars) (tokens: Array Token): Except ELexer (Array To
     | some (CharClass.Digit c, chars) =>
       -- digit starts a numeral or a decimal
       let digit := (c.toNat) - ('0'.toNat)
-      let lexed := lexNumeralOrDecimal chars digit 0
+      let lexed := lexNumeralOrDecimal chars digit 1
       let chars := lexed.fst
       let token := lexed.snd
       lexRec chars (tokens.push token)
