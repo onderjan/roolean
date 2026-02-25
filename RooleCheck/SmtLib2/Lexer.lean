@@ -237,7 +237,7 @@ def LexerState.SimpleSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: S
 def LexerState.Keyword.lex (vars: LexerVars) (c: Option CharClass) (name: String8) : Except ELexer Lexer :=
   if let some c := simpleSymbolChar c then
     -- push character to the symbol name
-    pure (Lexer.mk (LexerState.SimpleSymbol (name.push c)) vars)
+    pure (Lexer.mk (LexerState.Keyword (name.push c)) vars)
   else
     -- keyword ended with previous character
     if name.isEmpty then
