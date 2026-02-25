@@ -18,7 +18,7 @@ public inductive Token
   | Reserved (value: Reserved)
   | String (literal: String8)
   | Keyword (name: String8)
-deriving Repr
+deriving Repr, Nonempty
 
 public inductive LexerState
   | Normal

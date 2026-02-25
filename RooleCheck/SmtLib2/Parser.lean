@@ -5,6 +5,7 @@ public import RooleCheck.SmtLib2.Reserved
 public import RooleCheck.SmtLib2.Error
 
 import RooleCheck.SmtLib2.Lexer
+public import RooleCheck.SmtLib2.Lexer
 
 public inductive SmtIndex
   | Numeral (value: Nat) (length: Nat)
@@ -74,171 +75,189 @@ public inductive SmtCommand
 deriving Repr
 
 public inductive ParserError where
-  | Lexer (err: LexerError)
-  | Parser
-deriving Repr
+  | Unspecified
+
+deriving Repr, Nonempty, Inhabited
+deriving instance Nonempty for ParserError
+
+public structure Parser where
+  tokens: List Token
+deriving Repr, Nonempty, Inhabited
+
+public inductive EParser where
+  | Lexer (err: ELexer)
+  | Parser (err: ParserError) (parser: Parser)
+deriving Repr, Nonempty, Inhabited
+
+def Parser.error (parser: Parser) (err: ParserError) : EParser :=
+  EParser.Parser err parser
+
+def Parser.with (_parser: Parser) (tokens: List Token) : Parser :=
+  { tokens := tokens }
+
+def consumeParenClose(parser: Parser): Except EParser (Parser) :=
+  match parser.tokens with
+  | Token.ParenClose :: tokens => pure (parser.with tokens)
+  | _ => Except.error (parser.error ParserError.Unspecified)
 
 
-public structure EParser where
-  type: ParserError
-deriving Repr
+def parseIndices (parser: Parser) (indices: Array SmtIndex) : (Parser × Array SmtIndex) :=
+  match parser.tokens with
+    | Token.Numeral value length :: tokens => ((parser.with tokens), indices.push (SmtIndex.Numeral value length))
+    | Token.Symbol name :: tokens => ((parser.with tokens), indices.push (SmtIndex.Symbol name))
+    | _ => (parser, indices)
 
-def consumeParenClose(tokens: List Token): Except Unit (List Token) :=
-  match tokens with
-  | Token.ParenClose :: tokens => pure tokens
-  | _ => Except.error ()
-
-
-def parseIndices (tokens: List Token) (indices: Array SmtIndex) : (List Token × Array SmtIndex) :=
-  match tokens with
-    | Token.Numeral value length :: tokens => (tokens, indices.push (SmtIndex.Numeral value length))
-    | Token.Symbol name :: tokens => (tokens, indices.push (SmtIndex.Symbol name))
-    | _ => (tokens, indices)
-
-def parseIdent (tokens: List Token) : Except Unit ((List Token) × SmtIdent) :=
-  match tokens with
-  | Token.Symbol name :: tokens => pure (tokens, (SmtIdent.Symbol name))
+def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
+  match parser.tokens with
+  | Token.Symbol name :: tokens => pure ((parser.with tokens), (SmtIdent.Symbol name))
   | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: Token.Symbol name :: tokens => do
     -- indexed identifier, one or more indices
-    let (tokens, indices) := parseIndices tokens #[]
+    let (tokens, indices) := parseIndices (parser.with tokens) #[]
     if indices.isEmpty then
-      Except.error ()
+      Except.error (parser.error ParserError.Unspecified)
     else
       let tokens ← consumeParenClose tokens
       pure (tokens, SmtIdent.Indexed name indices)
-  | _ => Except.error ()
+  | _ => Except.error (parser.error ParserError.Unspecified)
 
-def parseSpecialConstantOpt (tokens: List Token) : ((List Token) × Option SmtSpecialConstant) :=
-  match tokens with
-    | Token.Numeral value numDigits :: tokens => (tokens, some (SmtSpecialConstant.Numeral value numDigits))
+def parseSpecialConstantOpt (parser: Parser) : (Parser × Option SmtSpecialConstant) :=
+  match parser.tokens with
+    | Token.Numeral value numDigits :: tokens => ((parser.with tokens), some (SmtSpecialConstant.Numeral value numDigits))
     | Token.Decimal value numNumeratorDigits numDenominatorDigits :: tokens =>
-      (tokens, some (SmtSpecialConstant.Decimal value numNumeratorDigits numDenominatorDigits))
-    | Token.Hexadecimal value numDigits :: tokens => (tokens, some (SmtSpecialConstant.Hexadecimal value numDigits))
-    | Token.Binary value numDigits :: tokens => (tokens, some (SmtSpecialConstant.Binary value numDigits))
-    | Token.String value :: tokens => (tokens, some (SmtSpecialConstant.String value))
-    | _ => (tokens, none)
+      ((parser.with tokens), some (SmtSpecialConstant.Decimal value numNumeratorDigits numDenominatorDigits))
+    | Token.Hexadecimal value numDigits :: tokens => ((parser.with tokens), some (SmtSpecialConstant.Hexadecimal value numDigits))
+    | Token.Binary value numDigits :: tokens => ((parser.with tokens), some (SmtSpecialConstant.Binary value numDigits))
+    | Token.String value :: tokens => ((parser.with tokens), some (SmtSpecialConstant.String value))
+    | _ => (parser, none)
 
 -- TODO prove termination
-partial def parseSExprs (tokens: List Token) (exprs: Array SmtSExpr) : Except Unit ((List Token) × (Array SmtSExpr)) :=
-  let (tokens, constant) := parseSpecialConstantOpt tokens
+partial def parseSExprs (parser: Parser) (exprs: Array SmtSExpr) : Except EParser (Parser × (Array SmtSExpr)) :=
+  let (parser, constant) := parseSpecialConstantOpt parser
   if let some constant := constant then
-    parseSExprs tokens (exprs.push (SmtSExpr.SpecialConstant constant))
-  else match tokens with
-    | Token.Symbol name :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Symbol name))
-    | Token.Reserved value :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Reserved value))
-    | Token.Keyword keyword :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Keyword keyword))
+    parseSExprs parser (exprs.push (SmtSExpr.SpecialConstant constant))
+  else match parser.tokens with
+    | Token.Symbol name :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Symbol name))
+    | Token.Reserved value :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Reserved value))
+    | Token.Keyword keyword :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Keyword keyword))
     | Token.ParenOpen :: tokens => do
-      let (tokens, innerExprs) ← parseSExprs tokens #[]
-      match tokens with
-        | Token.ParenClose :: tokens => parseSExprs tokens (exprs.push (SmtSExpr.Exprs innerExprs))
-        | _ => Except.error ()
-    | _ => pure (tokens, exprs)
+      let (parser, innerExprs) ← parseSExprs (parser.with tokens) #[]
+      match parser.tokens with
+        | Token.ParenClose :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Exprs innerExprs))
+        | _ => Except.error (parser.error ParserError.Unspecified)
+    | _ => pure (parser, exprs)
 
 
-def parseAttributeValueOpt (tokens: List Token) : Except Unit ((List Token) × Option SmtAttributeValue) :=
-  let (tokens, constant) := parseSpecialConstantOpt tokens
+def parseAttributeValueOpt (parser: Parser) : Except EParser (Parser × Option SmtAttributeValue) :=
+  let (parser, constant) := parseSpecialConstantOpt parser
   if let some constant := constant then
-    pure (tokens, some (SmtAttributeValue.SpecialConstant constant))
-  else match tokens with
-    | Token.Symbol name :: tokens => pure (tokens, some (SmtAttributeValue.Symbol name))
+    pure (parser, some (SmtAttributeValue.SpecialConstant constant))
+  else match parser.tokens with
+    | Token.Symbol name :: tokens => pure ((parser.with tokens), some (SmtAttributeValue.Symbol name))
     | Token.ParenOpen :: tokens => do
-      let (tokens, exprs) ← parseSExprs tokens #[]
-      match tokens with
-        | Token.ParenClose :: tokens => pure (tokens, SmtAttributeValue.Exprs exprs.reverse)
-        | _ => Except.error ()
-    | _ => Except.error ()
+      let (parser, exprs) ← parseSExprs (parser.with tokens) #[]
+      match parser.tokens with
+        | Token.ParenClose :: tokens => pure ((parser.with tokens), SmtAttributeValue.Exprs exprs.reverse)
+        | _ => Except.error (parser.error ParserError.Unspecified)
+    | _ => Except.error (parser.error ParserError.Unspecified)
 
 
-def parseAttribute (tokens: List Token) : Except Unit ((List Token) × SmtAttribute) :=
-  match tokens with
+def parseAttribute (parser: Parser) : Except EParser (Parser × SmtAttribute) :=
+  match parser.tokens with
   | Token.Keyword keyword :: tokens => do
-    let (tokens, value) ← parseAttributeValueOpt tokens
+    let (parser, value) ← parseAttributeValueOpt (parser.with tokens)
     if let some value := value then
-      pure (tokens, SmtAttribute.NameValue keyword value)
+      pure (parser, SmtAttribute.NameValue keyword value)
     else
-      pure (tokens, SmtAttribute.Name keyword)
-  | _ => Except.error ()
+      pure (parser, SmtAttribute.Name keyword)
+  | _ => Except.error (parser.error ParserError.Unspecified)
 
 
 -- TODO prove termination
 mutual
-partial def parseSortApplication (tokens: List Token) (ident: SmtIdent) (sorts: Array SmtSort)
-  : Except Unit ((List Token) × SmtSort)  := do
+partial def parseSortApplication (parser: Parser) (ident: SmtIdent) (sorts: Array SmtSort)
+  : Except EParser (Parser × SmtSort)  := do
   -- only simple sorts implemented
-    let (tokens, sort) ← parseSort tokens
-    parseSortApplication tokens ident (sorts.push sort)
+    let (parser, sort) ← parseSort parser
+    parseSortApplication parser ident (sorts.push sort)
 
-partial def parseSort (tokens: List Token) : Except Unit ((List Token) × SmtSort) := do
-  match tokens with
+partial def parseSort (parser: Parser) : Except EParser (Parser × SmtSort) := do
+  match parser.tokens with
     | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
       -- sort consists of an indexed ident
-      let (tokens, ident) ← parseIdent tokens
-      pure (tokens, SmtSort.Ident ident)
+      let (parser, ident) ← parseIdent parser
+      pure (parser, SmtSort.Ident ident)
 
     | Token.ParenOpen :: tokens =>
       -- sort consists of an application
-      let (tokens, ident) ← parseIdent tokens
-      parseSortApplication tokens ident #[]
+      let (parser, ident) ← parseIdent (parser.with tokens)
+      let (parser, sort) ← parseSortApplication parser ident #[]
+      let parser ← consumeParenClose parser
+      pure (parser, sort)
     | _ => -- sort consists of an ident
-      let (tokens, ident) ← parseIdent tokens
-      pure (tokens, SmtSort.Ident ident)
+      let (parser, ident) ← parseIdent parser
+      pure (parser, SmtSort.Ident ident)
 end
 
-def parseQualifiedIdent (tokens: List Token) : Except Unit ((List Token) × SmtQualifiedIdent) := do
+def parseQualifiedIdent (parser: Parser) : Except EParser (Parser × SmtQualifiedIdent) := do
   -- TODO qualification
-  let (tokens, ident) ← parseIdent tokens
-  pure (tokens, SmtQualifiedIdent.Ident ident)
+  let (parser, ident) ← parseIdent parser
+  pure (parser, SmtQualifiedIdent.Ident ident)
 
 -- TODO prove termination
 mutual
-partial def parseTermApplication (tokens: List Token)
-              (ident: SmtQualifiedIdent) (terms: Array SmtTerm): Except Unit ((List Token) × SmtTerm)  := do
-  match tokens with
+partial def parseTermApplication (parser: Parser)
+              (ident: SmtQualifiedIdent) (terms: Array SmtTerm): Except EParser (Parser × SmtTerm)  := do
+  match parser.tokens with
     | Token.ParenClose :: tokens =>
       if terms.isEmpty then
-        Except.error ()
+        Except.error (parser.error ParserError.Unspecified)
       else
-        pure (tokens, SmtTerm.Application ident terms)
+        pure ((parser.with tokens), SmtTerm.Application ident terms)
     | _ =>
-      let (tokens, term) ← parseTerm tokens
-      parseTermApplication tokens ident (terms.push term)
+      let (parser, term) ← parseTerm parser
+      parseTermApplication parser ident (terms.push term)
 
-partial def parseLetBindings (tokens: List Token) (bindings: Array (String8 × SmtTerm))
-  : Except Unit ((List Token) × Array (String8 × SmtTerm)) :=
-  match tokens with
+partial def parseLetBindings (parser: Parser) (bindings: Array (String8 × SmtTerm))
+  : Except EParser (Parser × Array (String8 × SmtTerm)) :=
+  match parser.tokens with
     | Token.ParenOpen :: Token.Symbol name :: tokens => do
-      let (tokens, term) ← parseTerm tokens
+      let (tokens, term) ← parseTerm (parser.with tokens)
       let tokens ← consumeParenClose tokens
       parseLetBindings tokens (bindings.push (name, term))
-    | _ => pure (tokens, bindings)
+    | _ => pure (parser, bindings)
 
-partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTerm) := do
-  let (tokens, constant) := parseSpecialConstantOpt tokens
+partial def parseTerm (parser: Parser) : Except EParser (Parser × SmtTerm) := do
+  let (parser, constant) := parseSpecialConstantOpt parser
   if let some constant := constant then
-    pure (tokens, SmtTerm.SpecialConstant constant)
-  else match tokens with
-    | Token.Numeral value length :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value length))
+    pure (parser, SmtTerm.SpecialConstant constant)
+  else match parser.tokens with
+    | Token.Numeral value length :: tokens =>
+      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value length))
     | Token.Decimal value numeratorLength denominatorLength :: tokens =>
-        pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
-    | Token.Hexadecimal value length :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value length))
-    | Token.Binary value length :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value length))
-    | Token.String value :: tokens => pure (tokens, SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
+        pure ((parser.with tokens),
+          SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
+    | Token.Hexadecimal value length :: tokens =>
+      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value length))
+    | Token.Binary value length :: tokens =>
+      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value length))
+    | Token.String value :: tokens =>
+      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
 
     | Token.Symbol _ :: _ =>
       -- normal identifier
-      let (tokens, ident) ← parseIdent tokens
+      let (tokens, ident) ← parseIdent parser
       pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
 
     | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
       -- qualified identifier
-      let (tokens, ident) ← parseIdent tokens
+      let (tokens, ident) ← parseIdent parser
       pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
 
     | Token.ParenOpen :: Token.Reserved Reserved.Let :: Token.ParenOpen :: tokens =>
       -- let
-      let (tokens, bindings) ← parseLetBindings tokens #[]
+      let (tokens, bindings) ← parseLetBindings (parser.with tokens) #[]
       if bindings.isEmpty then
-        Except.error ()
+        Except.error (parser.error ParserError.Unspecified)
       else
         let tokens ← consumeParenClose tokens
         let (tokens, term) ← parseTerm tokens
@@ -247,74 +266,78 @@ partial def parseTerm (tokens: List Token) : Except Unit ((List Token) × SmtTer
 
     | Token.ParenOpen :: tokens =>
       -- application
-      let (tokens, ident) ← parseQualifiedIdent tokens
+      let (tokens, ident) ← parseQualifiedIdent (parser.with tokens)
       parseTermApplication tokens ident #[]
 
     -- unsupported: lambda, forall, exists, match, !
 
-    | _ => Except.error ()
+    | _ => Except.error (parser.error ParserError.Unspecified)
 end
 
 -- TODO prove termination
-partial def parseCommands (tokens: List Token) (commands: Array SmtCommand) : Except EParser (Array SmtCommand) := do
-  match tokens with
+partial def parseCommands (parser: Parser) (commands: Array SmtCommand) : Except EParser (Array SmtCommand) := do
+  match parser.tokens with
     | [] => pure commands
     | Token.ParenOpen :: Token.Symbol commandName :: tokens =>
       match commandName.toString? with
 
         | some "set-logic" =>
           if let Token.Symbol logic :: Token.ParenClose :: tokens := tokens then
-            parseCommands tokens (commands.push (SmtCommand.SetLogic logic))
-          else Except.error (EParser.mk ParserError.Parser)
+            parseCommands (parser.with tokens) (commands.push (SmtCommand.SetLogic logic))
+          else Except.error (parser.error ParserError.Unspecified)
 
         | some "set-info" =>
-          match parseAttribute tokens with
-            | Except.ok (Token.ParenClose :: tokens, attr) =>
-              parseCommands tokens (commands.push (SmtCommand.SetInfo attr))
-            | _ => Except.error (EParser.mk ParserError.Parser)
+          let (parser, attr) ← parseAttribute (parser.with tokens)
+          match parser.tokens with
+            | Token.ParenClose :: tokens =>
+              parseCommands (parser.with tokens) (commands.push (SmtCommand.SetInfo attr))
+            | _ => Except.error (parser.error ParserError.Unspecified)
 
         | some "declare-fun" =>
           if let Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens := tokens then
-            match parseSort tokens with
-              | Except.ok (Token.ParenClose :: tokens, sort) =>
-                parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-              | _ => Except.error (EParser.mk ParserError.Parser)
-          else Except.error (EParser.mk ParserError.Parser)
+          let (parser, sort) ← parseSort (parser.with tokens)
+            match parser.tokens with
+              | Token.ParenClose :: tokens =>
+                parseCommands (parser.with tokens) (commands.push (SmtCommand.DeclareConst name sort))
+              | _ => Except.error (parser.error ParserError.Unspecified)
+          else Except.error (parser.error ParserError.Unspecified)
 
         | some "declare-const" =>
           if let Token.Symbol name :: tokens := tokens then
-            match parseSort tokens with
-              | Except.ok (Token.ParenClose :: tokens, sort) =>
-                parseCommands tokens (commands.push (SmtCommand.DeclareConst name sort))
-              | _ => Except.error (EParser.mk ParserError.Parser)
-          else Except.error (EParser.mk ParserError.Parser)
+            let (parser, sort) ← parseSort (parser.with tokens)
+            match parser.tokens with
+              | Token.ParenClose :: tokens =>
+                parseCommands (parser.with tokens) (commands.push (SmtCommand.DeclareConst name sort))
+              | _ => Except.error (parser.error ParserError.Unspecified)
+          else Except.error (parser.error ParserError.Unspecified)
 
         | some "assert" =>
-          match parseTerm tokens with
-            | Except.ok (Token.ParenClose :: tokens, term) =>
-              parseCommands tokens (commands.push (SmtCommand.Assert term))
-            | _ => Except.error (EParser.mk ParserError.Parser)
+          let (parser, term) ← parseTerm (parser.with tokens)
+          match parser.tokens with
+            | Token.ParenClose :: tokens =>
+              parseCommands (parser.with tokens)  (commands.push (SmtCommand.Assert term))
+            | _ => Except.error (parser.error ParserError.Unspecified)
 
         | some "check-sat" =>
           if let Token.ParenClose :: tokens := tokens then
-            parseCommands tokens (commands.push (SmtCommand.CheckSat))
-          else Except.error (EParser.mk ParserError.Parser)
+            parseCommands (parser.with tokens) (commands.push (SmtCommand.CheckSat))
+          else Except.error (parser.error ParserError.Unspecified)
 
         | some "exit" =>
           if let Token.ParenClose :: tokens := tokens then
-            parseCommands tokens (commands.push (SmtCommand.Exit))
-          else Except.error (EParser.mk ParserError.Parser)
+            parseCommands (parser.with tokens) (commands.push (SmtCommand.Exit))
+          else Except.error (parser.error ParserError.Unspecified)
 
-        | _ => Except.error (EParser.mk ParserError.Parser)
+        | _ => Except.error (parser.error ParserError.Unspecified)
 
-    | _ => Except.error (EParser.mk ParserError.Parser)
+    | _ => Except.error (parser.error ParserError.Unspecified)
 
-/-
+
 public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
   match lex chars with
     | Except.ok tokens => do
       let tokens := tokens.toList
-      let parsed ← parseCommands tokens #[]
+      let parser : Parser := { tokens }
+      let parsed ← parseCommands parser #[]
       pure parsed
-    | Except.error err => Except.error (EParser.mk (ParserError.Lexer err.type))
--/
+    | Except.error err => Except.error (EParser.Lexer err)
