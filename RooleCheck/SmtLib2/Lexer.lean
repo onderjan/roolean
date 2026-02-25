@@ -98,14 +98,14 @@ def LexerState.Normal.lex (vars: LexerVars) (c: Option CharClass): Except ELexer
 
 def LexerState.Fraction.lex (vars: LexerVars) (c: Option CharClass)
   (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat): Except ELexer Lexer :=
-  -- technically, SMT-LIB2 allows decimals such as 7.0 and 7.0000,
-  -- but does not have a rule for decimals of form 7. without trailing zero
-  -- we we will accept this form too to avoid an error condition
   if let some digit := c >>= CharClass.toDecimal? then
     -- compute the new value, add one denominator digit
     let value := (value * 10 + digit)
     let state := LexerState.Fraction value numNumeratorDigits (numDenominatorDigits + 1)
     pure (Lexer.mk state vars)
+  else if numDenominatorDigits == 0 then
+    -- decimals of the form 7. without any digit in fraction part are disallowed
+    Except.error (ELexer.mk LexerError.FractionDigitExpected)
   else
     -- push new token and lex the new character as token
     let token := Token.Decimal value numNumeratorDigits numDenominatorDigits

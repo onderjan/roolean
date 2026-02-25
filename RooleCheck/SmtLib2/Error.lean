@@ -6,14 +6,15 @@ public structure Location where
 deriving Repr
 
 public inductive LexerError
+  | FractionDigitExpected
+  | HexadecimalDigitExpected
+  | BinaryDigitExpected
+  | BaseSelectionExpected
   | UnclosedStringLiteral
   | ForbiddenCharInString
   | UnclosedQuotedSymbol
   | BackslashInQuotedSymbol
   | ForbiddenCharInQuotedSymbol
-  | HexadecimalDigitExpected
-  | BinaryDigitExpected
-  | BaseSelectionExpected
   | KeywordNameExpected
   | KeywordReserved
   | UnexpectedCharacter
