@@ -1,6 +1,8 @@
 module
 import RooleCheck.SmtLib2.Parser
+import RooleCheck.QfBv.Formula
 import Std.Data.HashMap.Basic
+import RooleCheck.QfBv.Formula
 public import RooleCheck.SmtLib2.Parser
 
 structure BitvectorType where
@@ -25,74 +27,6 @@ def processVariableSort (sort: SmtSort): Except EExecutor BitvectorType :=
         Except.error {} -- expected bitvector
     | _ => Except.error {} -- expected bitvector
 
-inductive UniOperator
-  | Not
-  | Neg
-deriving Repr
-
-inductive BiOperator
-  | Add
-  | Sub
-  | Mul
-  | Udiv
-  | Urem
-  | Sdiv
-  | Srem
-  | BitAnd
-  | BitOr
-  | BitXor
-  | Eq
-  | Ne
-  | Implies
-  | Ult
-  | Ule
-  | Ugt
-  | Uge
-  | Slt
-  | Sle
-  | Sgt
-  | Sge
-  | Shl
-  | Lshr
-  | Ashr
-deriving Repr
-
-structure Constant where
-  value: Nat
-  width: UInt32
-deriving Repr
-
-mutual
-
-structure UniOp where
-  op: UniOperator
-  inner: Formula
-deriving Repr
-
-structure BiOp where
-  op: BiOperator
-  left: Formula
-  right: Formula
-deriving Repr
-
-inductive Operation where
-  | Unary (unary: UniOp)
-  | Binary (binary: BiOp)
-  -- TODO others
-/-  | Ext (ext: ExtOp)
-  | Ite (ite: IteOp)
-  | Concat (concat: ConcatOp)
-  | Extract (extract: ExtractOp)
-  | Rotate (rotate: RotateOp) -/
-deriving Repr
-
-inductive Formula where
-  | Constant (constant: Constant)
-  | Variable (index: USize)
-  | Operation (operation: Operation)
-deriving Repr
-
-end
 
 abbrev VariableMap := Std.HashMap String8 USize
 
@@ -150,12 +84,15 @@ partial def execUniOp (variables: VariableMap) (op: UniOperator) (terms: Array S
     | #[inner] =>
       let inner ← execTerm variables inner
       match inner with
-        | Except.ok inner => pure (Except.ok (Formula.Operation (Operation.Unary { op, inner })))
+        | Except.ok inner => pure (Except.ok (Formula.Operation (Operation.Unary (UniOp.new op inner))))
         | Except.error err => pure (Except.error err) -- error evaluating inner term
     | _ => pure (Except.error {}) -- expected one term
 
 partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array SmtTerm)
   : IO ((Except EExecutor) Formula) := do
+
+  let construct (op) (left) (right) :=
+    pure (Except.ok (Formula.Operation (Operation.Binary (BiOp.new op left right ))))
 
   if h: terms.size > 2 then
       -- more than two terms
@@ -173,7 +110,7 @@ partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array Smt
         let left ← execBiOp variables op (terms.pop)
         let right ← execTerm variables rightTerm
         match left, right with
-          | Except.ok left, Except.ok right => pure (Except.ok (Formula.Operation (Operation.Binary { op, left, right })))
+          | Except.ok left, Except.ok right => construct op left right
           | _,_ => pure (Except.error {}) -- error evaluating inner terms
       | BiOperator.Implies =>
         -- right-associative, transform (f s_1 s_2 .. s_n) as (f s_1 (f s_2 ... s_n))
@@ -181,7 +118,7 @@ partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array Smt
         let left ← execTerm variables (terms[0])
         let right ← execBiOp variables op (terms.eraseIdx 0)
         match left, right with
-          | Except.ok left, Except.ok right => pure (Except.ok (Formula.Operation (Operation.Binary { op, left, right })))
+          | Except.ok left, Except.ok right => construct op left right
           | _,_ => pure (Except.error {}) -- error evaluating inner terms
       | _ => pure (Except.error {}) -- cannot process this operation with more than two terms
 
@@ -190,7 +127,7 @@ partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array Smt
       let left ← execTerm variables left
       let right ← execTerm variables right
       match left, right with
-        | Except.ok left, Except.ok right => pure (Except.ok (Formula.Operation (Operation.Binary { op, left, right })))
+        | Except.ok left, Except.ok right => construct op left right
         | _,_ => pure (Except.error {}) -- error evaluating inner terms
     | #[] | #[_] => pure (Except.error {}) -- must have at least two terms
     | _ => pure (Except.error {}) -- expected two terms
