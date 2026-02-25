@@ -75,13 +75,24 @@ public inductive SmtCommand
 deriving Repr
 
 public inductive ParserError where
-  | Unspecified
+  | ExpectedParenOpen
+  | ExpectedParenClose
+  | ExpectedSymbol
+  | ExpectedKeyword
+  | EmptyIdentIndices
+  | InvalidIdent
+  | InvalidAttributeValue
+  | EmptyApplication
+  | EmptyLetBindings
+  | ExpectedTerm
+  | UnsupportedCommand
 
 deriving Repr, Nonempty, Inhabited
 deriving instance Nonempty for ParserError
 
 public structure Parser where
   tokens: List Token
+  initial: List Token
 deriving Repr, Nonempty, Inhabited
 
 public inductive EParser where
@@ -92,13 +103,28 @@ deriving Repr, Nonempty, Inhabited
 def Parser.error (parser: Parser) (err: ParserError) : EParser :=
   EParser.Parser err parser
 
-def Parser.with (_parser: Parser) (tokens: List Token) : Parser :=
-  { tokens := tokens }
+def Parser.with (parser: Parser) (tokens: List Token) : Parser :=
+  { tokens := tokens, initial := parser.initial }
+
+def consumeParenOpen(parser: Parser): Except EParser (Parser) :=
+  match parser.tokens with
+  | Token.ParenOpen :: tokens => pure (parser.with tokens)
+  | _ => Except.error (parser.error ParserError.ExpectedParenOpen)
 
 def consumeParenClose(parser: Parser): Except EParser (Parser) :=
   match parser.tokens with
   | Token.ParenClose :: tokens => pure (parser.with tokens)
-  | _ => Except.error (parser.error ParserError.Unspecified)
+  | _ => Except.error (parser.error ParserError.ExpectedParenClose)
+
+def consumeSymbol(parser: Parser): Except EParser (Parser × String8) :=
+  match parser.tokens with
+  | Token.Symbol name :: tokens => pure (parser.with tokens, name)
+  | _ => Except.error (parser.error ParserError.ExpectedSymbol)
+
+def consumeKeyword(parser: Parser): Except EParser (Parser × String8) :=
+  match parser.tokens with
+  | Token.Keyword name :: tokens => pure (parser.with tokens, name)
+  | _ => Except.error (parser.error ParserError.ExpectedKeyword)
 
 
 def parseIndices (parser: Parser) (indices: Array SmtIndex) : (Parser × Array SmtIndex) :=
@@ -114,11 +140,11 @@ def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
     -- indexed identifier, one or more indices
     let (tokens, indices) := parseIndices (parser.with tokens) #[]
     if indices.isEmpty then
-      Except.error (parser.error ParserError.Unspecified)
+      Except.error (parser.error ParserError.EmptyIdentIndices)
     else
       let tokens ← consumeParenClose tokens
       pure (tokens, SmtIdent.Indexed name indices)
-  | _ => Except.error (parser.error ParserError.Unspecified)
+  | _ => Except.error (parser.error ParserError.InvalidIdent)
 
 def parseSpecialConstantOpt (parser: Parser) : (Parser × Option SmtSpecialConstant) :=
   match parser.tokens with
@@ -141,36 +167,32 @@ partial def parseSExprs (parser: Parser) (exprs: Array SmtSExpr) : Except EParse
     | Token.Keyword keyword :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Keyword keyword))
     | Token.ParenOpen :: tokens => do
       let (parser, innerExprs) ← parseSExprs (parser.with tokens) #[]
-      match parser.tokens with
-        | Token.ParenClose :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Exprs innerExprs))
-        | _ => Except.error (parser.error ParserError.Unspecified)
+      let parser ← consumeParenClose parser
+      parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Exprs innerExprs))
     | _ => pure (parser, exprs)
 
 
-def parseAttributeValueOpt (parser: Parser) : Except EParser (Parser × Option SmtAttributeValue) :=
+def parseAttribute (parser: Parser) : Except EParser (Parser × SmtAttribute) := do
+  let (parser, keyword) ← consumeKeyword parser
   let (parser, constant) := parseSpecialConstantOpt parser
   if let some constant := constant then
-    pure (parser, some (SmtAttributeValue.SpecialConstant constant))
+    -- attribute value is special constant
+    let value := SmtAttributeValue.SpecialConstant constant
+    pure (parser, SmtAttribute.NameValue keyword value)
   else match parser.tokens with
-    | Token.Symbol name :: tokens => pure ((parser.with tokens), some (SmtAttributeValue.Symbol name))
-    | Token.ParenOpen :: tokens => do
+    | Token.Symbol name :: tokens =>
+      -- attribute value is a symbol
+      let value := SmtAttributeValue.Symbol name
+      pure ((parser.with tokens), SmtAttribute.NameValue keyword value)
+    | Token.ParenOpen :: tokens =>
+      -- attribute value is an S-expression
       let (parser, exprs) ← parseSExprs (parser.with tokens) #[]
-      match parser.tokens with
-        | Token.ParenClose :: tokens => pure ((parser.with tokens), SmtAttributeValue.Exprs exprs.reverse)
-        | _ => Except.error (parser.error ParserError.Unspecified)
-    | _ => Except.error (parser.error ParserError.Unspecified)
-
-
-def parseAttribute (parser: Parser) : Except EParser (Parser × SmtAttribute) :=
-  match parser.tokens with
-  | Token.Keyword keyword :: tokens => do
-    let (parser, value) ← parseAttributeValueOpt (parser.with tokens)
-    if let some value := value then
-      pure (parser, SmtAttribute.NameValue keyword value)
-    else
+      let parser ← consumeParenClose parser
+      let value := SmtAttributeValue.Exprs exprs
+      pure ((parser.with tokens), SmtAttribute.NameValue keyword value)
+    | _ =>
+      -- attribute has no value
       pure (parser, SmtAttribute.Name keyword)
-  | _ => Except.error (parser.error ParserError.Unspecified)
-
 
 -- TODO prove termination
 mutual
@@ -210,7 +232,7 @@ partial def parseTermApplication (parser: Parser)
   match parser.tokens with
     | Token.ParenClose :: tokens =>
       if terms.isEmpty then
-        Except.error (parser.error ParserError.Unspecified)
+        Except.error (parser.error ParserError.EmptyApplication)
       else
         pure ((parser.with tokens), SmtTerm.Application ident terms)
     | _ =>
@@ -257,7 +279,7 @@ partial def parseTerm (parser: Parser) : Except EParser (Parser × SmtTerm) := d
       -- let
       let (tokens, bindings) ← parseLetBindings (parser.with tokens) #[]
       if bindings.isEmpty then
-        Except.error (parser.error ParserError.Unspecified)
+        Except.error (parser.error ParserError.EmptyLetBindings)
       else
         let tokens ← consumeParenClose tokens
         let (tokens, term) ← parseTerm tokens
@@ -271,73 +293,63 @@ partial def parseTerm (parser: Parser) : Except EParser (Parser × SmtTerm) := d
 
     -- unsupported: lambda, forall, exists, match, !
 
-    | _ => Except.error (parser.error ParserError.Unspecified)
+    | _ => Except.error (parser.error ParserError.ExpectedTerm)
 end
 
 -- TODO prove termination
 partial def parseCommands (parser: Parser) (commands: Array SmtCommand) : Except EParser (Array SmtCommand) := do
-  match parser.tokens with
-    | [] => pure commands
-    | Token.ParenOpen :: Token.Symbol commandName :: tokens =>
-      match commandName.toString? with
+  if parser.tokens.isEmpty then
+    return commands
 
-        | some "set-logic" =>
-          if let Token.Symbol logic :: Token.ParenClose :: tokens := tokens then
-            parseCommands (parser.with tokens) (commands.push (SmtCommand.SetLogic logic))
-          else Except.error (parser.error ParserError.Unspecified)
+  let parser ← consumeParenOpen parser
+  let (parser, commandName) ← consumeSymbol parser
 
-        | some "set-info" =>
-          let (parser, attr) ← parseAttribute (parser.with tokens)
-          match parser.tokens with
-            | Token.ParenClose :: tokens =>
-              parseCommands (parser.with tokens) (commands.push (SmtCommand.SetInfo attr))
-            | _ => Except.error (parser.error ParserError.Unspecified)
+  let (parser, command) ← match commandName.toString? with
+    | some "set-logic" =>
+      let (parser, logic) ← consumeSymbol parser
+      pure (parser, SmtCommand.SetLogic logic)
 
-        | some "declare-fun" =>
-          if let Token.Symbol name :: Token.ParenOpen :: Token.ParenClose :: tokens := tokens then
-          let (parser, sort) ← parseSort (parser.with tokens)
-            match parser.tokens with
-              | Token.ParenClose :: tokens =>
-                parseCommands (parser.with tokens) (commands.push (SmtCommand.DeclareConst name sort))
-              | _ => Except.error (parser.error ParserError.Unspecified)
-          else Except.error (parser.error ParserError.Unspecified)
+    | some "set-info" =>
+      let (parser, attr) ← parseAttribute parser
+      pure (parser, SmtCommand.SetInfo attr)
 
-        | some "declare-const" =>
-          if let Token.Symbol name :: tokens := tokens then
-            let (parser, sort) ← parseSort (parser.with tokens)
-            match parser.tokens with
-              | Token.ParenClose :: tokens =>
-                parseCommands (parser.with tokens) (commands.push (SmtCommand.DeclareConst name sort))
-              | _ => Except.error (parser.error ParserError.Unspecified)
-          else Except.error (parser.error ParserError.Unspecified)
+    | some "declare-fun" =>
+      let (parser, name) ← consumeSymbol parser
 
-        | some "assert" =>
-          let (parser, term) ← parseTerm (parser.with tokens)
-          match parser.tokens with
-            | Token.ParenClose :: tokens =>
-              parseCommands (parser.with tokens)  (commands.push (SmtCommand.Assert term))
-            | _ => Except.error (parser.error ParserError.Unspecified)
+      let parser ← consumeParenOpen parser
+      -- TODO: support non-constant functions
+      let parser ← consumeParenClose parser
+      let (parser, sort) ← parseSort parser
 
-        | some "check-sat" =>
-          if let Token.ParenClose :: tokens := tokens then
-            parseCommands (parser.with tokens) (commands.push (SmtCommand.CheckSat))
-          else Except.error (parser.error ParserError.Unspecified)
+      pure (parser, SmtCommand.DeclareConst name sort)
 
-        | some "exit" =>
-          if let Token.ParenClose :: tokens := tokens then
-            parseCommands (parser.with tokens) (commands.push (SmtCommand.Exit))
-          else Except.error (parser.error ParserError.Unspecified)
+    | some "declare-const" =>
+      let (parser, name) ← consumeSymbol parser
+      let (parser, sort) ← parseSort parser
+      pure (parser, SmtCommand.DeclareConst name sort)
 
-        | _ => Except.error (parser.error ParserError.Unspecified)
+    | some "assert" =>
+      let (parser, term) ← parseTerm (parser.with parser.tokens)
+      pure (parser, SmtCommand.Assert term)
 
-    | _ => Except.error (parser.error ParserError.Unspecified)
+    | some "check-sat" =>
+      pure (parser, SmtCommand.CheckSat)
+
+    | some "exit" =>
+      pure (parser, SmtCommand.Exit)
+
+    | _ => Except.error (parser.error ParserError.UnsupportedCommand)
+
+    let parser ← consumeParenClose parser
+
+    parseCommands (parser) (commands.push (command))
 
 
 public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
   match lex chars with
     | Except.ok tokens => do
       let tokens := tokens.toList
-      let parser : Parser := { tokens }
+      let parser : Parser := { tokens, initial := tokens }
       let parsed ← parseCommands parser #[]
       pure parsed
     | Except.error err => Except.error (EParser.Lexer err)
