@@ -2,12 +2,9 @@ module
 import RooleCheck.SmtLib2.Parser
 import RooleCheck.QfBv.Formula
 import Std.Data.HashMap.Basic
-import RooleCheck.QfBv.Formula
+import RooleCheck.QfBv.Checker
 public import RooleCheck.SmtLib2.Parser
 
-structure BitvectorType where
-  width: UInt32
-deriving Repr
 
 structure EExecutor
 deriving Repr
@@ -209,7 +206,7 @@ def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Arra
     SmtTerm.SpecialConstant (SmtSpecialConstant.String (String8.fromUTF8 "true"))
   else
     SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) assertions
-  IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nCombined assertion: {reprStr assertion}"
+  -- IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nCombined assertion: {reprStr assertion}"
 
   let mut variableMap: VariableMap := {}
   let mut index: USize := 0
@@ -218,14 +215,18 @@ def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Arra
     index := index + 1
 
   let result ← execTerm variableMap assertion
-  match result with
-    | Except.ok formula =>
-      IO.println s!"CheckSat formula: {reprStr formula}"
-      pure (Except.ok ())
+  let formula ← match result with
+    | Except.ok formula => pure formula
     | Except.error err =>
       IO.println s!"CheckSat error: {reprStr err}"
-      pure (Except.error err)
+      return (Except.error err)
 
+  let variables := variables.map (λ (var) => var.snd)
+
+  let checked ← check variables formula
+  match checked with
+    | Except.ok () => pure (Except.ok ())
+    | Except.error {} => pure (Except.error {})
 
 
 def execCommands (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := do
