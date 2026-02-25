@@ -1,5 +1,4 @@
 module
-import RooleCheck.SmtLib2.Parser
 import RooleCheck.QfBv.Formula
 import Std.Data.HashMap.Basic
 import RooleCheck.QfBv.Checker
@@ -81,7 +80,7 @@ partial def execUniOp (variables: VariableMap) (op: UniOperator) (terms: Array S
     | #[inner] =>
       let inner ← execTerm variables inner
       match inner with
-        | Except.ok inner => pure (Except.ok (Formula.Operation (Operation.Unary (UniOp.new op inner))))
+        | Except.ok inner => pure (Except.ok (Formula.Operation (Operation.Unary op inner)))
         | Except.error err => pure (Except.error err) -- error evaluating inner term
     | _ => pure (Except.error {}) -- expected one term
 
@@ -89,7 +88,7 @@ partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array Smt
   : IO ((Except EExecutor) Formula) := do
 
   let construct (op) (left) (right) :=
-    pure (Except.ok (Formula.Operation (Operation.Binary (BiOp.new op left right ))))
+    pure (Except.ok (Formula.Operation (Operation.Binary op left right)))
 
   if h: terms.size > 2 then
       -- more than two terms

@@ -39,20 +39,19 @@ deriving Repr
 
 mutual
 
-public structure UniOp where
-  public op: UniOperator
-  public inner: Formula
+public inductive Formula where
+  | Constant (constant: Constant)
+  | Variable (index: USize)
+  | Operation (operation: Operation)
 deriving Repr
 
-public structure BiOp where
-  public op: BiOperator
-  public left: Formula
-  public right: Formula
+public inductive BiOp where
+  | Mk (op: BiOperator) (left: Formula) (right: Formula)
 deriving Repr
 
 public inductive Operation where
-  | Unary (unary: UniOp)
-  | Binary (binary: BiOp)
+  | Unary (op: UniOperator) (inner: Formula)
+  | Binary (op: BiOperator) (left: Formula) (right: Formula)
   -- TODO others
 /-  | Ext (ext: ExtOp)
   | Ite (ite: IteOp)
@@ -61,16 +60,4 @@ public inductive Operation where
   | Rotate (rotate: RotateOp) -/
 deriving Repr
 
-public inductive Formula where
-  | Constant (constant: Constant)
-  | Variable (index: USize)
-  | Operation (operation: Operation)
-deriving Repr
-
 end
-
-public def UniOp.new (op: UniOperator) (inner: Formula): UniOp :=
-  UniOp.mk op inner
-
-public def BiOp.new (op: BiOperator) (left: Formula) (right: Formula): BiOp :=
-  BiOp.mk op left right

@@ -1,21 +1,15 @@
 module
 public import RooleCheck.SmtLib2.String8
 public import RooleCheck.QfBv.Formula
+public import RooleCheck.QfBv.Evaluator
 
-public structure BitvectorType where
-  width: UInt32
-deriving Repr, Inhabited
 
 public structure EChecker
 deriving Repr
 
-public structure VarAssignment where
-  type: BitvectorType
-  value: Nat
-deriving Repr, Inhabited
 
-public def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignment: Nat) : IO (Except EChecker Unit) := do
-  IO.println s!"Assignment: {assignment}"
+def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignment: Nat) : IO (Except EChecker Bool) := do
+  -- IO.println s!"Assignment: {assignment}"
 
   let mut assignments: Array VarAssignment := #[]
   let mut workingAssignment := assignment
@@ -26,11 +20,19 @@ public def checkAssignment (variables: Array BitvectorType) (formula: Formula) (
     workingAssignment := workingAssignment >>> var.width.toNat
     assignments := assignments.push { type := var, value }
 
-  IO.println s!"Assignments: {reprStr assignments}"
+  -- IO.println s!"Assignments: {reprStr assignments}"
 
-  -- let _ ← evaluate formula assignments
+  let result ← evaluate formula assignments
 
-  pure (Except.ok ())
+  -- IO.println s!"Result: {reprStr result}"
+
+  match result with
+    | Except.ok result =>
+      if result.width != 1 then
+        return Except.error {}
+      else
+        pure (Except.ok (result.value != 0))
+    | Except.error {} => return Except.error {}
 
 
 public def check (variables: Array BitvectorType) (formula: Formula) : IO (Except EChecker Unit) := do
@@ -39,18 +41,19 @@ public def check (variables: Array BitvectorType) (formula: Formula) : IO (Excep
   let totalWidth: Nat := variables.foldl (λ acc e => acc + e.width.toNat) 0
   let numValues: Nat := 2 ^ totalWidth
 
-  IO.println s!"Num values: {numValues}"
+  --IO.println s!"Num values: {numValues}"
+
+  let mut satisfiable := false
 
   for assignment in (0...numValues) do
     let checked ← checkAssignment variables formula assignment
     match checked with
-      | Except.ok () => pure ()
+      | Except.ok satisfies =>
+        if satisfies then
+          satisfiable := true
       | Except.error {} => return Except.error {}
 
-
-  let mut assignment := Array.replicate variables.size 0
-  IO.println s!"Assignment: {assignment}"
-
+  IO.println s!"Satisfiable: {satisfiable}"
 
   pure (Except.ok ())
 
