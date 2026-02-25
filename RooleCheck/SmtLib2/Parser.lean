@@ -146,22 +146,19 @@ def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
       pure (tokens, SmtIdent.Indexed name indices)
   | _ => Except.error (parser.error ParserError.InvalidIdent)
 
-def parseSpecialConstantOpt (parser: Parser) : (Parser × Option SmtSpecialConstant) :=
-  match parser.tokens with
-    | Token.Numeral value numDigits :: tokens => ((parser.with tokens), some (SmtSpecialConstant.Numeral value numDigits))
-    | Token.Decimal value numNumeratorDigits numDenominatorDigits :: tokens =>
-      ((parser.with tokens), some (SmtSpecialConstant.Decimal value numNumeratorDigits numDenominatorDigits))
-    | Token.Hexadecimal value numDigits :: tokens => ((parser.with tokens), some (SmtSpecialConstant.Hexadecimal value numDigits))
-    | Token.Binary value numDigits :: tokens => ((parser.with tokens), some (SmtSpecialConstant.Binary value numDigits))
-    | Token.String value :: tokens => ((parser.with tokens), some (SmtSpecialConstant.String value))
-    | _ => (parser, none)
+def specialConstant? (token: Token) : Option SmtSpecialConstant :=
+  match token with
+    | Token.Numeral value numDigits => some (SmtSpecialConstant.Numeral value numDigits)
+    | Token.Decimal value numNumeratorDigits numDenominatorDigits =>
+      some (SmtSpecialConstant.Decimal value numNumeratorDigits numDenominatorDigits)
+    | Token.Hexadecimal value numDigits => some (SmtSpecialConstant.Hexadecimal value numDigits)
+    | Token.Binary value numDigits => some (SmtSpecialConstant.Binary value numDigits)
+    | Token.String value => some (SmtSpecialConstant.String value)
+    | _ => none
 
 -- TODO prove termination
 partial def parseSExprs (parser: Parser) (exprs: Array SmtSExpr) : Except EParser (Parser × (Array SmtSExpr)) :=
-  let (parser, constant) := parseSpecialConstantOpt parser
-  if let some constant := constant then
-    parseSExprs parser (exprs.push (SmtSExpr.SpecialConstant constant))
-  else match parser.tokens with
+  match parser.tokens with
     | Token.Symbol name :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Symbol name))
     | Token.Reserved value :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Reserved value))
     | Token.Keyword keyword :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Keyword keyword))
@@ -169,30 +166,41 @@ partial def parseSExprs (parser: Parser) (exprs: Array SmtSExpr) : Except EParse
       let (parser, innerExprs) ← parseSExprs (parser.with tokens) #[]
       let parser ← consumeParenClose parser
       parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Exprs innerExprs))
-    | _ => pure (parser, exprs)
+    | token :: tokens =>
+      if let some constant := specialConstant? token then
+        parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.SpecialConstant constant))
+      else
+        pure (parser, exprs)
+    | [] => pure (parser, exprs)
 
 
 def parseAttribute (parser: Parser) : Except EParser (Parser × SmtAttribute) := do
   let (parser, keyword) ← consumeKeyword parser
-  let (parser, constant) := parseSpecialConstantOpt parser
-  if let some constant := constant then
-    -- attribute value is special constant
-    let value := SmtAttributeValue.SpecialConstant constant
-    pure (parser, SmtAttribute.NameValue keyword value)
-  else match parser.tokens with
+
+  let (parser, value) ← match parser.tokens with
     | Token.Symbol name :: tokens =>
       -- attribute value is a symbol
       let value := SmtAttributeValue.Symbol name
-      pure ((parser.with tokens), SmtAttribute.NameValue keyword value)
+      pure (parser.with tokens, some value)
     | Token.ParenOpen :: tokens =>
       -- attribute value is an S-expression
       let (parser, exprs) ← parseSExprs (parser.with tokens) #[]
       let parser ← consumeParenClose parser
       let value := SmtAttributeValue.Exprs exprs
-      pure ((parser.with tokens), SmtAttribute.NameValue keyword value)
-    | _ =>
-      -- attribute has no value
-      pure (parser, SmtAttribute.Name keyword)
+      pure (parser.with tokens, some value)
+    | token :: tokens =>
+      if let some constant := specialConstant? token then
+        let value := SmtAttributeValue.SpecialConstant constant
+        pure (parser.with tokens, some value)
+      else
+        pure (parser, none) -- attribute has no value
+    | _ => pure (parser, none) -- attribute has no value
+
+  if let some value := value then
+    pure (parser, SmtAttribute.NameValue keyword value)
+  else
+    pure (parser, SmtAttribute.Name keyword)
+
 
 -- TODO prove termination
 mutual
@@ -249,10 +257,7 @@ partial def parseLetBindings (parser: Parser) (bindings: Array (String8 × SmtTe
     | _ => pure (parser, bindings)
 
 partial def parseTerm (parser: Parser) : Except EParser (Parser × SmtTerm) := do
-  let (parser, constant) := parseSpecialConstantOpt parser
-  if let some constant := constant then
-    pure (parser, SmtTerm.SpecialConstant constant)
-  else match parser.tokens with
+  match parser.tokens with
     | Token.Numeral value length :: tokens =>
       pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value length))
     | Token.Decimal value numeratorLength denominatorLength :: tokens =>
@@ -293,6 +298,11 @@ partial def parseTerm (parser: Parser) : Except EParser (Parser × SmtTerm) := d
 
     -- unsupported: lambda, forall, exists, match, !
 
+    | token :: tokens =>
+      if let some constant := specialConstant? token then
+        pure (parser.with tokens, SmtTerm.SpecialConstant constant)
+      else
+        Except.error (parser.error ParserError.ExpectedTerm)
     | _ => Except.error (parser.error ParserError.ExpectedTerm)
 end
 
