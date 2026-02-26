@@ -1,8 +1,8 @@
 module
-import RooleCheck.QfBv.Formula
+import Roolean.QfBv.Formula
 import Std.Data.HashMap.Basic
-import RooleCheck.QfBv.Checker
-public import RooleCheck.SmtLib2.Parser
+import Roolean.QfBv.Checker
+public import Roolean.SmtLib2.Parser
 
 
 structure EExecutor
@@ -14,10 +14,7 @@ def processVariableSort (sort: SmtSort): Except EExecutor BitvectorType :=
       if let some "BitVec" := typename.toString? then
         match width with
           | SmtIndex.Numeral width _width_num_length =>
-            if width < UInt32.size then
-              pure {width := UInt32.ofNat width}
-            else
-              Except.error {} -- we support only 32-bit widths
+            pure {width := width}
           | _ => Except.error {} -- bitvector width must be a numeral
       else
         Except.error {} -- expected bitvector
@@ -39,7 +36,7 @@ def execSpecialConstant (constant: SmtSpecialConstant)
     | _ => Except.error {} -- not a QF_BV constant, decimals can be "constants" only through bvX
 
   if width < UInt32.size then
-    pure (Formula.Constant { value, width := UInt32.ofNat width })
+    pure (Formula.Constant { value, width })
   else
     Except.error {} -- we support only 32-bit widths
 
@@ -57,7 +54,7 @@ def execQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
         match indexed with
           | #[SmtIndex.Numeral width _] =>
               if width < UInt32.size then
-                return (Formula.Constant { value, width := width.toUInt32 })
+                return (Formula.Constant { value, width })
               else
                 Except.error {} -- we only support widths that fit 32 bits
           | _ => Except.error {} -- bvX should have a single index, width

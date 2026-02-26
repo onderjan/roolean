@@ -67,22 +67,22 @@ partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector)
 
 public partial def evaluate (formula: Formula) (assignments: Array Bitvector) : Except EEvaluator Bitvector := do
 
-  let result ← match formula with
-  | Formula.Constant constant => pure constant
+  match formula with
+    | Formula.Constant constant => pure constant
 
-  | Formula.Operation (Operation.Unary op inner) =>
-    let inner ← evaluate inner assignments
-    evaluateUnary op inner
+    | Formula.Operation (Operation.Unary op inner) =>
+      let inner ← evaluate inner assignments
+      evaluateUnary op inner
 
-  | Formula.Operation (Operation.Binary op left right) =>
-    let left ← evaluate left assignments
-    let right ← evaluate right assignments
-    evaluateBinary op left right
+    | Formula.Operation (Operation.Binary op left right) =>
+      let left ← evaluate left assignments
+      let right ← evaluate right assignments
+      evaluateBinary op left right
 
-  | Formula.Variable var_index =>
-    if let some assignment := assignments[var_index]? then
-      pure assignment
-    else
-      Except.error {}
+    | Formula.Variable var_index =>
+      if let some assignment := assignments[var_index]? then
+        pure assignment
+      else
+        Except.error {}
 
 end
