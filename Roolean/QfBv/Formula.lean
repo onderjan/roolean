@@ -8,7 +8,7 @@ deriving Repr, Inhabited
 public inductive UniOperator
   | Not
   | Neg
-deriving Repr
+deriving Repr, Inhabited
 
 public inductive BiOperator
   | Add
@@ -35,7 +35,7 @@ public inductive BiOperator
   | Shl
   | Lshr
   | Ashr
-deriving Repr
+deriving Repr, Inhabited
 
 mutual
 
@@ -43,11 +43,11 @@ public inductive Formula where
   | Constant (constant: Bitvector)
   | Variable (index: USize)
   | Operation (operation: Operation)
-deriving Repr
+deriving Repr, Inhabited
 
 public inductive BiOp where
   | Mk (op: BiOperator) (left: Formula) (right: Formula)
-deriving Repr
+deriving Repr, Inhabited
 
 public inductive Operation where
   | Unary (op: UniOperator) (inner: Formula)
@@ -58,6 +58,6 @@ public inductive Operation where
   | Concat (concat: ConcatOp)
   | Extract (extract: ExtractOp)
   | Rotate (rotate: RotateOp) -/
-deriving Repr
+deriving Repr, Inhabited
 
 end

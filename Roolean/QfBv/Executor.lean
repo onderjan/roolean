@@ -5,7 +5,22 @@ import Roolean.QfBv.Checker
 public import Roolean.SmtLib2.Parser
 
 
-structure EExecutor
+inductive EExecutor
+  | SortNotBitVec
+  | BitvectorWidthNotNumeral
+  | InvalidSpecialConstant
+  | InvalidDecimalBitvec (name: String8)
+  | InvalidIndexedQualifiedIdent
+  | VariableNotFound (name: String8)
+  | TooFewUniOpArgs
+  | TooManyUniOpArgs
+  | TooFewBiOpArgs
+  | TooManyBiOpArgs
+  | UnsupportedApplication
+  | UnsupportedLogic (logic: String8)
+  | Checker (err: EChecker)
+
+  | LetNotImplemented -- TODO implement
 deriving Repr
 
 def processVariableSort (sort: SmtSort): Except EExecutor BitvectorType :=
@@ -15,10 +30,14 @@ def processVariableSort (sort: SmtSort): Except EExecutor BitvectorType :=
         match width with
           | SmtIndex.Numeral width _width_num_length =>
             pure {width := width}
-          | _ => Except.error {} -- bitvector width must be a numeral
+          | _ =>
+            -- bitvector width must be a numeral
+            Except.error EExecutor.BitvectorWidthNotNumeral
       else
-        Except.error {} -- expected bitvector
-    | _ => Except.error {} -- expected bitvector
+        Except.error EExecutor.SortNotBitVec -- expected a bitvector
+    | _ =>
+      -- expected a bitvector, which is a sort indexed by width
+      Except.error EExecutor.SortNotBitVec
 
 
 abbrev VariableMap := Std.HashMap String8 USize
@@ -33,12 +52,11 @@ def execSpecialConstant (constant: SmtSpecialConstant)
     | SmtSpecialConstant.Binary value numDigits =>
       pure (value, numDigits) -- in binary, each digit represents 1 bit
 
-    | _ => Except.error {} -- not a QF_BV constant, decimals can be "constants" only through bvX
+    | _ =>
+      -- not a QF_BV constant, decimals can be "constants" only through bvX
+      Except.error EExecutor.InvalidSpecialConstant
 
-  if width < UInt32.size then
-    pure (Formula.Constant { value, width })
-  else
-    Except.error {} -- we support only 32-bit widths
+  pure (Formula.Constant { value, width })
 
 
 def execQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
@@ -53,48 +71,57 @@ def execQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
       if let some value := String.toNat? value then
         match indexed with
           | #[SmtIndex.Numeral width _] =>
-              if width < UInt32.size then
-                return (Formula.Constant { value, width })
-              else
-                Except.error {} -- we only support widths that fit 32 bits
-          | _ => Except.error {} -- bvX should have a single index, width
+            return (Formula.Constant { value, width })
+          | _ =>
+            -- bvX should have a single index, width
+            Except.error (EExecutor.InvalidDecimalBitvec name)
       else
-        Except.error {}-- we do not support indexed idents other than bvX where X is a decimal
-
+        -- we do not support indexed idents other than bvX where X is a decimal
+        Except.error EExecutor.InvalidIndexedQualifiedIdent
     else
-      Except.error {}-- we do not support indexed idents other than bvX
+      -- we do not support indexed idents other than bvX
+      Except.error EExecutor.InvalidIndexedQualifiedIdent
 
   match variables.get? name with
   | some varIndex => pure (Formula.Variable varIndex)
-  | none => Except.error {} -- variable not found
+  | none =>
+    -- variable with the given name not found
+    Except.error (EExecutor.VariableNotFound name)
 
 
 -- TODO prove termination
 mutual
 partial def execUniOp (variables: VariableMap) (op: UniOperator) (terms: Array SmtTerm)
-  : IO ((Except EExecutor) Formula) := do
+  : (Except EExecutor) Formula := do
+   -- expecting exactly one term
   match terms with
     | #[inner] =>
       let inner ← execTerm variables inner
-      match inner with
-        | Except.ok inner => pure (Except.ok (Formula.Operation (Operation.Unary op inner)))
-        | Except.error err => pure (Except.error err) -- error evaluating inner term
-    | _ => pure (Except.error {}) -- expected one term
+      pure (Formula.Operation (Operation.Unary op inner))
+    | #[] => Except.error EExecutor.TooFewUniOpArgs
+    | _ => Except.error EExecutor.TooManyUniOpArgs
 
 partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array SmtTerm)
-  : IO ((Except EExecutor) Formula) := do
+  : (Except EExecutor) Formula := do
 
   let construct (op) (left) (right) :=
-    pure (Except.ok (Formula.Operation (Operation.Binary op left right)))
+    pure (Formula.Operation (Operation.Binary op left right))
 
-  if h: terms.size > 2 then
-      -- more than two terms
-      -- handle left-associative and right-associative as syntactic sugar
-      -- left-assoc: 'and', 'or', 'xor' (from Core),
-      --             'bvand', 'bvor', 'bvadd', 'bvmul' (from FixedSizeBitvectors),
-      --             'bvxor' (from QF_BV)
-      -- right-assoc: '=>' (from Core)
-      -- TODO: pairwise, chainable
+  if h: terms.size < 2 then
+    Except.error EExecutor.TooFewBiOpArgs -- must have at least two args
+  else if terms.size == 2 then
+      -- exactly two args, evaluate normally
+      let left ← execTerm variables terms[0]
+      let right ← execTerm variables terms[1]
+      construct op left right
+  else
+    -- more than two args
+    -- handle left-associative and right-associative as syntactic sugar
+    -- left-assoc: 'and', 'or', 'xor' (from Core),
+    --             'bvand', 'bvor', 'bvadd', 'bvmul' (from FixedSizeBitvectors),
+    --             'bvxor' (from QF_BV)
+    -- right-assoc: '=>' (from Core)
+    -- TODO: pairwise, chainable
     match op with
       | BiOperator.BitAnd | BiOperator.BitOr | BiOperator.BitXor | BiOperator.Add | BiOperator.Mul =>
         -- left-associative, transform (f s_1 s_2 .. s_n) as (f (f s_1 s_2 ...) s_n)
@@ -102,38 +129,31 @@ partial def execBiOp (variables: VariableMap) (op: BiOperator) (terms: Array Smt
         let rightTerm := terms.back
         let left ← execBiOp variables op (terms.pop)
         let right ← execTerm variables rightTerm
-        match left, right with
-          | Except.ok left, Except.ok right => construct op left right
-          | _,_ => pure (Except.error {}) -- error evaluating inner terms
+        construct op left right
       | BiOperator.Implies =>
         -- right-associative, transform (f s_1 s_2 .. s_n) as (f s_1 (f s_2 ... s_n))
         -- still process left-to-right
         let left ← execTerm variables (terms[0])
         let right ← execBiOp variables op (terms.eraseIdx 0)
-        match left, right with
-          | Except.ok left, Except.ok right => construct op left right
-          | _,_ => pure (Except.error {}) -- error evaluating inner terms
-      | _ => pure (Except.error {}) -- cannot process this operation with more than two terms
+        construct op left right
+      | _ =>
+        -- cannot process this operation with more than two terms
+        Except.error EExecutor.TooManyBiOpArgs
 
-  else match terms with
-    | #[left, right] =>
-      let left ← execTerm variables left
-      let right ← execTerm variables right
-      match left, right with
-        | Except.ok left, Except.ok right => construct op left right
-        | _,_ => pure (Except.error {}) -- error evaluating inner terms
-    | #[] | #[_] => pure (Except.error {}) -- must have at least two terms
-    | _ => pure (Except.error {}) -- expected two terms
+
 
 partial def execApplication (variables: VariableMap) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
-  : IO ((Except EExecutor) Formula) := do
+  : (Except EExecutor) Formula := do
+
+  -- all supported applications are just symbols
   let name ← match qualified with
     | SmtQualifiedIdent.Ident (SmtIdent.Symbol symbol) => pure symbol
-    | _ => return Except.error {} -- we only support application symbols
+    | _ => Except.error EExecutor.UnsupportedApplication
 
+  -- all supported application symbols are ASCII
   let name ← match name.toString? with
     | some name => pure name
-    | none => return Except.error {} -- must be ASCII
+    | none => Except.error EExecutor.UnsupportedApplication
 
   let result ← match name with
     | "not" | "bvnot" => execUniOp variables UniOperator.Not terms
@@ -178,19 +198,18 @@ partial def execApplication (variables: VariableMap) (qualified: SmtQualifiedIde
      -- | "sign_extend"
      -- | "extract"
 
-    | _ => pure (Except.error {}) -- unknown application
+    | _ => Except.error EExecutor.UnsupportedApplication
 
   pure result
 
 partial def execLet (variables: VariableMap) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
-  : IO (Except EExecutor Formula) := do
-  IO.println s!"Let"
-  pure (Except.error {}) -- TODO implement
+  : Except EExecutor Formula := do
+  Except.error EExecutor.LetNotImplemented -- TODO implement
 
-partial def execTerm (variables: VariableMap) (term: SmtTerm): IO ((Except EExecutor) Formula) :=
+partial def execTerm (variables: VariableMap) (term: SmtTerm): (Except EExecutor) Formula :=
   match term with
-  | SmtTerm.SpecialConstant constant => pure (execSpecialConstant constant)
-  | SmtTerm.QualifiedIdent qualified => pure (execQualifiedIdent variables qualified)
+  | SmtTerm.SpecialConstant constant => execSpecialConstant constant
+  | SmtTerm.QualifiedIdent qualified => execQualifiedIdent variables qualified
   | SmtTerm.Application qualified terms => execApplication variables qualified terms
   | SmtTerm.Let bindings term => execLet variables bindings term
 
@@ -210,19 +229,16 @@ def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Arra
     variableMap := variableMap.insert name index
     index := index + 1
 
-  let result ← execTerm variableMap assertion
-  let formula ← match result with
+  let formula ← match execTerm variableMap assertion with
     | Except.ok formula => pure formula
-    | Except.error err =>
-      IO.println s!"CheckSat error: {reprStr err}"
-      return (Except.error err)
+    | Except.error err => return (Except.error err)
 
   let variables := variables.map (λ (var) => var.snd)
 
   let checked ← check variables formula
   match checked with
     | Except.ok () => pure (Except.ok ())
-    | Except.error {} => pure (Except.error {})
+    | Except.error err => pure (Except.error (EExecutor.Checker err))
 
 
 def execCommands (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := do
@@ -236,7 +252,7 @@ def execCommands (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := d
         if logic == String8.fromUTF8 "QF_BV" || logic == String8.fromUTF8 "ALL" then
           qf_bv := true
         else
-          return Except.error {}
+          return Except.error (EExecutor.UnsupportedLogic logic)
       | .SetInfo _ => continue -- ignore info
       | .DeclareConst name sort =>
         match processVariableSort sort with

@@ -2,7 +2,9 @@ module
 
 public import Roolean.QfBv.Formula
 
-public structure EEvaluator
+public inductive EEvaluator
+  | BinaryWidthMismatch (left: Bitvector) (right: Bitvector)
+  | VariableNotAssigned (index: USize)
 deriving Repr
 
 public structure BitvectorType where
@@ -23,7 +25,7 @@ partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluat
 
 partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector) : Except EEvaluator Bitvector := do
   let width := left.width
-  let _ ← if width != right.width then Except.error {}
+  let _ ← if width != right.width then Except.error (EEvaluator.BinaryWidthMismatch left right)
 
   let left := BitVec.ofNat width left.value
   let right := BitVec.ofNat width right.value
@@ -79,10 +81,10 @@ public partial def evaluate (formula: Formula) (assignments: Array Bitvector) : 
       let right ← evaluate right assignments
       evaluateBinary op left right
 
-    | Formula.Variable var_index =>
-      if let some assignment := assignments[var_index]? then
+    | Formula.Variable varIndex =>
+      if let some assignment := assignments[varIndex]? then
         pure assignment
       else
-        Except.error {}
+        Except.error (EEvaluator.VariableNotAssigned varIndex)
 
 end

@@ -4,7 +4,9 @@ public import Roolean.QfBv.Formula
 public import Roolean.QfBv.Evaluator
 
 
-public structure EChecker
+public inductive EChecker
+  | EvalResultNotBool (width: Nat)
+  | Evaluator (err: EEvaluator)
 deriving Repr
 
 
@@ -21,11 +23,11 @@ def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignm
 
   match evaluate formula assignments with
     | Except.ok result =>
-      if result.width != 1 then
-        return Except.error {}
-      else
+      if result.width == 1 then
         pure (Except.ok (result.value != 0))
-    | Except.error {} => return Except.error {}
+      else
+        return Except.error (EChecker.EvalResultNotBool result.width)
+    | Except.error err => return Except.error (EChecker.Evaluator err)
 
 
 public def check (variables: Array BitvectorType) (formula: Formula) : IO (Except EChecker Unit) := do
@@ -44,7 +46,7 @@ public def check (variables: Array BitvectorType) (formula: Formula) : IO (Excep
       | Except.ok satisfies =>
         if satisfies then
           satisfiable := true
-      | Except.error {} => return Except.error {}
+      | Except.error err => return Except.error err
 
   IO.println s!"Satisfiable: {satisfiable}"
 
