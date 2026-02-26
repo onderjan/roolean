@@ -1,8 +1,6 @@
 module
-import Roolean.QfBv.Formula
 public import Roolean.SmtLib2.Parser
 public import Roolean.QfBv.Interpretation
-
 
 public inductive EExecutor
   | UnsupportedLogic (logic: String8)
@@ -14,6 +12,7 @@ public def execute (commands: Array SmtCommand): IO ((Except EExecutor) Unit) :=
 
   for command in commands do
     match command with
+
       | .SetLogic logic =>
         if logic != String8.fromUTF8 "QF_BV" && logic != String8.fromUTF8 "ALL" then
           return Except.error (EExecutor.UnsupportedLogic logic)
@@ -34,17 +33,6 @@ public def execute (commands: Array SmtCommand): IO ((Except EExecutor) Unit) :=
           | Except.ok () => pure ()
           | Except.error err => return Except.error (EExecutor.Interpretation err)
 
-
       | .Exit => break
-  pure (Except.ok ())
 
-/-
-public def execute (commands: Array SmtCommand): IO Unit := do
-  let executed ← execCommands commands
-  match executed with
-    | Except.ok () =>
-      IO.println s!"Execution successful"
-      pure ()
-    | Except.error err =>
-      IO.println s!"Execution error: {reprStr err}"
--/
+  pure (Except.ok ())
