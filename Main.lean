@@ -13,7 +13,14 @@ def main : IO Unit := do
   match commands with
     | Except.ok commands =>
       -- IO.println s!"Parsed commands: {reprStr commands}"
-      let _executed ← execute commands
+      let executed ← execute commands
+      match executed with
+        | Except.ok () =>
+          IO.println s!"Execution successful"
+          pure ()
+        | Except.error err =>
+          IO.println s!"Execution error: {reprStr err}"
+
     | Except.error err =>
       IO.println s!"Parser error: {reprStr err}"
 

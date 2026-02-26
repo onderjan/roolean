@@ -7,10 +7,6 @@ public inductive EEvaluator
   | VariableNotAssigned (index: USize)
 deriving Repr
 
-public structure BitvectorType where
-  width: Nat
-deriving Repr, Inhabited
-
 mutual
 
 partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluator Bitvector := do
