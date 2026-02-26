@@ -1,10 +1,10 @@
-name = "roole-check"
+name = "roolean"
 version = "0.1.0"
-defaultTargets = ["roole-check"]
+defaultTargets = ["roolean"]
 
 [[lean_lib]]
-name = "RooleCheck"
+name = "Roolean"
 
 [[lean_exe]]
-name = "roole-check"
+name = "roolean"
 root = "Main"

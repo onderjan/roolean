@@ -1,6 +1,6 @@
 module
 
-public import RooleCheck.QfBv.Formula
+public import Roolean.QfBv.Formula
 
 public structure EEvaluator
 deriving Repr

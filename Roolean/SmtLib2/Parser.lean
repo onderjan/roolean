@@ -1,11 +1,11 @@
 module
 
-public import RooleCheck.SmtLib2.String8
-public import RooleCheck.SmtLib2.Reserved
-public import RooleCheck.SmtLib2.Error
+public import Roolean.SmtLib2.String8
+public import Roolean.SmtLib2.Reserved
+public import Roolean.SmtLib2.Error
 
-import RooleCheck.SmtLib2.Lexer
-public import RooleCheck.SmtLib2.Lexer
+import Roolean.SmtLib2.Lexer
+public import Roolean.SmtLib2.Lexer
 
 public inductive SmtIndex
   | Numeral (value: Nat) (length: Nat)

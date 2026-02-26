@@ -1,11 +1,11 @@
 module
 
-import RooleCheck.SmtLib2.CharClass
-public import RooleCheck.SmtLib2.String8
-public import RooleCheck.SmtLib2.Reserved
-public import RooleCheck.SmtLib2.Error
-import RooleCheck.SmtLib2.CharClass
-import RooleCheck.SmtLib2.CharClass
+import Roolean.SmtLib2.CharClass
+public import Roolean.SmtLib2.String8
+public import Roolean.SmtLib2.Reserved
+public import Roolean.SmtLib2.Error
+import Roolean.SmtLib2.CharClass
+import Roolean.SmtLib2.CharClass
 
 public inductive Token
   | ParenOpen

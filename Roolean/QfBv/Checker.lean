@@ -1,7 +1,7 @@
 module
-public import RooleCheck.SmtLib2.String8
-public import RooleCheck.QfBv.Formula
-public import RooleCheck.QfBv.Evaluator
+public import Roolean.SmtLib2.String8
+public import Roolean.QfBv.Formula
+public import Roolean.QfBv.Evaluator
 
 
 public structure EChecker

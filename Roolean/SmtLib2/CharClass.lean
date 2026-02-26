@@ -1,6 +1,6 @@
 module
 
-public import RooleCheck.SmtLib2.String8
+public import Roolean.SmtLib2.String8
 
 public inductive CharClass
   -- any non-printable character except for TAB, LF, CR

@@ -1,4 +1,4 @@
-import RooleCheck.QfBv.Executor
+import Roolean.QfBv.Executor
 
 
 def load (filename: String): IO (Except EParser (Array SmtCommand)) := do

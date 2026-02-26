@@ -1,5 +1,5 @@
 module
-public import RooleCheck.SmtLib2.String8
+public import Roolean.SmtLib2.String8
 
 
 -- Reserved words in SMT-LIB2.

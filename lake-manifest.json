@@ -1,5 +1,7 @@
-{"version": "1.1.0",
- "packagesDir": ".lake/packages",
- "packages": [],
- "name": "«roole-check»",
- "lakeDir": ".lake"}
+{
+    "version": "1.1.0",
+    "packagesDir": ".lake/packages",
+    "packages": [],
+    "name": "roolean",
+    "lakeDir": ".lake"
+}
