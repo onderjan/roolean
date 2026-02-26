@@ -11,14 +11,15 @@ deriving Repr
 def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignment: Nat) : IO (Except EChecker Bool) := do
   -- IO.println s!"Assignment: {assignment}"
 
-  let mut assignments: Array VarAssignment := #[]
+  let mut assignments: Array Bitvector := #[]
   let mut workingAssignment := assignment
 
   let _ ← for var in variables do
-    let mask := (2 ^ var.width.toNat) - 1
+    let width := var.width
+    let mask := (2 ^ width) - 1
     let value := workingAssignment &&& mask
-    workingAssignment := workingAssignment >>> var.width.toNat
-    assignments := assignments.push { type := var, value }
+    workingAssignment := workingAssignment >>> width
+    assignments := assignments.push { width, value }
 
   -- IO.println s!"Assignments: {reprStr assignments}"
 
@@ -38,7 +39,7 @@ def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignm
 public def check (variables: Array BitvectorType) (formula: Formula) : IO (Except EChecker Unit) := do
   IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nFormula: {reprStr formula}"
 
-  let totalWidth: Nat := variables.foldl (λ acc e => acc + e.width.toNat) 0
+  let totalWidth: Nat := variables.foldl (λ acc e => acc + e.width) 0
   let numValues: Nat := 2 ^ totalWidth
 
   --IO.println s!"Num values: {numValues}"

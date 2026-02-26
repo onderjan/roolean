@@ -1,8 +1,8 @@
 module
-import Roolean.QfBv.Formula
+import RooleCheck.QfBv.Formula
 import Std.Data.HashMap.Basic
-import Roolean.QfBv.Checker
-public import Roolean.SmtLib2.Parser
+import RooleCheck.QfBv.Checker
+public import RooleCheck.SmtLib2.Parser
 
 
 structure EExecutor

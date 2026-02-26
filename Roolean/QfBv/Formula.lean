@@ -1,5 +1,10 @@
 module
 
+public structure Bitvector where
+  width: Nat
+  value: Nat
+deriving Repr, Inhabited
+
 public inductive UniOperator
   | Not
   | Neg
@@ -32,15 +37,10 @@ public inductive BiOperator
   | Ashr
 deriving Repr
 
-public structure Constant where
-  value: Nat
-  width: UInt32
-deriving Repr
-
 mutual
 
 public inductive Formula where
-  | Constant (constant: Constant)
+  | Constant (constant: Bitvector)
   | Variable (index: USize)
   | Operation (operation: Operation)
 deriving Repr
