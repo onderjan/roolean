@@ -3,7 +3,6 @@ public import Roolean.SmtLib2.String8
 public import Roolean.QfBv.Formula
 public import Roolean.QfBv.Evaluator
 
-
 public inductive EChecker
   | EvalResultNotBool (width: Nat)
   | Evaluator (err: EEvaluator)
@@ -14,7 +13,7 @@ def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignm
   let mut assignments: Array Bitvector := #[]
   let mut workingAssignment := assignment
 
-  let _ ← for var in variables do
+  let () ← for var in variables do
     let width := var.width
     let mask := (2 ^ width) - 1
     let value := workingAssignment &&& mask
@@ -35,8 +34,6 @@ public def check (variables: Array BitvectorType) (formula: Formula) : IO (Excep
 
   let totalWidth: Nat := variables.foldl (λ acc e => acc + e.width) 0
   let numValues: Nat := 2 ^ totalWidth
-
-  --IO.println s!"Num values: {numValues}"
 
   let mut satisfiable := false
 
