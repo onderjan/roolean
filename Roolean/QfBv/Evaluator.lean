@@ -11,20 +11,19 @@ deriving Repr, Inhabited
 
 mutual
 
-partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : IO (Except EEvaluator Bitvector) := do
+partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluator Bitvector := do
   let width := inner.width
   let inner := BitVec.ofNat width inner.value
 
-  let result := match op with
+  let value := match op with
     | UniOperator.Neg => -inner
     | UniOperator.Not => ~~~inner
 
-  pure (Except.ok { value := result.toNat, width })
+  pure { value := value.toNat, width }
 
-partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector) : IO (Except EEvaluator Bitvector) := do
+partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector) : Except EEvaluator Bitvector := do
   let width := left.width
-  if width != right.width then
-    return Except.error {}
+  let _ ← if width != right.width then Except.error {}
 
   let left := BitVec.ofNat width left.value
   let right := BitVec.ofNat width right.value
@@ -63,32 +62,27 @@ partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector)
   | .Lshr => standard (left.ushiftRight right.toNat)
   | .Ashr => standard (left.sshiftRight right.toNat)
 
-  pure (Except.ok { value, width })
+  pure { value, width }
 
 
-public partial def evaluate (formula: Formula) (assignments: Array Bitvector) : IO (Except EEvaluator Bitvector) := do
+public partial def evaluate (formula: Formula) (assignments: Array Bitvector) : Except EEvaluator Bitvector := do
 
   let result ← match formula with
-  | Formula.Constant constant => pure (Except.ok constant)
+  | Formula.Constant constant => pure constant
+
   | Formula.Operation (Operation.Unary op inner) =>
     let inner ← evaluate inner assignments
-    match inner with
-      | Except.ok inner => evaluateUnary op inner
-      | Except.error {} => return Except.error {}
+    evaluateUnary op inner
 
   | Formula.Operation (Operation.Binary op left right) =>
     let left ← evaluate left assignments
     let right ← evaluate right assignments
-    match left, right with
-      | Except.ok left, Except.ok right => evaluateBinary op left right
-      | _,_ => return Except.error {}
+    evaluateBinary op left right
 
   | Formula.Variable var_index =>
     if let some assignment := assignments[var_index]? then
-      pure (Except.ok assignment)
+      pure assignment
     else
-      return Except.error {}
-
-  pure result
+      Except.error {}
 
 end

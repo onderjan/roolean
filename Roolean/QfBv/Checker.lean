@@ -9,8 +9,6 @@ deriving Repr
 
 
 def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignment: Nat) : IO (Except EChecker Bool) := do
-  -- IO.println s!"Assignment: {assignment}"
-
   let mut assignments: Array Bitvector := #[]
   let mut workingAssignment := assignment
 
@@ -21,13 +19,7 @@ def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignm
     workingAssignment := workingAssignment >>> width
     assignments := assignments.push { width, value }
 
-  -- IO.println s!"Assignments: {reprStr assignments}"
-
-  let result ← evaluate formula assignments
-
-  -- IO.println s!"Result: {reprStr result}"
-
-  match result with
+  match evaluate formula assignments with
     | Except.ok result =>
       if result.width != 1 then
         return Except.error {}
