@@ -1,6 +1,7 @@
 module
 
 public import Roolean.SmtLib2.Parser
+public import Roolean.SmtLib2.Executor
 public import Roolean.QfBv.Formula
 public import Roolean.QfBv.Checker
 
@@ -32,8 +33,6 @@ deriving Repr
 
 abbrev VariableMap := Std.HashMap String8 USize
 
-public def Interpretation.new : Interpretation :=
-  { variables := #[], assertions := #[] }
 
 def interpretVariableSort (sort: SmtSort): Except EInterpretation BitvectorType :=
   match sort with
@@ -50,18 +49,6 @@ def interpretVariableSort (sort: SmtSort): Except EInterpretation BitvectorType 
     | _ =>
       -- expected a bitvector, which is a sort indexed by width
       Except.error EInterpretation.SortNotBitVec
-
-public def Interpretation.declareConst (interpretation: Interpretation)
-  (name: String8) (sort: SmtSort) : Except EInterpretation Interpretation :=
-    match interpretVariableSort sort with
-      | Except.ok type =>
-        let variables := interpretation.variables.push (name, type)
-        pure {interpretation with variables}
-      | Except.error err => Except.error err
-
-public def Interpretation.assert (interpretation: Interpretation)
-  (term: SmtTerm) : Interpretation :=
-  { interpretation with assertions := interpretation.assertions.push term}
 
 def interpretSpecialConstant (constant: SmtSpecialConstant)
   : (Except EInterpretation) Formula := do
@@ -234,6 +221,20 @@ partial def interpretTerm (variables: VariableMap) (term: SmtTerm): (Except EInt
 
 end
 
+public def Interpretation.new : Interpretation :=
+  { variables := #[], assertions := #[] }
+
+public def Interpretation.declareConst (interpretation: Interpretation)
+  (name: String8) (sort: SmtSort) : Except EInterpretation Interpretation :=
+    match interpretVariableSort sort with
+      | Except.ok type =>
+        let variables := interpretation.variables.push (name, type)
+        pure {interpretation with variables}
+      | Except.error err => Except.error err
+
+public def Interpretation.assert (interpretation: Interpretation)
+  (term: SmtTerm) : Interpretation :=
+  { interpretation with assertions := interpretation.assertions.push term}
 
 public def Interpretation.checkSat (interpretation: Interpretation): IO (Except EInterpretation Unit) := do
   -- combine assertions
@@ -267,3 +268,9 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
   match checked with
     | Except.ok () => pure (Except.ok ())
     | Except.error err => pure (Except.error (EInterpretation.Checker err))
+
+instance : Interpret Interpretation EInterpretation where
+  new := Interpretation.new
+  declareConst := Interpretation.declareConst
+  assert := Interpretation.assert
+  checkSat := Interpretation.checkSat

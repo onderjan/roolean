@@ -1,14 +1,20 @@
 module
 public import Roolean.SmtLib2.Parser
-public import Roolean.QfBv.Interpretation
 
-public inductive EExecutor
+public class Interpret (α : Type) (ε: outParam Type) where
+  new: α
+  declareConst: α → String8 → SmtSort → (Except ε α)
+  assert : α → SmtTerm → α
+  checkSat : α → IO (Except ε Unit)
+
+public inductive EExecutor (ε : Type)
   | UnsupportedLogic (logic: String8)
-  | Interpretation (err: EInterpretation)
+  | Interpretation (err: ε)
 deriving Repr
 
-public def execute (commands: Array SmtCommand): IO ((Except EExecutor) Unit) := do
-  let mut interpretation: Interpretation := Interpretation.new
+
+public def execute (α: Type) {ε: Type} [Interpret α ε] (commands: Array SmtCommand): IO ((Except (EExecutor ε)) Unit) := do
+  let mut interpretation: α := Interpret.new
 
   for command in commands do
     match command with
@@ -20,15 +26,15 @@ public def execute (commands: Array SmtCommand): IO ((Except EExecutor) Unit) :=
       | .SetInfo _ => pure () -- ignore info
 
       | .DeclareConst name sort =>
-        match interpretation.declareConst name sort with
+        match Interpret.declareConst interpretation name sort with
           | Except.ok new => interpretation := new
           | Except.error err => return Except.error (EExecutor.Interpretation err)
 
       | .Assert term =>
-        interpretation := interpretation.assert term
+        interpretation := Interpret.assert interpretation term
 
       | .CheckSat =>
-        let result ← interpretation.checkSat
+        let result ← Interpret.checkSat interpretation
         match result with
           | Except.ok () => pure ()
           | Except.error err => return Except.error (EExecutor.Interpretation err)
