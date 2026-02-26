@@ -217,10 +217,18 @@ end
 
 def execCheckSat (variables: Array (String8 × BitvectorType)) (assertions: Array SmtTerm): IO (Except EExecutor Unit) := do
   -- combine assertions
-  let assertion := if assertions.isEmpty then
-    SmtTerm.SpecialConstant (SmtSpecialConstant.String (String8.fromUTF8 "true"))
-  else
-    SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) assertions
+  let assertion :=
+    match h: assertions.size with
+      | 0 =>
+        -- conjunction of 0 terms trivially true
+        SmtTerm.SpecialConstant (SmtSpecialConstant.String (String8.fromUTF8 "true"))
+      | 1 =>
+        -- just the single assertion
+        assertions[0]
+      | _ =>
+        -- combine the assertions in a conjunction, which is left-associative
+        SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) assertions
+
   -- IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nCombined assertion: {reprStr assertion}"
 
   let mut variableMap: VariableMap := {}
