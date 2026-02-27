@@ -33,11 +33,7 @@ partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector)
 
   let standard {i: Nat} (val: BitVec i) := (val.toNat, i)
 
-  let boolToBit (val: Bool) :=
-    if val then
-      (1, 1)
-    else
-      (0, 1)
+  let boolToBit (val: Bool) := (val.toNat, 1)
 
   let (value, width): Nat × Nat := match op with
   | .Add => standard (left + right)
