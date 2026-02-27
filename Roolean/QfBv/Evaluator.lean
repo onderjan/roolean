@@ -9,7 +9,7 @@ deriving Repr
 
 mutual
 
-partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluator Bitvector := do
+def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluator Bitvector := do
   let width := inner.width
   let inner := inner.value
 
@@ -20,7 +20,7 @@ partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluat
   pure { value := value.toNat, width }
 
 
-partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector) : Except EEvaluator Bitvector := do
+def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector) : Except EEvaluator Bitvector := do
   let width := left.width
 
   let h1: left.width = width := by rw[eq_self width]; trivial
@@ -63,8 +63,7 @@ partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector)
 
   pure { value, width }
 
-
-public partial def evaluate (formula: Formula) (assignments: Array Bitvector) : Except EEvaluator Bitvector := do
+public def evaluate (formula: Formula) (assignments: Array Bitvector) : Except EEvaluator Bitvector := do
 
   match formula with
     | Formula.Constant constant => pure constant
