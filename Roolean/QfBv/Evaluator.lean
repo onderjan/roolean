@@ -11,7 +11,7 @@ mutual
 
 partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluator Bitvector := do
   let width := inner.width
-  let inner := BitVec.ofNat width inner.value
+  let inner := inner.value
 
   let value := match op with
     | UniOperator.Neg => -inner
@@ -19,14 +19,19 @@ partial def evaluateUnary (op: UniOperator) (inner: Bitvector) : Except EEvaluat
 
   pure { value := value.toNat, width }
 
+
 partial def evaluateBinary (op: BiOperator) (left: Bitvector) (right: Bitvector) : Except EEvaluator Bitvector := do
   let width := left.width
-  let _ ← if width != right.width then Except.error (EEvaluator.BinaryWidthMismatch left right)
 
-  let left := BitVec.ofNat width left.value
-  let right := BitVec.ofNat width right.value
+  let h1: left.width = width := by rw[eq_self width]; trivial
 
-  let standard {α} (val: BitVec α) := (val.toNat, width)
+  let (left, right) ←
+    if h2: right.width = width then
+      pure (BitVec.cast (n := left.width) (m := width) h1 left.value, BitVec.cast h2 right.value)
+    else
+      Except.error (EEvaluator.BinaryWidthMismatch left right)
+
+  let standard {i: Nat} (val: BitVec i) := (val.toNat, i)
 
   let boolToBit (val: Bool) :=
     if val then

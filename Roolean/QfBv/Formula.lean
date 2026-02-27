@@ -6,7 +6,7 @@ deriving Repr, Inhabited
 
 public structure Bitvector where
   width: Nat
-  value: Nat
+  value: BitVec width
 deriving Repr, Inhabited
 
 public inductive UniOperator
