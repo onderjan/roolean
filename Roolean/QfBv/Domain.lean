@@ -1,0 +1,33 @@
+module
+public import Roolean.QfBv.Formula
+
+public class Domain (α: Type) where
+  ε: Type
+
+  ofBitvector: Bitvector → α
+  toBitvector?: α → Option Bitvector
+
+  not: α → Except ε α
+  neg: α → Except ε α
+
+  add: α → α → Except ε α
+  sub: α → α → Except ε α
+  mul: α → α → Except ε α
+  udiv: α → α → Except ε α
+  urem: α → α → Except ε α
+  sdiv: α → α → Except ε α
+  srem: α → α → Except ε α
+
+  bitAnd: α → α → Except ε α
+  bitOr: α → α → Except ε α
+  bitXor: α → α → Except ε α
+
+  eq: α → α → Except ε α
+  ult: α → α → Except ε α
+  ule: α → α → Except ε α
+  slt: α → α → Except ε α
+  sle: α → α → Except ε α
+
+  shl: α → α → Except ε α
+  lshr: α → α → Except ε α
+  ashr: α → α → Except ε α

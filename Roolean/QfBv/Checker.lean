@@ -3,14 +3,18 @@ public import Roolean.SmtLib2.String8
 public import Roolean.QfBv.Formula
 public import Roolean.QfBv.Evaluator
 
+import Roolean.QfBv.Domain.Concrete
+public import Roolean.QfBv.Domain.Concrete
+
 public inductive EChecker
   | EvalResultNotBool (width: Nat)
-  | Evaluator (err: EEvaluator)
+  | EvalResultNotBitvector
+  | Evaluator (err: EEvaluator EConcreteDomain)
 deriving Repr
 
 
 def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignment: Nat) : IO (Except EChecker Bool) := do
-  let mut assignments: Array Bitvector := #[]
+  let mut assignments: Array ConcreteDomain := #[]
   let mut workingAssignment := assignment
 
   let () ← for var in variables do
@@ -18,14 +22,17 @@ def checkAssignment (variables: Array BitvectorType) (formula: Formula) (assignm
     let mask := (2 ^ width) - 1
     let value := workingAssignment &&& mask
     workingAssignment := workingAssignment >>> width
-    assignments := assignments.push { width, value }
+    assignments := assignments.push { bv := { width, value } }
 
-  match evaluate formula assignments with
+  match evaluate ConcreteDomain formula assignments with
     | Except.ok result =>
-      if result.width == 1 then
-        pure (Except.ok (result.value != 0))
+      if let some result := result.toBitvector? then
+        if let { width := 1, value } := result then
+          pure (Except.ok (value != 0))
+        else
+          return Except.error (EChecker.EvalResultNotBool result.width)
       else
-        return Except.error (EChecker.EvalResultNotBool result.width)
+        return Except.error (EChecker.EvalResultNotBitvector)
     | Except.error err => return Except.error (EChecker.Evaluator err)
 
 
@@ -48,5 +55,3 @@ public def check (variables: Array BitvectorType) (formula: Formula) : IO (Excep
   IO.println s!"Satisfiable: {satisfiable}"
 
   pure (Except.ok ())
-
-#eval (3...7).toList
