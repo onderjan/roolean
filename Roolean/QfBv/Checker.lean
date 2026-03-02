@@ -25,7 +25,7 @@ abbrev AbstractAssignment := Array ThreeValuedBitvector
 def checkNode (formula: Formula) (assignment: AbstractAssignment) (node: SplitNode) : Except EChecker (Option Bool) :=
   match node with
     | SplitNode.Leaf =>
-      (evaluateToThreeValued ThreeValuedBitvector formula assignment).mapError EChecker.Evaluator
+      (eval3 ThreeValuedBitvector formula assignment).mapError EChecker.Evaluator
     | SplitNode.Split varIndex bitIndex left right =>
       if hx: varIndex.toNat < assignment.size then
         let varAssignment := assignment.uget varIndex hx
@@ -48,8 +48,8 @@ def contains (abstract: AbstractAssignment) (concrete: ConcreteAssignment) : Boo
 
 theorem domain_sound
   (formula: Formula) (abstract: AbstractAssignment) (concrete: ConcreteAssignment) (result: Bool)
-  : evaluateToThreeValued ThreeValuedBitvector formula abstract = Except.ok (some result) →
-    contains abstract concrete → evaluateToThreeValued Bitvector formula concrete = Except.ok (some result) := sorry
+  : eval3 ThreeValuedBitvector formula abstract = Except.ok (some result) →
+    contains abstract concrete → eval3 Bitvector formula concrete = Except.ok (some result) := sorry
 
 
 def fullyCovered  (assignment: AbstractAssignment)
@@ -66,7 +66,7 @@ theorem split_sound (formula: Formula) (assignment: AbstractAssignment)
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: AbstractAssignment) (concrete: ConcreteAssignment) (result: Bool)
   : checkNode formula abstract node = Except.ok (some result) → contains abstract concrete →
-    evaluateToThreeValued Bitvector formula concrete = Except.ok (some result) := by
+    eval3 Bitvector formula concrete = Except.ok (some result) := by
 
   induction node
   {

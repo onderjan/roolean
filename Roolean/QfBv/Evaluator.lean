@@ -91,7 +91,7 @@ def evaluate (α : Type) [Domain α]
 
 end
 
-public def evaluateToThreeValued (α : Type) [Domain α]
+public def eval3 (α : Type) [Domain α]
   (formula: Formula) (assignment: Array α) : Except (EEvaluator (Domain.ε α)) (Option Bool) :=
   match evaluate α formula assignment with
     | Except.ok result =>
