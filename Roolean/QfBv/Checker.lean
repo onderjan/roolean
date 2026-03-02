@@ -19,10 +19,10 @@ public inductive SplitNode
   | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
 deriving Repr
 
-abbrev ConcreteAssignment := Array Bitvector
-abbrev AbstractAssignment := Array ThreeValuedBitvector
+abbrev Assignment2 := Array Bitvector
+abbrev Assignment3 := Array ThreeValuedBitvector
 
-def checkNode (formula: Formula) (assignment: AbstractAssignment) (node: SplitNode) : Except EChecker (Option Bool) :=
+def checkNode (formula: Formula) (assignment: Assignment3) (node: SplitNode) : Except EChecker (Option Bool) :=
   match node with
     | SplitNode.Leaf =>
       (eval3 ThreeValuedBitvector formula assignment).mapError EChecker.Evaluator
@@ -44,27 +44,26 @@ def checkNode (formula: Formula) (assignment: AbstractAssignment) (node: SplitNo
       else
         Except.error (EChecker.BadSplitVariable varIndex)
 
-def contains (abstract: AbstractAssignment) (concrete: ConcreteAssignment) : Bool := sorry
+def contains (abstract: Assignment3) (concrete: Assignment2) : Bool := sorry
 
 theorem domain_sound
-  (formula: Formula) (abstract: AbstractAssignment) (concrete: ConcreteAssignment) (result: Bool)
+  (formula: Formula) (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
   : eval3 ThreeValuedBitvector formula abstract = Except.ok (some result) →
     contains abstract concrete → eval3 Bitvector formula concrete = Except.ok (some result) := sorry
 
+def fullyCovered  (assignment: Assignment3)
+  (leftAssignment: Assignment3) (rightAssignment: Assignment3) : Bool := sorry
 
-def fullyCovered  (assignment: AbstractAssignment)
-  (leftAssignment: AbstractAssignment) (rightAssignment: AbstractAssignment) : Bool := sorry
-
-theorem split_sound (formula: Formula) (assignment: AbstractAssignment)
+theorem split_sound (formula: Formula) (assignment: Assignment3)
   (varIndex: USize) (bitIndex: Nat)
-  (leftAssignment: AbstractAssignment) (leftNode: SplitNode) (rightAssignment: AbstractAssignment) (rightNode: SplitNode) (result: Bool)
+  (leftAssignment: Assignment3) (leftNode: SplitNode) (rightAssignment: Assignment3) (rightNode: SplitNode) (result: Bool)
   : (checkNode formula assignment (SplitNode.Split varIndex bitIndex leftNode rightNode) = Except.ok (some result)) →
     (fullyCovered assignment leftAssignment rightAssignment) →
       (checkNode formula leftAssignment leftNode = Except.ok (some result)
         ∧ checkNode formula rightAssignment rightNode = Except.ok (some result)) := sorry
 
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
-  (abstract: AbstractAssignment) (concrete: ConcreteAssignment) (result: Bool)
+  (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
   : checkNode formula abstract node = Except.ok (some result) → contains abstract concrete →
     eval3 Bitvector formula concrete = Except.ok (some result) := by
 
