@@ -15,8 +15,8 @@ public inductive EChecker
 deriving Repr
 
 public inductive SplitNode
-  | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
   | Leaf
+  | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
 deriving Repr
 
 abbrev ConcreteAssignment := Array Bitvector
@@ -24,6 +24,8 @@ abbrev AbstractAssignment := Array ThreeValuedBitvector
 
 def checkNode (formula: Formula) (assignment: AbstractAssignment) (node: SplitNode) : Except EChecker (Option Bool) :=
   match node with
+    | SplitNode.Leaf =>
+      (evaluateToThreeValued ThreeValuedBitvector formula assignment).mapError EChecker.Evaluator
     | SplitNode.Split varIndex bitIndex left right =>
       if hx: varIndex.toNat < assignment.size then
         let varAssignment := assignment.uget varIndex hx
@@ -44,11 +46,8 @@ def checkNode (formula: Formula) (assignment: AbstractAssignment) (node: SplitNo
 
       else
         Except.error (EChecker.BadSplitVariable varIndex)
-    | SplitNode.Leaf =>
-      (evaluateToThreeValued ThreeValuedBitvector formula assignment).mapError EChecker.Evaluator
 
 def contains (abstract: AbstractAssignment) (concrete: ConcreteAssignment) : Bool := sorry
-
 
 -- TODO true for abstract => true for all within assignment
 -- and there also exists some for which it is true
@@ -59,6 +58,14 @@ theorem domain_sound
       evaluateToThreeValued Bitvector formula concrete = Except.ok (some concreteResult)
         → abstractResult = concreteResult := sorry
 
+-- TODO this is currently too coarse
+theorem split_sound (formula: Formula) (abstract: AbstractAssignment)
+  (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode) (abstractResult: Bool) (concreteResult: Bool) :
+  (checkNode formula abstract (SplitNode.Split varIndex bitIndex left right) = Except.ok (some abstractResult)) →
+    (checkNode formula abstract left = Except.ok (some abstractResult) → abstractResult = concreteResult) →
+      (checkNode formula abstract right = Except.ok (some abstractResult) → abstractResult = concreteResult) →
+        abstractResult = concreteResult := sorry
+
 
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: AbstractAssignment) (concrete: ConcreteAssignment) (abstractResult: Bool) (concreteResult: Bool)
@@ -67,63 +74,39 @@ theorem checkNode_sound (formula: Formula) (node: SplitNode)
       evaluateToThreeValued Bitvector formula concrete = Except.ok (some concreteResult) →
         abstractResult = concreteResult := by
 
-  intro h1 h2 h3
-
-  rw[checkNode.eq_def] at h2
-
-  split at h2
-  {
-    -- non-leaf
-    split at h2 -- indexing success/error
-    extract_lets at h2
-
-    split at h2 -- fake split for left/right pair
-    split at h2 -- whether domain was split into left and right
-    {
-      -- yes, domain was split into left and right
-      extract_lets at h2
-      split at h2 -- checkNode on left and right
-      -- the only interesting case is with both Booleans
-      rename_i hLeft hRight
-
-      -- TODO: show for combination of both Booleans
-      sorry
-
-      -- others have trivially non-Boolean results
-      repeat simp at h2
-    }
-
-    {
-      -- no, split did not happen
-      -- TODO: show for this
-      sorry
-    }
-
-    -- bad split error does not affect soundness
-    simp at h2
-  }
+  induction node
   {
     -- leaf
-    rw[Except.mapError.eq_def] at h2
-    split at h2
-    {
-      -- evaluation error
-      contradiction
-    }
-    {
-      -- evaluation success
-      simp at h2
-      rename_i h4
+    intro hContains hAbstract hConcrete
+    rw[checkNode.eq_def] at hAbstract
+    split at hAbstract
+    rw[Except.mapError.eq_def] at hAbstract
+    split at hAbstract
+    contradiction
 
-      simp[h2] at h4
+    rename_i value hAbstractEval
+    simp at hAbstract
+    simp[hAbstract] at hAbstractEval
 
-      have sound := domain_sound formula abstract concrete abstractResult concreteResult
-      have sound := sound h1
-      have sound := sound h4
-      have sound := sound h3
+    rename_i hAbstract
 
-      exact sound
-    }
+    have sound := domain_sound formula abstract concrete abstractResult concreteResult
+    simp [hContains, hConcrete, hAbstractEval] at sound
+    exact sound
+    contradiction
+  }
+  {
+    -- non-leaf
+    rename_i left_ih right_ih
+    rename_i varIndex bitIndex left right
+    intro hContains hAbstract hConcrete
+    simp [hContains, hConcrete] at left_ih
+    simp [hContains, hConcrete] at right_ih
+
+    let hSplitSound := split_sound formula abstract varIndex bitIndex left right abstractResult concreteResult
+
+    simp [hAbstract] at hSplitSound
+    exact hSplitSound left_ih right_ih
   }
 
 
