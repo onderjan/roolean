@@ -56,20 +56,13 @@ def checkNode (formula: Formula) (assignment: Assignment) (node: SplitNode) : Ex
     | SplitNode.Leaf => checkAssignment formula assignment
 
 
-public def check (problem: Problem) (splitTree: SplitNode) : IO (Except EChecker Unit) := do
-  IO.println s!"Check satisfiability\nProblem: {reprStr problem}"
-
+public def check (problem: Problem) (splitTree: SplitNode) : Except EChecker (Option Bool) := do
   let mut assignment := problem.variables.foldl
     (λ array e => array.push (ThreeValuedBitvector.allUnknown e.width)) #[]
 
-  match checkNode problem.formula assignment splitTree with
-    | Except.ok satisfiable =>
-      IO.println s!"Satisfiable: {reprStr satisfiable}"
-      pure (Except.ok ())
-    | Except.error err => pure (Except.error err)
+  checkNode problem.formula assignment splitTree
 
-
-public def solve (problem: Problem) : IO (Except EChecker Unit) := do
+public def solve (problem: Problem) : Except EChecker (Option Bool) := do
   let mut splitTree := SplitNode.Leaf
   let mut varIndex := 0
   for var in problem.variables do

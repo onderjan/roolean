@@ -265,9 +265,13 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
   let problem := { variables, formula }
 
-  let checked ← solve problem
+  IO.println s!"Check satisfiability\nProblem: {reprStr problem}"
+
+  let checked := solve problem
   match checked with
-    | Except.ok () => pure (Except.ok ())
+    | Except.ok satisfiable =>
+      IO.println s!"Satisfiable: {reprStr satisfiable}"
+      pure (Except.ok ())
     | Except.error err => pure (Except.error (EInterpretation.Checker err))
 
 instance : Interpret Interpretation EInterpretation where
