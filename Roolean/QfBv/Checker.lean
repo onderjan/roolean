@@ -6,10 +6,10 @@ public import Roolean.QfBv.Evaluator
 public import Roolean.QfBv.Domain.ThreeValued
 import Roolean.QfBv.Domain.ThreeValued
 import Roolean.QfBv.Domain.Bitvector
+import Roolean.QfBv.Evaluator
 
 public inductive EChecker
   | BadSplitVariable (varIndex: USize)
-  | EvalResultNotBool
   | Evaluator (err: EEvaluator EBitvectorDomain)
 deriving Repr
 
@@ -20,19 +20,7 @@ deriving Repr
 
 abbrev Assignment := Array ThreeValuedBitvector
 
-def checkAssignment (formula: Formula) (assignment: Assignment) : Except EChecker (Option Bool) := do
-  match evaluate ThreeValuedBitvector formula assignment with
-    | Except.ok result =>
-      if result.width == 1 then
-        match result.toBitvector? with
-          | some result => pure (result.value != 0)
-          | none => pure none
-      else
-        Except.error EChecker.EvalResultNotBool
-    | Except.error err => Except.error (EChecker.Evaluator err)
-
 def checkNode (formula: Formula) (assignment: Assignment) (node: SplitNode) : Except EChecker (Option Bool) := do
-
   match node with
     | SplitNode.Split varIndex bitIndex left right =>
       if h: varIndex.toNat < assignment.size then
@@ -53,8 +41,8 @@ def checkNode (formula: Formula) (assignment: Assignment) (node: SplitNode) : Ex
           pure leftResult
       else
         Except.error (EChecker.BadSplitVariable varIndex)
-    | SplitNode.Leaf => checkAssignment formula assignment
-
+    | SplitNode.Leaf =>
+      (evaluateToThreeValued ThreeValuedBitvector formula assignment).mapError EChecker.Evaluator
 
 public def check (problem: Problem) (splitTree: SplitNode) : Except EChecker (Option Bool) := do
   let mut assignment := problem.variables.foldl

@@ -7,6 +7,7 @@ import Roolean.QfBv.Domain
 public inductive EEvaluator (ε: Type)
   | DomainError (err: ε)
   | VariableNotAssigned (index: USize)
+  | EvalResultNotSingleBit
 deriving Repr
 
 mutual
@@ -67,7 +68,7 @@ def evaluateBinary (α : Type) [Domain α]
 
   result.mapError EEvaluator.DomainError
 
-public def evaluate (α : Type) [Domain α]
+def evaluate (α : Type) [Domain α]
   (formula: Formula) (assignment: Array α) : Except (EEvaluator (Domain.ε α)) α := do
 
   match formula with
@@ -89,3 +90,15 @@ public def evaluate (α : Type) [Domain α]
         Except.error (EEvaluator.VariableNotAssigned varIndex)
 
 end
+
+public def evaluateToThreeValued (α : Type) [Domain α]
+  (formula: Formula) (assignment: Array α) : Except (EEvaluator (Domain.ε α)) (Option Bool) :=
+  match evaluate α formula assignment with
+    | Except.ok result =>
+      if Domain.width result == 1 then
+        match Domain.toBitvector? result with
+          | some result => pure (result.value != 0)
+          | none => pure none
+      else
+        Except.error EEvaluator.EvalResultNotSingleBit
+    | Except.error err => Except.error err
