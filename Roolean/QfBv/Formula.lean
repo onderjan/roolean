@@ -1,13 +1,6 @@
 module
 
-public structure BitvectorType where
-  width: Nat
-deriving Repr, Inhabited
-
-public structure Bitvector where
-  width: Nat
-  value: BitVec width
-deriving Repr, Inhabited
+public import Roolean.QfBv.Bitvector
 
 public inductive UniOperator
   | Not
@@ -65,3 +58,8 @@ public inductive Operation where
 deriving Repr, Inhabited
 
 end
+
+public structure Problem where
+  public variables: Array BitvectorType
+  public formula: Formula
+deriving Repr, Inhabited

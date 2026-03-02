@@ -1,11 +1,13 @@
 module
-public import Roolean.QfBv.Formula
+
+public import Roolean.QfBv.Bitvector
 
 public class Domain (α: Type) where
   ε: Type
 
   ofBitvector: Bitvector → α
   toBitvector?: α → Option Bitvector
+  width: α → Nat
 
   not: α → Except ε α
   neg: α → Except ε α
@@ -31,3 +33,8 @@ public class Domain (α: Type) where
   shl: α → α → Except ε α
   lshr: α → α → Except ε α
   ashr: α → α → Except ε α
+
+
+public class AbstractDomain (α : Type) [Domain α] where
+  top: Nat → α
+  split: α → Nat → (α × Option α)

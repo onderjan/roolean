@@ -68,22 +68,22 @@ def evaluateBinary (α : Type) [Domain α]
   result.mapError EEvaluator.DomainError
 
 public def evaluate (α : Type) [Domain α]
-  (formula: Formula) (assignments: Array α) : Except (EEvaluator (Domain.ε α)) α := do
+  (formula: Formula) (assignment: Array α) : Except (EEvaluator (Domain.ε α)) α := do
 
   match formula with
     | Formula.Constant constant => pure (Domain.ofBitvector constant)
 
     | Formula.Operation (Operation.Unary op inner) =>
-      let inner: α ← evaluate α inner assignments
+      let inner: α ← evaluate α inner assignment
       (evaluateUnary α) op inner
 
     | Formula.Operation (Operation.Binary op left right) =>
-      let left ← evaluate α left assignments
-      let right ← evaluate α right assignments
+      let left ← evaluate α left assignment
+      let right ← evaluate α right assignment
       evaluateBinary α op left right
 
     | Formula.Variable varIndex =>
-      if let some assignment := assignments[varIndex]? then
+      if let some assignment := assignment[varIndex]? then
         pure assignment
       else
         Except.error (EEvaluator.VariableNotAssigned varIndex)

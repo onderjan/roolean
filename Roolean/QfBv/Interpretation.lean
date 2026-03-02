@@ -6,6 +6,7 @@ public import Roolean.QfBv.Formula
 public import Roolean.QfBv.Checker
 
 import Std.Data.HashMap.Basic
+import Roolean.QfBv.Checker
 
 
 public structure Interpretation where
@@ -262,9 +263,9 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
   let variables := interpretation.variables.map (λ (var) => var.snd)
 
-  IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nCombined assertion: {reprStr assertion}"
+  let problem := { variables, formula }
 
-  let checked ← check variables formula
+  let checked ← solve problem
   match checked with
     | Except.ok () => pure (Except.ok ())
     | Except.error err => pure (Except.error (EInterpretation.Checker err))
