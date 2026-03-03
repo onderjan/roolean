@@ -19,8 +19,8 @@ public inductive SplitNode
   | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
 deriving Repr
 
-abbrev Assignment2 := Array Bitvector
-abbrev Assignment3 := Array ThreeValuedBitvector
+def Assignment2 := Array Bitvector
+def Assignment3 := Array ThreeValuedBitvector
 
 def checkNode (formula: Formula) (assignment: Assignment3) (node: SplitNode) : Except EChecker (Option Bool) :=
   match node with
@@ -44,12 +44,16 @@ def checkNode (formula: Formula) (assignment: Assignment3) (node: SplitNode) : E
       else
         Except.error (EChecker.BadSplitVariable varIndex)
 
-def contains (abstract: Assignment3) (concrete: Assignment2) : Bool := sorry
+def Assignment3.containsConcrete (abstract: Assignment3) (concrete: Assignment2) : Bool :=
+  if abstract.size == concrete.size then
+    (abstract.zip concrete).all (λ (abstract, concrete) => abstract.containsConcrete concrete)
+  else
+    false
 
 theorem domain_sound
   (formula: Formula) (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
   : eval3 ThreeValuedBitvector formula abstract = Except.ok (some result) →
-    contains abstract concrete → eval3 Bitvector formula concrete = Except.ok (some result) := sorry
+    abstract.containsConcrete concrete → eval3 Bitvector formula concrete = Except.ok (some result) := sorry
 
 def fullyCovered  (assignment: Assignment3)
   (leftAssignment: Assignment3) (rightAssignment: Assignment3) : Bool := sorry
@@ -64,7 +68,7 @@ theorem split_sound (formula: Formula) (assignment: Assignment3)
 
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
-  : checkNode formula abstract node = Except.ok (some result) → contains abstract concrete →
+  : checkNode formula abstract node = Except.ok (some result) → abstract.containsConcrete concrete →
     eval3 Bitvector formula concrete = Except.ok (some result) := by
 
   induction node
