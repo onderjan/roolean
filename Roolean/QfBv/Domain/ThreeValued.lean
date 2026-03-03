@@ -4,7 +4,7 @@ public import Roolean.QfBv.Formula
 public import Roolean.QfBv.Domain
 public import Roolean.QfBv.Domain.Bitvector
 
-public structure ThreeValuedBitvector where
+public structure Bitvector3 where
   width: Nat
   zeros: BitVec width
   ones: BitVec width
@@ -13,13 +13,13 @@ deriving Repr
 
 public abbrev EThreeValuedBitvector := EBitvectorDomain
 
-public def ThreeValuedBitvector.allUnknown (width: Nat): ThreeValuedBitvector :=
+public def Bitvector3.allUnknown (width: Nat): Bitvector3 :=
   let zeros := BitVec.allOnes width
   let ones := BitVec.allOnes width
   let zeros_or_ones_set := by simp[zeros,ones]
   { width, zeros, ones, zeros_or_ones_set }
 
-public def ThreeValuedBitvector.ofBitvector (bitvector: Bitvector): ThreeValuedBitvector :=
+public def Bitvector3.ofBitvector (bitvector: Bitvector): Bitvector3 :=
   let width := bitvector.width
   let zeros := ~~~bitvector.value
   let ones := bitvector.value
@@ -27,59 +27,59 @@ public def ThreeValuedBitvector.ofBitvector (bitvector: Bitvector): ThreeValuedB
 
   { width, zeros, ones, zeros_or_ones_set }
 
-public def ThreeValuedBitvector.allZeros (width: Nat): ThreeValuedBitvector :=
-  ThreeValuedBitvector.ofBitvector (Bitvector.allZeros width)
+public def Bitvector3.allZeros (width: Nat): Bitvector3 :=
+  Bitvector3.ofBitvector (Bitvector.allZeros width)
 
-public def ThreeValuedBitvector.allOnes (width: Nat): ThreeValuedBitvector :=
-  ThreeValuedBitvector.ofBitvector (Bitvector.allOnes width)
+public def Bitvector3.allOnes (width: Nat): Bitvector3 :=
+  Bitvector3.ofBitvector (Bitvector.allOnes width)
 
 
-public def ThreeValuedBitvector.toBitvector? (domain: ThreeValuedBitvector) : Option Bitvector :=
+public def Bitvector3.toBitvector? (domain: Bitvector3) : Option Bitvector :=
   if ~~~(domain.zeros ^^^ domain.ones) == 0 then
     some { width := domain.width, value := domain.ones }
   else
     none
 
 
-public def ThreeValuedBitvector.uniOp (domain: ThreeValuedBitvector) (op: DomainUniOp)
-  : Except EThreeValuedBitvector ThreeValuedBitvector :=
+public def Bitvector3.uniOp (domain: Bitvector3) (op: DomainUniOp)
+  : Except EThreeValuedBitvector Bitvector3 :=
   match domain.toBitvector? with
   | some bitvector => do
     let result: Bitvector ← bitvector.uniOp op
-    pure (ThreeValuedBitvector.ofBitvector result)
-  | none => pure (ThreeValuedBitvector.allUnknown domain.width)
+    pure (Bitvector3.ofBitvector result)
+  | none => pure (Bitvector3.allUnknown domain.width)
 
 
-public def ThreeValuedBitvector.biNormal
-  (left: ThreeValuedBitvector) (right: ThreeValuedBitvector) (op: DomainBiNormalOp)
-  : Except EBitvectorDomain ThreeValuedBitvector := do
+public def Bitvector3.biNormal
+  (left: Bitvector3) (right: Bitvector3) (op: DomainBiNormalOp)
+  : Except EBitvectorDomain Bitvector3 := do
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
     let result: Bitvector ← Bitvector.biNormal left right op
-    pure (ThreeValuedBitvector.ofBitvector result)
+    pure (Bitvector3.ofBitvector result)
   | _, _ =>
     if left.width == right.width then
-      pure (ThreeValuedBitvector.allUnknown left.width)
+      pure (Bitvector3.allUnknown left.width)
     else
       Except.error (EBitvectorDomain.BinaryWidthMismatch left.width right.width)
 
-public def ThreeValuedBitvector.biReduction
-  (left: ThreeValuedBitvector) (right: ThreeValuedBitvector) (op: DomainBiReductionOp)
-  : Except EBitvectorDomain ThreeValuedBitvector := do
+public def Bitvector3.biReduction
+  (left: Bitvector3) (right: Bitvector3) (op: DomainBiReductionOp)
+  : Except EBitvectorDomain Bitvector3 := do
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
     let result: Bitvector ← Bitvector.biReduction left right op
-    pure (ThreeValuedBitvector.ofBitvector result)
+    pure (Bitvector3.ofBitvector result)
   | _, _ =>
     if left.width == right.width then
-      pure (ThreeValuedBitvector.allUnknown 1)
+      pure (Bitvector3.allUnknown 1)
     else
       Except.error (EBitvectorDomain.BinaryWidthMismatch left.width right.width)
 
 
 
-public def ThreeValuedBitvector.containsConcrete
-  (domain: ThreeValuedBitvector) (concrete: Bitvector) : Bool :=
+public def Bitvector3.containsConcrete
+  (domain: Bitvector3) (concrete: Bitvector) : Bool :=
   if h: concrete.width = domain.width then
     let concreteZeros := BitVec.cast h (~~~concrete.value)
     let concreteOnes := BitVec.cast h concrete.value
@@ -88,11 +88,11 @@ public def ThreeValuedBitvector.containsConcrete
   else
     false
 
-public theorem ThreeValuedBitvector.containsConcrete_nonempty {a: ThreeValuedBitvector}
-  : ∃x, ThreeValuedBitvector.containsConcrete a x := by
+public theorem Bitvector3.containsConcrete_nonempty {a: Bitvector3}
+  : ∃x, Bitvector3.containsConcrete a x := by
   let bv: Bitvector := { width := a.width, value := a.ones }
   exists bv
-  rw[ThreeValuedBitvector.containsConcrete]
+  rw[Bitvector3.containsConcrete]
   simp[bv]
   rw[← BitVec.not_or]
   rw[← BitVec.not_allOnes]
@@ -109,7 +109,7 @@ theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c
   { simp; cases c[i]; simp; simp }
 
 
-def ThreeValuedBitvector.setBitToOne (domain: ThreeValuedBitvector) (bitIndex: Nat): ThreeValuedBitvector :=
+def Bitvector3.setBitToOne (domain: Bitvector3) (bitIndex: Nat): Bitvector3 :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat domain.width 1) bitIndex
 
   let zeros := domain.zeros &&& ~~~bitMask
@@ -129,7 +129,7 @@ theorem setBitToZero_lemma {w: Nat} {a b c: BitVec w} : (a ||| c) ||| (b &&& ~~~
   { simp; cases c[i]; simp; simp }
   { simp }
 
-def ThreeValuedBitvector.setBitToZero (domain: ThreeValuedBitvector) (bitIndex: Nat): ThreeValuedBitvector :=
+def Bitvector3.setBitToZero (domain: Bitvector3) (bitIndex: Nat): Bitvector3 :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat domain.width 1) bitIndex
 
   let zeros := domain.zeros ||| bitMask
@@ -144,12 +144,12 @@ def ThreeValuedBitvector.setBitToZero (domain: ThreeValuedBitvector) (bitIndex: 
   { width := domain.width, zeros, ones, zeros_or_ones_set }
 
 
-theorem splitBit_lemma (a: ThreeValuedBitvector) (n: Nat) (c: Bitvector)
-  : a.containsConcrete c → (ThreeValuedBitvector.setBitToZero a n).containsConcrete c
-  ∨ (ThreeValuedBitvector.setBitToOne a n).containsConcrete c := by
-  rw[ThreeValuedBitvector.setBitToOne]
-  rw[ThreeValuedBitvector.setBitToZero]
-  repeat rw [ThreeValuedBitvector.containsConcrete]
+theorem splitBit_lemma (a: Bitvector3) (n: Nat) (c: Bitvector)
+  : a.containsConcrete c → (Bitvector3.setBitToZero a n).containsConcrete c
+  ∨ (Bitvector3.setBitToOne a n).containsConcrete c := by
+  rw[Bitvector3.setBitToOne]
+  rw[Bitvector3.setBitToZero]
+  repeat rw [Bitvector3.containsConcrete]
   split
   rename_i hWidth
   {
@@ -160,8 +160,8 @@ theorem splitBit_lemma (a: ThreeValuedBitvector) (n: Nat) (c: Bitvector)
   }
   {intro; contradiction }
 
-public def ThreeValuedBitvector.split (domain: ThreeValuedBitvector) (bitIndex: Nat)
-   : ThreeValuedBitvector × Option ThreeValuedBitvector :=
+public def Bitvector3.split (domain: Bitvector3) (bitIndex: Nat)
+   : Bitvector3 × Option Bitvector3 :=
   let width := domain.width
   let bitMask := BitVec.shiftLeft (BitVec.ofNat width 1) bitIndex
 
@@ -176,10 +176,10 @@ public def ThreeValuedBitvector.split (domain: ThreeValuedBitvector) (bitIndex: 
 
 
 
-public theorem ThreeValuedBitvector.split_noop_id {a b: ThreeValuedBitvector} {n: Nat}: a.split n = (b, none) → a = b := by
+public theorem Bitvector3.split_noop_id {a b: Bitvector3} {n: Nat}: a.split n = (b, none) → a = b := by
   rw[split]; split; simp; simp
 
-public theorem ThreeValuedBitvector.split_preserves {a left right: ThreeValuedBitvector} {n: Nat} {c: Bitvector}
+public theorem Bitvector3.split_preserves {a left right: Bitvector3} {n: Nat} {c: Bitvector}
   : split a n = (left, some right) → a.containsConcrete c → left.containsConcrete c ∨ right.containsConcrete c := by
   let h := splitBit_lemma a n c
 
@@ -199,24 +199,24 @@ public theorem ThreeValuedBitvector.split_preserves {a left right: ThreeValuedBi
   }
 
 
-public instance : Domain ThreeValuedBitvector where
+public instance : Domain Bitvector3 where
   ε := EThreeValuedBitvector
 
-  width := ThreeValuedBitvector.width
+  width := Bitvector3.width
 
-  ofBitvector := ThreeValuedBitvector.ofBitvector
-  toBitvector? := ThreeValuedBitvector.toBitvector?
+  ofBitvector := Bitvector3.ofBitvector
+  toBitvector? := Bitvector3.toBitvector?
 
-  uniOp := ThreeValuedBitvector.uniOp
-  biNormal := ThreeValuedBitvector.biNormal
-  biReduction := ThreeValuedBitvector.biReduction
+  uniOp := Bitvector3.uniOp
+  biNormal := Bitvector3.biNormal
+  biReduction := Bitvector3.biReduction
 
-public instance : AbstractDomain ThreeValuedBitvector where
-  top := ThreeValuedBitvector.allUnknown
-  split := ThreeValuedBitvector.split
-  containsConcrete := ThreeValuedBitvector.containsConcrete
+public instance : AbstractDomain Bitvector3 where
+  top := Bitvector3.allUnknown
+  split := Bitvector3.split
+  containsConcrete := Bitvector3.containsConcrete
 
-  containsConcrete_nonempty := ThreeValuedBitvector.containsConcrete_nonempty
+  containsConcrete_nonempty := Bitvector3.containsConcrete_nonempty
 
-  split_noop_id := ThreeValuedBitvector.split_noop_id
-  split_preserves := ThreeValuedBitvector.split_preserves
+  split_noop_id := Bitvector3.split_noop_id
+  split_preserves := Bitvector3.split_preserves
