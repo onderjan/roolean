@@ -2,6 +2,38 @@ module
 
 public import Roolean.QfBv.Bitvector
 
+public inductive DomainUniOp
+  | Not
+  | Neg
+deriving Repr, Inhabited
+
+public inductive DomainBiNormalOp
+  | Add
+  | Sub
+  | Mul
+  | Udiv
+  | Urem
+  | Sdiv
+  | Srem
+
+  | BitAnd
+  | BitOr
+  | BitXor
+
+  | Shl
+  | Lshr
+  | Ashr
+deriving Repr, Inhabited
+
+public inductive DomainBiReductionOp
+  | Eq
+  | Ult
+  | Ule
+  | Slt
+  | Sle
+deriving Repr, Inhabited
+
+
 public class Domain (α: Type) where
   ε: Type
 
@@ -9,30 +41,9 @@ public class Domain (α: Type) where
   toBitvector?: α → Option Bitvector
   width: α → Nat
 
-  not: α → Except ε α
-  neg: α → Except ε α
-
-  add: α → α → Except ε α
-  sub: α → α → Except ε α
-  mul: α → α → Except ε α
-  udiv: α → α → Except ε α
-  urem: α → α → Except ε α
-  sdiv: α → α → Except ε α
-  srem: α → α → Except ε α
-
-  bitAnd: α → α → Except ε α
-  bitOr: α → α → Except ε α
-  bitXor: α → α → Except ε α
-
-  eq: α → α → Except ε α
-  ult: α → α → Except ε α
-  ule: α → α → Except ε α
-  slt: α → α → Except ε α
-  sle: α → α → Except ε α
-
-  shl: α → α → Except ε α
-  lshr: α → α → Except ε α
-  ashr: α → α → Except ε α
+  uniOp: α → DomainUniOp → Except ε α
+  biNormal: α → α → DomainBiNormalOp → Except ε α
+  biReduction: α → α → DomainBiReductionOp → Except ε α
 
 
 public class AbstractDomain (α : Type) [Domain α] where

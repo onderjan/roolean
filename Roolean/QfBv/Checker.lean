@@ -55,12 +55,6 @@ theorem domain_sound
   : eval3 ThreeValuedBitvector formula abstract = Except.ok (some result) →
     abstract.containsConcrete concrete → eval3 Bitvector formula concrete = Except.ok (some result) := sorry
 
-def fullyCovered  (assignment: Assignment3)
-  (leftAssignment: Assignment3) (rightAssignment: Assignment3) : Bool := sorry
-
-theorem split_preserves (abstract: Assignment3) (left: Assignment3) (right: Assignment3) (concrete: Assignment2)
-  : abstract.containsConcrete concrete → left.containsConcrete concrete ∨ right.containsConcrete concrete := sorry
-
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
   : checkNode formula abstract node = Except.ok (some result) → abstract.containsConcrete concrete →
