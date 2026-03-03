@@ -38,3 +38,4 @@ public class Domain (α: Type) where
 public class AbstractDomain (α : Type) [Domain α] where
   top: Nat → α
   split: α → Nat → (α × Option α)
+  containsConcrete: α → Bitvector → Bool

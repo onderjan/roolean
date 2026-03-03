@@ -126,7 +126,14 @@ public def ThreeValuedBitvector.split (domain: ThreeValuedBitvector) (bitIndex: 
     -- not unknown, do not split
     (domain, none)
 
-
+public def ThreeValuedBitvector.containsConcrete
+  (domain: ThreeValuedBitvector) (concrete: Bitvector) : Bool :=
+  if h: concrete.width = domain.width then
+    let concreteZeros := BitVec.cast h (~~~concrete.value)
+    let concreteOnes := BitVec.cast h concrete.value
+    (domain.zeros &&& concreteZeros == concreteZeros) && (domain.ones &&& concreteOnes == concreteOnes)
+  else
+    false
 
 public instance : Domain ThreeValuedBitvector where
   ε := EThreeValuedBitvector
@@ -164,3 +171,4 @@ public instance : Domain ThreeValuedBitvector where
 public instance : AbstractDomain ThreeValuedBitvector where
   top := ThreeValuedBitvector.allUnknown
   split := ThreeValuedBitvector.split
+  containsConcrete := ThreeValuedBitvector.containsConcrete
