@@ -51,6 +51,7 @@ public class AbstractDomain (α : Type) [Domain α] where
   containsConcrete: α → Bitvector → Bool
   split: α → Nat → (α × Option α)
 
+  top_containsConcrete_all{w: Nat} {c: Bitvector} : c.width = w → containsConcrete (top w) c
   containsConcrete_nonempty {a: α} : ∃x, containsConcrete a x
   split_noop_id : split a n = (b, none) → a = b
   split_preserves : split a n = (left, some right) →

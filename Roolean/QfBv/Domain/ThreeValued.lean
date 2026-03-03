@@ -198,6 +198,10 @@ public theorem Bitvector3.split_preserves {a left right: Bitvector3} {n: Nat} {c
     simp
   }
 
+public theorem Bitvector3.top_containsConcrete_all {w: Nat} {c: Bitvector}
+  : c.width = w → containsConcrete (Bitvector3.allUnknown w) c := by
+  rw[allUnknown, containsConcrete]; simp
+
 
 public instance : Domain Bitvector3 where
   ε := EThreeValuedBitvector
@@ -216,7 +220,7 @@ public instance : AbstractDomain Bitvector3 where
   split := Bitvector3.split
   containsConcrete := Bitvector3.containsConcrete
 
+  top_containsConcrete_all := Bitvector3.top_containsConcrete_all
   containsConcrete_nonempty := Bitvector3.containsConcrete_nonempty
-
   split_noop_id := Bitvector3.split_noop_id
   split_preserves := Bitvector3.split_preserves
