@@ -37,6 +37,10 @@ public class Domain (α: Type) where
 
 public class AbstractDomain (α : Type) [Domain α] where
   top: Nat → α
-  split: α → Nat → (α × Option α)
   containsConcrete: α → Bitvector → Bool
+  split: α → Nat → (α × Option α)
+
   containsConcrete_nonempty {a: α} : ∃x, containsConcrete a x
+  split_noop_id : split a n = (b, none) → a = b
+  split_preserves : split a n = (left, some right) →
+    containsConcrete a c → containsConcrete left c ∨ containsConcrete right c
