@@ -1,8 +1,7 @@
 module
 
 public import Roolean.QfBv.Formula
-public import Roolean.QfBv.Domain
-public import Roolean.QfBv.Domain.Bitvector
+public import Roolean.QfBv.AbstractDomain
 
 public structure Bitvector3 where
   width: Nat
@@ -46,9 +45,8 @@ public def Bitvector3.uniOp (domain: Bitvector3) (op: DomainUniOp)
   match domain.toBitvector? with
   | some bitvector => do
     let result: Bitvector ← bitvector.uniOp op
-    pure (Bitvector3.ofBitvector result)
-  | none => pure (Bitvector3.allUnknown domain.width)
-
+    Except.ok (Bitvector3.ofBitvector result)
+  | none => Except.ok (Bitvector3.allUnknown domain.width)
 
 public def Bitvector3.biNormal
   (left: Bitvector3) (right: Bitvector3) (op: DomainBiNormalOp)
@@ -101,6 +99,14 @@ public theorem Bitvector3.containsConcrete_nonempty {a: Bitvector3}
   let h := a.zeros_or_ones_set
   rw[BitVec.or_comm] at h
   exact h
+
+public theorem Bitvector3.containsConcrete_same_width {a: Bitvector3}
+  : Bitvector3.containsConcrete a c → a.width = c.width := by
+  rw[containsConcrete]
+  simp
+  split
+  grind -- TODO nicer proof
+  simp
 
 theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c) = (a ||| b ||| c) := by
   ext i hi; simp
@@ -203,6 +209,29 @@ public theorem Bitvector3.top_containsConcrete_all {w: Nat} {c: Bitvector}
   rw[allUnknown, containsConcrete]; simp
 
 
+public theorem Bitvector3.uniOp_sound {a ar: Bitvector3} :
+  a.uniOp op = Except.ok ar → a.containsConcrete c →
+    Bitvector.uniOp c op = Except.ok cr ∧ ar.containsConcrete cr := by
+  simp[uniOp]
+  split
+  {
+    sorry
+  }
+  {
+    intro hUnknown hContains
+    simp at hUnknown
+    rw[← hUnknown]
+    let h := Bitvector3.top_containsConcrete_all (c:=cr) (w:=a.width)
+    let h2 := Bitvector3.containsConcrete_same_width (c:=c) (a:=a)
+
+    simp[hContains] at h2
+
+    simp[h2] at h
+
+    sorry
+  }
+
+
 public instance : Domain Bitvector3 where
   ε := EThreeValuedBitvector
 
@@ -224,3 +253,5 @@ public instance : AbstractDomain Bitvector3 where
   containsConcrete_nonempty := Bitvector3.containsConcrete_nonempty
   split_noop_id := Bitvector3.split_noop_id
   split_preserves := Bitvector3.split_preserves
+
+  uniOp_sound := Bitvector3.uniOp_sound
