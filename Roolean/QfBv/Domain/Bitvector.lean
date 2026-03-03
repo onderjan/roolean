@@ -7,6 +7,12 @@ public inductive EBitvectorDomain
   | BinaryWidthMismatch (left: Bitvector) (right: Bitvector)
 deriving Repr
 
+public def Bitvector.allZeros (width: Nat): Bitvector :=
+  { width, value := BitVec.zero width }
+
+public def Bitvector.allOnes (width: Nat): Bitvector :=
+  { width, value := BitVec.allOnes width }
+
 public def Bitvector.ofBitvector (bitvector: Bitvector) : Bitvector :=
   bitvector
 

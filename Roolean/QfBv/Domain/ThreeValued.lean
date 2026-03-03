@@ -8,34 +8,31 @@ public structure ThreeValuedBitvector where
   width: Nat
   zeros: BitVec width
   ones: BitVec width
-deriving Repr, Inhabited
+  zeros_or_ones_set: zeros ||| ones = BitVec.allOnes width
+deriving Repr
 
 public abbrev EThreeValuedBitvector := EBitvectorDomain
 
-public def ThreeValuedBitvector.allUnknown (width: Nat): ThreeValuedBitvector := {
-  width,
-  zeros := BitVec.allOnes width,
-  ones := BitVec.allOnes width,
-}
-
-public def ThreeValuedBitvector.allZeros (width: Nat): ThreeValuedBitvector := {
-  width,
-  zeros := BitVec.allOnes width,
-  ones := BitVec.zero width,
-}
-
-public def ThreeValuedBitvector.allOnes (width: Nat): ThreeValuedBitvector := {
-  width,
-  zeros := BitVec.zero width,
-  ones := BitVec.allOnes width,
-}
+public def ThreeValuedBitvector.allUnknown (width: Nat): ThreeValuedBitvector :=
+  let zeros := BitVec.allOnes width
+  let ones := BitVec.allOnes width
+  let zeros_or_ones_set : zeros ||| ones = BitVec.allOnes width := by simp[zeros,ones]
+  { width, zeros, ones, zeros_or_ones_set }
 
 public def ThreeValuedBitvector.ofBitvector (bitvector: Bitvector): ThreeValuedBitvector :=
-  {
-    width := bitvector.width,
-    zeros := bitvector.value.not,
-    ones := bitvector.value
-  }
+  let width := bitvector.width
+  let zeros := ~~~bitvector.value
+  let ones := bitvector.value
+  let zeros_or_ones_set : zeros ||| ones = BitVec.allOnes width := by simp[zeros,ones,width]
+
+  { width, zeros, ones, zeros_or_ones_set }
+
+public def ThreeValuedBitvector.allZeros (width: Nat): ThreeValuedBitvector :=
+  ThreeValuedBitvector.ofBitvector (Bitvector.allZeros width)
+
+public def ThreeValuedBitvector.allOnes (width: Nat): ThreeValuedBitvector :=
+  ThreeValuedBitvector.ofBitvector (Bitvector.allOnes width)
+
 
 public def ThreeValuedBitvector.toBitvector? (domain: ThreeValuedBitvector) : Option Bitvector :=
   if ~~~(domain.zeros ^^^ domain.ones) == 0 then
@@ -112,16 +109,34 @@ public def ThreeValuedBitvector.split (domain: ThreeValuedBitvector) (bitIndex: 
 
   if zerosBit && onesBit then
     -- unknown bit, split
-    ({
-      width := domain.width,
-      zeros := domain.zeros ||| bitMask
-      ones := domain.ones &&& ~~~bitMask
-    },
-    some {
-      width := domain.width,
-      zeros := domain.zeros &&& ~~~bitMask
-      ones := domain.ones ||| bitMask
-    })
+    let left_zeros := domain.zeros ||| bitMask
+    let left_ones := domain.ones &&& ~~~bitMask
+    let left_zeros_or_ones_set := by
+      let h := domain.zeros_or_ones_set
+      grind -- TODO nice proof
+
+
+    let left := {
+      width,
+      zeros := left_zeros
+      ones := left_ones
+      zeros_or_ones_set := left_zeros_or_ones_set
+    }
+
+    let right_zeros := domain.zeros ||| bitMask
+    let right_ones := domain.ones &&& ~~~bitMask
+    let right_zeros_or_ones_set := by
+      let h := domain.zeros_or_ones_set
+      grind -- TODO nice proof
+
+    let right := {
+      width,
+      zeros := right_zeros
+      ones := right_ones
+      zeros_or_ones_set := right_zeros_or_ones_set
+    }
+
+    (left, some right)
   else
     -- not unknown, do not split
     (domain, none)
@@ -131,9 +146,24 @@ public def ThreeValuedBitvector.containsConcrete
   if h: concrete.width = domain.width then
     let concreteZeros := BitVec.cast h (~~~concrete.value)
     let concreteOnes := BitVec.cast h concrete.value
-    (domain.zeros &&& concreteZeros == concreteZeros) && (domain.ones &&& concreteOnes == concreteOnes)
+    -- no zeros nor ones in the concrete bitvector are outside zeros/ones in the abstract one
+    (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
   else
     false
+
+public theorem ThreeValuedBitvector.containsConcrete_nonempty {a: ThreeValuedBitvector}
+  : ∃x, ThreeValuedBitvector.containsConcrete a x := by
+  let bv: Bitvector := { width := a.width, value := a.ones }
+  exists bv
+  rw[ThreeValuedBitvector.containsConcrete]
+  simp[bv]
+  rw[← BitVec.not_or]
+  rw[← BitVec.not_allOnes]
+  rw[BitVec.not_inj]
+
+  let h := a.zeros_or_ones_set
+  rw[BitVec.or_comm] at h
+  exact h
 
 public instance : Domain ThreeValuedBitvector where
   ε := EThreeValuedBitvector
@@ -172,3 +202,4 @@ public instance : AbstractDomain ThreeValuedBitvector where
   top := ThreeValuedBitvector.allUnknown
   split := ThreeValuedBitvector.split
   containsConcrete := ThreeValuedBitvector.containsConcrete
+  containsConcrete_nonempty := ThreeValuedBitvector.containsConcrete_nonempty
