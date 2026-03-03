@@ -58,13 +58,8 @@ theorem domain_sound
 def fullyCovered  (assignment: Assignment3)
   (leftAssignment: Assignment3) (rightAssignment: Assignment3) : Bool := sorry
 
-theorem split_sound (formula: Formula) (assignment: Assignment3)
-  (varIndex: USize) (bitIndex: Nat)
-  (leftAssignment: Assignment3) (leftNode: SplitNode) (rightAssignment: Assignment3) (rightNode: SplitNode) (result: Bool)
-  : (checkNode formula assignment (SplitNode.Split varIndex bitIndex leftNode rightNode) = Except.ok (some result)) →
-    (fullyCovered assignment leftAssignment rightAssignment) →
-      (checkNode formula leftAssignment leftNode = Except.ok (some result)
-        ∧ checkNode formula rightAssignment rightNode = Except.ok (some result)) := sorry
+theorem split_preserves (abstract: Assignment3) (left: Assignment3) (right: Assignment3) (concrete: Assignment2)
+  : abstract.containsConcrete concrete → left.containsConcrete concrete ∨ right.containsConcrete concrete := sorry
 
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
