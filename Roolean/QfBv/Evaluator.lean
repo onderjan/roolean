@@ -14,6 +14,34 @@ public structure EvalValue (α : Nat → Type) [Domain α] where
   width: Nat
   value: α width
 
+def EvalValue.contains {α : Nat → Type} [Domain α] [AbstractDomain α]
+  (a: EvalValue α) (b: EvalValue Bitvector) : Bool :=
+  if h: b.width = a.width then
+    let h : Bitvector b.width = Bitvector a.width := by simp[h]
+    let aValue := a.value
+    let bValue := cast h b.value
+    AbstractDomain.containsConcrete aValue bValue
+  else
+    false
+
+public structure EvalValueBi (α : Nat → Type) [Domain α] where
+  width: Nat
+  left: α width
+  right: α width
+
+def EvalValueBi.containsBi {α : Nat → Type} [Domain α] [AbstractDomain α]
+  (a: EvalValueBi α) (b: EvalValueBi Bitvector) : Bool :=
+  if h: b.width = a.width then
+    let h : Bitvector b.width = Bitvector a.width := by simp[h]
+    let aLeft := a.left
+    let aRight := a.right
+    let bLeft := cast h b.left
+    let bRight := cast h b.right
+    AbstractDomain.containsConcrete aLeft bLeft &&
+    AbstractDomain.containsConcrete aRight bRight
+  else
+    false
+
 mutual
 
 def evalUnary {α : Nat → Type} [Domain α]
@@ -34,13 +62,11 @@ def evalBiReduction {w} {α : Nat → Type} [Domain α]
   { width := 1, value }
 
 def evalBinary {α : Nat → Type} [Domain α]
-  (left: EvalValue α) (right: EvalValue α) (op: BiOperator) (h: right.width = left.width)
+  (domain: EvalValueBi α) (op: BiOperator)
   : EvalValue α :=
 
-  let width := left.width
-
-  let left: α width := left.value
-  let right: α width := Domain.cast h right.value
+  let left := domain.left
+  let right := domain.right
 
   match op with
   | .Add => evalBiNormal left right DomainBiNormalOp.Add
@@ -102,7 +128,9 @@ def eval {α : Nat → Type} [Domain α]
       let left ← eval left assignment
       let right ← eval right assignment
       if h: right.width = left.width then
-        Except.ok (evalBinary left right op h)
+        let domain : EvalValueBi α :=
+          { left := left.value, right := (Domain.cast h right.value), width := left.width }
+        Except.ok (evalBinary domain op)
       else
         Except.error EEvaluator.BinaryWidthMismatch
 
@@ -155,28 +183,6 @@ theorem evalBiReduction_sound {w} {α : Nat → Type} [Domain α] [AbstractDomai
   intros hA hB
   simp [hA, hB] at hOpSound
   exact hOpSound
-
-theorem evalBinary_sound {w} {α : Nat → Type} [Domain α] [AbstractDomain α]
-  (a b: α w) (op: BiOperator) (ca cb: Bitvector w)
-  : AbstractDomain.containsConcrete a ca → AbstractDomain.containsConcrete b cb →
-  let ea: EvalValue α := {width := w, value := a}
-  let eb: EvalValue α := {width := w, value := b}
-  let eca: EvalValue Bitvector := {width := w, value := ca}
-  let ecb: EvalValue Bitvector := {width := w, value := cb}
-  let hWidthA : ea.width=eb.width := by simp[ea,eb]
-  let hWidthC : ea.width=eb.width := by simp[ea,eb]
-  let aEval: EvalValue α := (evalBinary ea eb op hWidthA)
-  let cEval: EvalValue Bitvector := (evalBinary eca ecb op hWidthC)
-  if h: cEval.width = aEval.width then
-    AbstractDomain.containsConcrete aEval.value (Bitvector.cast h cEval.value)
-  else
-    False
-   := by
-  simp
-  intro hA hB
-
-  sorry
-
 
 
 public def eval3 {α : Nat → Type} [Domain α]
