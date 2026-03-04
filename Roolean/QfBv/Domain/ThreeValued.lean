@@ -29,14 +29,6 @@ public def Bitvector3.allZeros (w: Nat): Bitvector3 w :=
 public def Bitvector3.allOnes (w: Nat): Bitvector3 w :=
   Bitvector3.ofBitvector (Bitvector.allOnes)
 
-public def Bitvector3.cast {w m} (h: w = m) (domain: Bitvector3 w) : Bitvector3 m :=
-  let zeros := BitVec.cast h domain.zeros
-  let ones := BitVec.cast h domain.ones
-  let zeros_or_ones_set := by simp[zeros, ones, domain.zeros_or_ones_set]; ext n hn; simp
-
-  { zeros, ones, zeros_or_ones_set }
-
-
 public def Bitvector3.toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
   if ~~~(domain.zeros ^^^ domain.ones) == 0 then
     some { value := domain.ones }
@@ -346,8 +338,6 @@ public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: DomainB
   }
 
 public instance : Domain Bitvector3 where
-  cast := Bitvector3.cast
-
   ofBitvector := Bitvector3.ofBitvector
   toBitvector? := Bitvector3.toBitvector?
 

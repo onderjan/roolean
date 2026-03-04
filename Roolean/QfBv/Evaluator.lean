@@ -128,8 +128,11 @@ def eval {α : Nat → Type} [Domain α]
       let left ← eval left assignment
       let right ← eval right assignment
       if h: right.width = left.width then
+        let h2 : α right.width = α left.width := by simp[h]
+        let rightValue := cast h2 right.value
+
         let domain : EvalValueBi α :=
-          { left := left.value, right := (Domain.cast h right.value), width := left.width }
+          { left := left.value, right := rightValue, width := left.width }
         Except.ok (evalBinary domain op)
       else
         Except.error EEvaluator.BinaryWidthMismatch

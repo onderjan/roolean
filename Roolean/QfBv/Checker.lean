@@ -52,8 +52,9 @@ def checkNode (formula: Formula) (assignment: Assignment3) (node: SplitNode) : E
 def Assignment3.containsConcrete (abstract: Assignment3) (concrete: Assignment2) : Bool :=
   if abstract.size == concrete.size then
     (abstract.zip concrete).all (λ (abstract, concrete) =>
-      if h: concrete.width = abstract.width then
-        let v: Bitvector abstract.width := Domain.cast h concrete.value
+      if concrete.width = abstract.width then
+        let v: Bitvector abstract.width :=
+          { value := BitVec.ofNat abstract.width (BitVec.toNat concrete.value.value)}
         AbstractDomain.containsConcrete abstract.value v
       else
         false

@@ -35,8 +35,6 @@ deriving Repr, Inhabited
 
 
 public class Domain (α: Nat → Type) where
-  cast {w m} (h: w = m): α w → α m
-
   ofBitvector {w}: Bitvector w → α w
   toBitvector? {w}: α w → Option (Bitvector w)
 

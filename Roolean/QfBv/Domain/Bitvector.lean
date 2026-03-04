@@ -11,10 +11,6 @@ public def Bitvector.allZeros {w: Nat}: Bitvector w :=
 public def Bitvector.allOnes {w: Nat}: Bitvector w :=
   { value := BitVec.allOnes w }
 
-public def Bitvector.cast {w m: Nat} (h: w = m) (domain: Bitvector w) : Bitvector m :=
-  { value := BitVec.cast h domain.value}
-
-
 public def Bitvector.ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w :=
   bitvector
 
@@ -70,8 +66,6 @@ public def Bitvector.biReduction {w: Nat} (left: Bitvector w) (right: Bitvector 
 
 
 public instance : Domain Bitvector where
-  cast := Bitvector.cast
-
   ofBitvector := Bitvector.ofBitvector
   toBitvector? := Bitvector.toBitvector?
 
