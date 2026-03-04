@@ -272,7 +272,7 @@ theorem Bitvector3.containsConcrete_toBitvector? {w} (a: Bitvector3 w) (c d: Bit
   }
   { intro h; contradiction }
 
-public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (op: DomainUniOp) (c: Bitvector w)
+public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: DomainUniOp)
   : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
   simp[uniOp]
   intro h1
