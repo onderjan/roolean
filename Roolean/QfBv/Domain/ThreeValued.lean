@@ -280,13 +280,12 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (op: DomainUniOp) (c
   split
   {
     rename_i hOption hBv h3
+    rw[Eq.comm] at h3
     simp[Bitvector.uniOp]
     split
     repeat {
       let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
       simp[h4]
-      rw[← Option.some.injEq]
-      rw[Eq.comm] at h3
       let h5 := containsConcrete_toBitvector? (w:=w) a hBv c h3 h1
       simp[h5]
     }
@@ -295,6 +294,56 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (op: DomainUniOp) (c
     apply containsConcrete_allUnknown
   }
 
+public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: DomainBiNormalOp) (ca cb: Bitvector w)
+    : containsConcrete a ca → containsConcrete b cb
+      → containsConcrete (Bitvector3.biNormal a b op) (Domain.biNormal ca cb op) := by
+  intro ha hb
+
+  simp[biNormal]
+  split
+  {
+    rename_i hA hB hAto hBto
+
+    rw[Eq.comm] at hAto
+    rw[Eq.comm] at hBto
+
+    let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
+    simp[h4]
+
+    let h5 := containsConcrete_toBitvector? (w:=w) a hA ca hAto ha
+    let h6 := containsConcrete_toBitvector? (w:=w) b hB cb hBto hb
+    simp[h5,h6]
+    trivial
+  }
+  {
+    apply containsConcrete_allUnknown
+  }
+
+public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: DomainBiReductionOp) (ca cb: Bitvector w)
+    : containsConcrete a ca → containsConcrete b cb
+      → containsConcrete (Bitvector3.biReduction a b op) (Domain.biReduction ca cb op) := by
+  intro ha hb
+
+  simp[biReduction]
+  split
+  {
+    rename_i hA hB hAto hBto
+
+    rw[Eq.comm] at hAto
+    rw[Eq.comm] at hBto
+
+    let h4 := Bitvector3.containsConcrete_ofBitvector (w:=1)
+
+    simp[h4]
+
+    let h5 := containsConcrete_toBitvector? (w:=w) a hA ca hAto ha
+    let h6 := containsConcrete_toBitvector? (w:=w) b hB cb hBto hb
+    simp[h5,h6]
+    trivial
+  }
+  {
+    apply containsConcrete_allUnknown
+  }
 
 public instance : Domain Bitvector3 where
   cast := Bitvector3.cast
@@ -317,3 +366,5 @@ public instance : AbstractDomain Bitvector3 where
   split_preserves := Bitvector3.split_preserves
 
   uniOp_sound := Bitvector3.uniOp_sound
+  biNormal_sound := Bitvector3.biNormal_sound
+  biReduction_sound := Bitvector3.biReduction_sound

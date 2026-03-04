@@ -15,4 +15,10 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
       containsConcrete left c ∨ containsConcrete right c
 
   uniOp_sound {w} (a: α w) (op: DomainUniOp) (c: Bitvector w)
-    : containsConcrete a c → containsConcrete (Domain.uniOp a op) (c.uniOp op)
+    : containsConcrete a c → containsConcrete (Domain.uniOp a op) (Domain.uniOp c op)
+  biNormal_sound {w} (a b: α w) (op: DomainBiNormalOp) (ca cb: Bitvector w)
+    : containsConcrete a ca → containsConcrete b cb
+      → containsConcrete (Domain.biNormal a b op) (Domain.biNormal ca cb op)
+  biReduction_sound {w} (a b: α w) (op: DomainBiReductionOp) (ca cb: Bitvector w)
+    : containsConcrete a ca → containsConcrete b cb
+      → containsConcrete (Domain.biReduction a b op) (Domain.biReduction ca cb op)
