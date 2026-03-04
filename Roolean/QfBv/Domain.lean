@@ -34,13 +34,12 @@ public inductive DomainBiReductionOp
 deriving Repr, Inhabited
 
 
-public class Domain (α: Type) where
-  ε: Type
+public class Domain (α: Nat → Type) where
+  cast {w m} (h: w = m): α w → α m
 
-  ofBitvector: Bitvector → α
-  toBitvector?: α → Option Bitvector
-  width: α → Nat
+  ofBitvector {w}: Bitvector w → α w
+  toBitvector? {w}: α w → Option (Bitvector w)
 
-  uniOp: α → DomainUniOp → Except ε α
-  biNormal: α → α → DomainBiNormalOp → Except ε α
-  biReduction: α → α → DomainBiReductionOp → Except ε α
+  uniOp {w}: α w → DomainUniOp → α w
+  biNormal{w}: α w → α w → DomainBiNormalOp → α w
+  biReduction {w}: α w → α w → DomainBiReductionOp → α 1

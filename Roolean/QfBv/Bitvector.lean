@@ -4,7 +4,6 @@ public structure BitvectorType where
   width: Nat
 deriving Repr, Inhabited
 
-public structure Bitvector where
-  width: Nat
+public structure Bitvector (width: Nat) where
   value: BitVec width
 deriving Repr, Inhabited

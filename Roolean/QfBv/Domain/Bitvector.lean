@@ -2,66 +2,41 @@ module
 
 public import Roolean.QfBv.Domain
 
-public inductive EBitvectorDomain
-  | BinaryWidthMismatch (left: Nat) (right: Nat)
-deriving Repr
+public def Bitvector.allZeros {w: Nat}: Bitvector w :=
+  { value := BitVec.zero w }
 
-public def Bitvector.allZeros (width: Nat): Bitvector :=
-  { width, value := BitVec.zero width }
+public def Bitvector.allOnes {w: Nat}: Bitvector w :=
+  { value := BitVec.allOnes w }
 
-public def Bitvector.allOnes (width: Nat): Bitvector :=
-  { width, value := BitVec.allOnes width }
+public def Bitvector.cast {w m: Nat} (h: w = m) (domain: Bitvector w) : Bitvector m :=
+  { value := BitVec.cast h domain.value}
 
-public def Bitvector.ofBitvector (bitvector: Bitvector) : Bitvector :=
+
+public def Bitvector.ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w :=
   bitvector
 
-public def Bitvector.toBitvector? (domain: Bitvector) : Option Bitvector :=
+public def Bitvector.toBitvector? {w: Nat} (domain: Bitvector w) : Option (Bitvector w) :=
   some domain
 
-public def Bitvector.uniOp (domain: Bitvector) (op: DomainUniOp)
-  : Except EBitvectorDomain Bitvector := do
+public def Bitvector.uniOp {w: Nat} (domain: Bitvector w) (op: DomainUniOp)
+  : Bitvector w :=
   match op with
   | .Not =>
-    let value := ~~~domain.value
-    pure  { value := value.toNat, width := domain.width }
+    { value := ~~~domain.value }
   | .Neg =>
-    let value := -domain.value
-    pure { value := value.toNat, width := domain.width }
+    { value := -domain.value }
+
+def standardBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → BitVec w)
+  : Bitvector w :=
+  { value := fn left.value right.value }
+
+def reductionBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → Bool)
+  : Bitvector 1 :=
+  { value := BitVec.ofBool (fn left.value right.value) }
 
 
-def standardBi (left: Bitvector) (right: Bitvector) (fn: {w: Nat} → BitVec w → BitVec w → BitVec w)
-  : Except EBitvectorDomain Bitvector := do
-  let width := left.width
-  let h1: left.width = width := by rw[eq_self width]; trivial
-
-  let (left, right) ←
-    if h2: right.width = width then
-      pure (BitVec.cast (n := left.width) (m := width) h1 left.value, BitVec.cast h2 right.value)
-    else
-      Except.error (EBitvectorDomain.BinaryWidthMismatch left.width right.width)
-
-  let value := fn left right
-
-  pure { value, width }
-
-def reductionBi (left: Bitvector) (right: Bitvector) (fn: {w: Nat} → BitVec w → BitVec w → Bool)
-  : Except EBitvectorDomain Bitvector := do
-  let width := left.width
-  let h1: left.width = width := by rw[eq_self width]; trivial
-
-  let (left, right) ←
-    if h2: right.width = width then
-      pure (BitVec.cast (n := left.width) (m := width) h1 left.value, BitVec.cast h2 right.value)
-    else
-      Except.error (EBitvectorDomain.BinaryWidthMismatch left.width right.width)
-
-  let value := BitVec.ofBool (fn left right)
-
-  pure { value, width := 1 }
-
-
-public def Bitvector.biNormal (left: Bitvector) (right: Bitvector) (op: DomainBiNormalOp)
-  : Except EBitvectorDomain Bitvector := do
+public def Bitvector.biNormal {w: Nat} (left: Bitvector w) (right: Bitvector w) (op: DomainBiNormalOp)
+  : Bitvector w :=
 
   match op with
   | .Add => standardBi left right λ a b => a + b
@@ -80,8 +55,8 @@ public def Bitvector.biNormal (left: Bitvector) (right: Bitvector) (op: DomainBi
   | .Lshr => standardBi left right λ a b => (a.ushiftRight b.toNat)
   | .Ashr => standardBi left right λ a b => (a.sshiftRight b.toNat)
 
-public def Bitvector.biReduction (left: Bitvector) (right: Bitvector) (op: DomainBiReductionOp)
-  : Except EBitvectorDomain Bitvector := do
+public def Bitvector.biReduction {w: Nat} (left: Bitvector w) (right: Bitvector w) (op: DomainBiReductionOp)
+  : Bitvector 1 :=
 
   match op with
   | .Eq => reductionBi left right λ a b => (a == b)
@@ -90,10 +65,9 @@ public def Bitvector.biReduction (left: Bitvector) (right: Bitvector) (op: Domai
   | .Slt => reductionBi left right λ a b => (a.slt b)
   | .Sle => reductionBi left right λ a b => (a.sle b)
 
-public instance : Domain Bitvector where
-  ε := EBitvectorDomain
 
-  width := Bitvector.width
+public instance : Domain Bitvector where
+  cast := Bitvector.cast
 
   ofBitvector := Bitvector.ofBitvector
   toBitvector? := Bitvector.toBitvector?

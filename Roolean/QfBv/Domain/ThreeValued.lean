@@ -3,92 +3,83 @@ module
 public import Roolean.QfBv.Formula
 public import Roolean.QfBv.AbstractDomain
 
-public structure Bitvector3 where
-  width: Nat
-  zeros: BitVec width
-  ones: BitVec width
-  zeros_or_ones_set: zeros ||| ones = BitVec.allOnes width
+public structure Bitvector3 (w: Nat) where
+  zeros: BitVec w
+  ones: BitVec w
+  zeros_or_ones_set: zeros ||| ones = BitVec.allOnes w
 deriving Repr
 
-public abbrev EThreeValuedBitvector := EBitvectorDomain
-
-public def Bitvector3.allUnknown (width: Nat): Bitvector3 :=
-  let zeros := BitVec.allOnes width
-  let ones := BitVec.allOnes width
+public def Bitvector3.allUnknown (w: Nat): Bitvector3 w :=
+  let zeros := BitVec.allOnes w
+  let ones := BitVec.allOnes w
   let zeros_or_ones_set := by simp[zeros,ones]
-  { width, zeros, ones, zeros_or_ones_set }
+  { zeros, ones, zeros_or_ones_set }
 
-public def Bitvector3.ofBitvector (bitvector: Bitvector): Bitvector3 :=
-  let width := bitvector.width
+public def Bitvector3.ofBitvector {w} (bitvector: Bitvector w): Bitvector3 w :=
   let zeros := ~~~bitvector.value
   let ones := bitvector.value
-  let zeros_or_ones_set := by simp[zeros,ones,width]
+  let zeros_or_ones_set := by simp[zeros,ones]
 
-  { width, zeros, ones, zeros_or_ones_set }
+  {  zeros, ones, zeros_or_ones_set }
 
-public def Bitvector3.allZeros (width: Nat): Bitvector3 :=
-  Bitvector3.ofBitvector (Bitvector.allZeros width)
+public def Bitvector3.allZeros (w: Nat): Bitvector3 w :=
+  Bitvector3.ofBitvector (Bitvector.allZeros)
 
-public def Bitvector3.allOnes (width: Nat): Bitvector3 :=
-  Bitvector3.ofBitvector (Bitvector.allOnes width)
+public def Bitvector3.allOnes (w: Nat): Bitvector3 w :=
+  Bitvector3.ofBitvector (Bitvector.allOnes)
+
+public def Bitvector3.cast {w m} (h: w = m) (domain: Bitvector3 w) : Bitvector3 m :=
+  let zeros := BitVec.cast h domain.zeros
+  let ones := BitVec.cast h domain.ones
+  let zeros_or_ones_set := by simp[zeros, ones, domain.zeros_or_ones_set]; ext n hn; simp
+
+  { zeros, ones, zeros_or_ones_set }
 
 
-public def Bitvector3.toBitvector? (domain: Bitvector3) : Option Bitvector :=
+public def Bitvector3.toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
   if ~~~(domain.zeros ^^^ domain.ones) == 0 then
-    some { width := domain.width, value := domain.ones }
+    some { value := domain.ones }
   else
     none
 
 
-public def Bitvector3.uniOp (domain: Bitvector3) (op: DomainUniOp)
-  : Except EThreeValuedBitvector Bitvector3 :=
+public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: DomainUniOp)
+  : Bitvector3 w :=
   match domain.toBitvector? with
-  | some bitvector => do
-    let result: Bitvector ← bitvector.uniOp op
-    Except.ok (Bitvector3.ofBitvector result)
-  | none => Except.ok (Bitvector3.allUnknown domain.width)
+  | some bitvector =>
+    let result := bitvector.uniOp op
+    Bitvector3.ofBitvector result
+  | none => Bitvector3.allUnknown w
 
-public def Bitvector3.biNormal
-  (left: Bitvector3) (right: Bitvector3) (op: DomainBiNormalOp)
-  : Except EBitvectorDomain Bitvector3 := do
+public def Bitvector3.biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: DomainBiNormalOp)
+  : Bitvector3 w :=
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
-    let result: Bitvector ← Bitvector.biNormal left right op
-    pure (Bitvector3.ofBitvector result)
+    let result := Bitvector.biNormal left right op
+    Bitvector3.ofBitvector result
   | _, _ =>
-    if left.width == right.width then
-      pure (Bitvector3.allUnknown left.width)
-    else
-      Except.error (EBitvectorDomain.BinaryWidthMismatch left.width right.width)
+    Bitvector3.allUnknown w
 
-public def Bitvector3.biReduction
-  (left: Bitvector3) (right: Bitvector3) (op: DomainBiReductionOp)
-  : Except EBitvectorDomain Bitvector3 := do
+public def Bitvector3.biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: DomainBiReductionOp)
+  : Bitvector3 1 :=
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
-    let result: Bitvector ← Bitvector.biReduction left right op
-    pure (Bitvector3.ofBitvector result)
+    let result := Bitvector.biReduction left right op
+    Bitvector3.ofBitvector result
   | _, _ =>
-    if left.width == right.width then
-      pure (Bitvector3.allUnknown 1)
-    else
-      Except.error (EBitvectorDomain.BinaryWidthMismatch left.width right.width)
-
-
+      Bitvector3.allUnknown 1
 
 public def Bitvector3.containsConcrete
-  (domain: Bitvector3) (concrete: Bitvector) : Bool :=
-  if h: concrete.width = domain.width then
-    let concreteZeros := BitVec.cast h (~~~concrete.value)
-    let concreteOnes := BitVec.cast h concrete.value
+  (domain: Bitvector3 w) (concrete: Bitvector w) : Bool :=
+    let concreteZeros := ~~~concrete.value
+    let concreteOnes := concrete.value
     -- no zeros nor ones in the concrete bitvector are outside zeros/ones in the abstract one
     (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
-  else
-    false
 
-public theorem Bitvector3.containsConcrete_nonempty {a: Bitvector3}
+public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
   : ∃x, Bitvector3.containsConcrete a x := by
-  let bv: Bitvector := { width := a.width, value := a.ones }
+
+  let bv: Bitvector w := { value := a.ones }
   exists bv
   rw[Bitvector3.containsConcrete]
   simp[bv]
@@ -100,13 +91,9 @@ public theorem Bitvector3.containsConcrete_nonempty {a: Bitvector3}
   rw[BitVec.or_comm] at h
   exact h
 
-public theorem Bitvector3.containsConcrete_same_width {a: Bitvector3}
-  : Bitvector3.containsConcrete a c → a.width = c.width := by
-  rw[containsConcrete]
+theorem bvandZeros {w} {a b: BitVec w} : (a = 0#w ∧ b = 0#w) → (a &&& b  = 0#w) := by
   simp
-  split
-  grind -- TODO nicer proof
-  simp
+  grind
 
 theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c) = (a ||| b ||| c) := by
   ext i hi; simp
@@ -115,8 +102,8 @@ theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c
   { simp; cases c[i]; simp; simp }
 
 
-def Bitvector3.setBitToOne (domain: Bitvector3) (bitIndex: Nat): Bitvector3 :=
-  let bitMask := BitVec.shiftLeft (BitVec.ofNat domain.width 1) bitIndex
+def Bitvector3.setBitToOne {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvector3 w :=
+  let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
   let zeros := domain.zeros &&& ~~~bitMask
   let ones := domain.ones ||| bitMask
@@ -127,7 +114,7 @@ def Bitvector3.setBitToOne (domain: Bitvector3) (bitIndex: Nat): Bitvector3 :=
     rw[h]
     rw[BitVec.allOnes_or]
 
-  { width := domain.width, zeros, ones, zeros_or_ones_set }
+  { zeros, ones, zeros_or_ones_set }
 
 theorem setBitToZero_lemma {w: Nat} {a b c: BitVec w} : (a ||| c) ||| (b &&& ~~~c) = (a ||| b ||| c) := by
   ext i hi; simp
@@ -135,8 +122,8 @@ theorem setBitToZero_lemma {w: Nat} {a b c: BitVec w} : (a ||| c) ||| (b &&& ~~~
   { simp; cases c[i]; simp; simp }
   { simp }
 
-def Bitvector3.setBitToZero (domain: Bitvector3) (bitIndex: Nat): Bitvector3 :=
-  let bitMask := BitVec.shiftLeft (BitVec.ofNat domain.width 1) bitIndex
+def Bitvector3.setBitToZero {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvector3 w :=
+  let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
   let zeros := domain.zeros ||| bitMask
   let ones := domain.ones &&& ~~~bitMask
@@ -147,29 +134,24 @@ def Bitvector3.setBitToZero (domain: Bitvector3) (bitIndex: Nat): Bitvector3 :=
     rw[h]
     rw[BitVec.allOnes_or]
 
-  { width := domain.width, zeros, ones, zeros_or_ones_set }
+  { zeros, ones, zeros_or_ones_set }
 
 
-theorem splitBit_lemma (a: Bitvector3) (n: Nat) (c: Bitvector)
+theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
   : a.containsConcrete c → (Bitvector3.setBitToZero a n).containsConcrete c
   ∨ (Bitvector3.setBitToOne a n).containsConcrete c := by
   rw[Bitvector3.setBitToOne]
   rw[Bitvector3.setBitToZero]
   repeat rw [Bitvector3.containsConcrete]
-  split
-  rename_i hWidth
-  {
-    simp
-    intro hZeros
-    intro hOnes
-    grind -- TODO: nice proof
-  }
-  {intro; contradiction }
+  simp
+  intro hZeros
+  intro hOnes
+  grind -- TODO: nice proof
 
-public def Bitvector3.split (domain: Bitvector3) (bitIndex: Nat)
-   : Bitvector3 × Option Bitvector3 :=
-  let width := domain.width
-  let bitMask := BitVec.shiftLeft (BitVec.ofNat width 1) bitIndex
+
+public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Nat)
+   : Bitvector3 w × Option (Bitvector3 w) :=
+  let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
   if domain.zeros &&& domain.ones &&& bitMask == bitMask then
     let left := domain.setBitToZero bitIndex
@@ -182,11 +164,12 @@ public def Bitvector3.split (domain: Bitvector3) (bitIndex: Nat)
 
 
 
-public theorem Bitvector3.split_noop_id {a b: Bitvector3} {n: Nat}: a.split n = (b, none) → a = b := by
+public theorem Bitvector3.split_noop_id {w} (a b : Bitvector3 w) (n: Nat) : split a n = (b, none) → a = b := by
   rw[split]; split; simp; simp
 
-public theorem Bitvector3.split_preserves {a left right: Bitvector3} {n: Nat} {c: Bitvector}
-  : split a n = (left, some right) → a.containsConcrete c → left.containsConcrete c ∨ right.containsConcrete c := by
+public theorem Bitvector3.split_preserves {w} (a left right : Bitvector3 w) (n: Nat) (c: Bitvector w)
+    : split a n = (left, some right) → containsConcrete a c →
+      containsConcrete left c ∨ containsConcrete right c := by
   let h := splitBit_lemma a n c
 
   rw [split]
@@ -204,21 +187,22 @@ public theorem Bitvector3.split_preserves {a left right: Bitvector3} {n: Nat} {c
     simp
   }
 
-public theorem Bitvector3.top_containsConcrete_all {w: Nat} {c: Bitvector}
-  : c.width = w → containsConcrete (Bitvector3.allUnknown w) c := by
+public theorem Bitvector3.top_containsConcrete_all {w: Nat} (c: Bitvector w)
+  : containsConcrete (Bitvector3.allUnknown w) c := by
   rw[allUnknown, containsConcrete]; simp
 
 
-public theorem Bitvector3.uniOp_sound {a ar: Bitvector3} :
-  a.uniOp op = Except.ok ar → a.containsConcrete c →
-    Bitvector.uniOp c op = Except.ok cr ∧ ar.containsConcrete cr := by
+
+public theorem Bitvector3.uniOp_sound {w} (a ar: Bitvector3 w) (op: DomainUniOp) (c: Bitvector w)
+  : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
   simp[uniOp]
   split
   {
     sorry
   }
   {
-    intro hUnknown hContains
+    intro hUnknown
+    /-
     simp at hUnknown
     rw[← hUnknown]
     let h := Bitvector3.top_containsConcrete_all (c:=cr) (w:=a.width)
@@ -227,15 +211,13 @@ public theorem Bitvector3.uniOp_sound {a ar: Bitvector3} :
     simp[hContains] at h2
 
     simp[h2] at h
-
+    -/
     sorry
   }
 
 
 public instance : Domain Bitvector3 where
-  ε := EThreeValuedBitvector
-
-  width := Bitvector3.width
+  cast := Bitvector3.cast
 
   ofBitvector := Bitvector3.ofBitvector
   toBitvector? := Bitvector3.toBitvector?

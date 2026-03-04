@@ -37,7 +37,7 @@ deriving Repr, Inhabited
 mutual
 
 public inductive Formula where
-  | Constant (constant: Bitvector)
+  | Constant (w: Nat) (constant: Bitvector w)
   | Variable (index: USize)
   | Operation (operation: Operation)
 deriving Repr, Inhabited
