@@ -14,5 +14,5 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
     : split a n = (left, some right) → containsConcrete a c →
       containsConcrete left c ∨ containsConcrete right c
 
-  uniOp_sound {w} (a ar: α w) (op: DomainUniOp) (c: Bitvector w)
+  uniOp_sound {w} (a: α w) (op: DomainUniOp) (c: Bitvector w)
     : containsConcrete a c → containsConcrete (Domain.uniOp a op) (c.uniOp op)

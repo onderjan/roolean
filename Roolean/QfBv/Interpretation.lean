@@ -65,7 +65,8 @@ def interpretSpecialConstant (constant: SmtSpecialConstant)
       -- not a QF_BV constant, decimals can be "constants" only through bvX
       Except.error EInterpretation.InvalidSpecialConstant
 
-  pure (Formula.Constant { value, width })
+  let value := { value := BitVec.ofNat width value }
+  pure (Formula.Constant width value )
 
 
 def interpretQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
@@ -80,7 +81,8 @@ def interpretQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIde
       if let some value := String.toNat? value then
         match indexed with
           | #[SmtIndex.Numeral width _] =>
-            return (Formula.Constant { value, width })
+            let value := { value := BitVec.ofNat width value }
+            return (Formula.Constant width value)
           | _ =>
             -- bvX should have a single index, width
             Except.error (EInterpretation.InvalidDecimalBitvec name)

@@ -6,12 +6,13 @@ public import Roolean.QfBv.Evaluator
 public import Roolean.QfBv.Domain.ThreeValued
 import Roolean.QfBv.Domain.ThreeValued
 import Roolean.QfBv.Domain.Bitvector
+import Roolean.QfBv.AbstractDomain
 import Roolean.QfBv.Evaluator
 
 
 public inductive EChecker
   | BadSplitVariable (varIndex: USize)
-  | Evaluator (err: EEvaluator EBitvectorDomain)
+  | Evaluator (err: EEvaluator)
 deriving Repr
 
 public inductive SplitNode
@@ -19,19 +20,23 @@ public inductive SplitNode
   | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
 deriving Repr
 
-def Assignment2 := Array Bitvector
-def Assignment3 := Array Bitvector3
+def Assignment2 := Array (EvalValue Bitvector)
+def Assignment3 := Array (EvalValue Bitvector3)
 
 def checkNode (formula: Formula) (assignment: Assignment3) (node: SplitNode) : Except EChecker (Option Bool) :=
   match node with
     | SplitNode.Leaf =>
-      (eval3 Bitvector3 formula assignment).mapError EChecker.Evaluator
+      (eval3 formula assignment).mapError EChecker.Evaluator
     | SplitNode.Split varIndex bitIndex left right =>
       if hx: varIndex.toNat < assignment.size then
         let varAssignment := assignment.uget varIndex hx
-        let (leftSplit, rightSplit) := varAssignment.split bitIndex
+        let (leftSplit, rightSplit) := varAssignment.value.split bitIndex
+
+        let leftSplit: EvalValue Bitvector3 := { width := varAssignment.width, value := leftSplit }
 
         if let some rightSplit := rightSplit then
+          let rightSplit: EvalValue Bitvector3 := { width := varAssignment.width, value := rightSplit }
+
           let leftAssignment := assignment.uset varIndex leftSplit hx
           let rightAssignment := assignment.uset varIndex rightSplit hx
           match checkNode formula leftAssignment left, checkNode formula rightAssignment right with
@@ -46,19 +51,25 @@ def checkNode (formula: Formula) (assignment: Assignment3) (node: SplitNode) : E
 
 def Assignment3.containsConcrete (abstract: Assignment3) (concrete: Assignment2) : Bool :=
   if abstract.size == concrete.size then
-    (abstract.zip concrete).all (λ (abstract, concrete) => abstract.containsConcrete concrete)
+    (abstract.zip concrete).all (λ (abstract, concrete) =>
+      if h: concrete.width = abstract.width then
+        let v: Bitvector abstract.width := Domain.cast h concrete.value
+        AbstractDomain.containsConcrete abstract.value v
+      else
+        false
+    )
   else
     false
 
 theorem domain_sound
   (formula: Formula) (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
-  : eval3 Bitvector3 formula abstract = Except.ok (some result) →
-    abstract.containsConcrete concrete → eval3 Bitvector formula concrete = Except.ok (some result) := sorry
+  : eval3 formula abstract = Except.ok (some result) →
+    abstract.containsConcrete concrete → eval3 formula concrete = Except.ok (some result) := sorry
 
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
   : checkNode formula abstract node = Except.ok (some result) → abstract.containsConcrete concrete →
-    eval3 Bitvector formula concrete = Except.ok (some result) := by
+    eval3 formula concrete = Except.ok (some result) := by
 
   induction node
   {
@@ -115,7 +126,7 @@ theorem checkNode_sound (formula: Formula) (node: SplitNode)
 
 public def check (problem: Problem) (splitTree: SplitNode) : Except EChecker (Option Bool) := do
   let mut assignment := problem.variables.foldl
-    (λ array e => array.push (Bitvector3.allUnknown e.width)) #[]
+    (λ array e => array.push ({ width := e.width, value := Bitvector3.allUnknown e.width })) #[]
 
   checkNode problem.formula assignment splitTree
 

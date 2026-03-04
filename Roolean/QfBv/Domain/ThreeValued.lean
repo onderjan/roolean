@@ -2,6 +2,7 @@ module
 
 public import Roolean.QfBv.Formula
 public import Roolean.QfBv.AbstractDomain
+public import Roolean.QfBv.Domain.Bitvector
 
 public structure Bitvector3 (w: Nat) where
   zeros: BitVec w
@@ -73,7 +74,7 @@ public def Bitvector3.containsConcrete
   (domain: Bitvector3 w) (concrete: Bitvector w) : Bool :=
     let concreteZeros := ~~~concrete.value
     let concreteOnes := concrete.value
-    -- no zeros nor ones in the concrete bitvector are outside zeros/ones in the abstract one
+    -- no zeros and ones in the concrete bitvector are outside zeros/ones in the abstract one
     (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
 
 public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
@@ -83,12 +84,16 @@ public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
   exists bv
   rw[Bitvector3.containsConcrete]
   simp[bv]
-  rw[← BitVec.not_or]
+
+  /-rw[← BitVec.not_or]
   rw[← BitVec.not_allOnes]
-  rw[BitVec.not_inj]
+  rw[BitVec.not_inj]-/
 
   let h := a.zeros_or_ones_set
   rw[BitVec.or_comm] at h
+  rw[← BitVec.not_or]
+  rw[BitVec.not_eq_comm]
+  rw[BitVec.not_zero]
   exact h
 
 theorem bvandZeros {w} {a b: BitVec w} : (a = 0#w ∧ b = 0#w) → (a &&& b  = 0#w) := by
@@ -191,28 +196,103 @@ public theorem Bitvector3.top_containsConcrete_all {w: Nat} (c: Bitvector w)
   : containsConcrete (Bitvector3.allUnknown w) c := by
   rw[allUnknown, containsConcrete]; simp
 
+theorem xor_or_of_ands {w} (a b: BitVec w) : (~~~a &&& b) ||| (a &&& ~~~b) = a ^^^ b := by
+  ext h ih
+  simp
+  cases a[h]
+  cases b[h]
+  simp; simp; simp
 
 
-public theorem Bitvector3.uniOp_sound {w} (a ar: Bitvector3 w) (op: DomainUniOp) (c: Bitvector w)
-  : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
-  simp[uniOp]
-  split
+theorem Bitvector3.containsConcrete_ofBitvector {w} (c: Bitvector w) (d: Bitvector w)
+  : Bitvector3.containsConcrete (Bitvector3.ofBitvector c) d ↔ c = d := by
+  rw[ofBitvector, containsConcrete]
+
+  simp
+  apply Iff.intro
   {
-    sorry
+    rw[Bitvector.mk.injEq]
+    rw[BitVec.eq_of_getElem_eq_iff]
+    simp
+
+    intro h1
+
+    rw[BitVec.eq_of_getElem_eq_iff]
+    intro h2
+
+    rw[BitVec.eq_of_getElem_eq_iff]
+    intro i hi
+    let h1 := h1 i hi
+    let h2 := h2 i hi
+
+    rw[BitVec.getElem_zero] at h2
+    simp at h1
+    simp at h2
+
+    grind -- TODO nicer proof
   }
   {
-    intro hUnknown
-    /-
-    simp at hUnknown
-    rw[← hUnknown]
-    let h := Bitvector3.top_containsConcrete_all (c:=cr) (w:=a.width)
-    let h2 := Bitvector3.containsConcrete_same_width (c:=c) (a:=a)
+    intro h
+    rw[h]
+    simp
+  }
 
-    simp[hContains] at h2
+theorem Bitvector3.containsConcrete_allUnknown {w} (c: Bitvector w)
+  : Bitvector3.containsConcrete (Bitvector3.allUnknown w) c := by
+  rw[allUnknown, containsConcrete]
+  simp
 
-    simp[h2] at h
-    -/
-    sorry
+theorem Bitvector3.containsConcrete_toBitvector? {w} (a: Bitvector3 w) (c d: Bitvector w)
+  : some c = a.toBitvector? → a.containsConcrete d → c = d := by
+  rw[toBitvector?]
+  split
+  {
+    rename_i h0
+    simp
+    intro h1 h2
+    rw[containsConcrete] at h2
+    simp_all
+    rw[BitVec.not_xor_left] at h0
+    rw[BitVec.xor_eq_zero_iff] at h0
+    rw[h0] at h2
+
+    rw[Bitvector.mk.injEq]
+    rw[BitVec.eq_of_getElem_eq_iff]
+
+    let h3 := h2.left
+    let h4 := h2.right
+    rw[BitVec.eq_of_getElem_eq_iff] at h3
+    rw[BitVec.eq_of_getElem_eq_iff] at h4
+    intro i hi
+    let h3 := h3 i hi
+    let h4 := h4 i hi
+    simp at h3
+    simp at h4
+    grind -- TODO nicer proof
+  }
+  { intro h; contradiction }
+
+public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (op: DomainUniOp) (c: Bitvector w)
+  : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
+  simp[uniOp]
+  intro h1
+
+  split
+  {
+    rename_i hOption hBv h3
+    simp[Bitvector.uniOp]
+    split
+    repeat {
+      let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
+      simp[h4]
+      rw[← Option.some.injEq]
+      rw[Eq.comm] at h3
+      let h5 := containsConcrete_toBitvector? (w:=w) a hBv c h3 h1
+      simp[h5]
+    }
+  }
+  {
+    apply containsConcrete_allUnknown
   }
 
 

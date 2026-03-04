@@ -2,6 +2,9 @@ module
 
 public import Roolean.QfBv.Domain
 
+@[expose]
+public section
+
 public def Bitvector.allZeros {w: Nat}: Bitvector w :=
   { value := BitVec.zero w }
 
@@ -18,6 +21,7 @@ public def Bitvector.ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w
 public def Bitvector.toBitvector? {w: Nat} (domain: Bitvector w) : Option (Bitvector w) :=
   some domain
 
+@[expose]
 public def Bitvector.uniOp {w: Nat} (domain: Bitvector w) (op: DomainUniOp)
   : Bitvector w :=
   match op with
@@ -33,7 +37,6 @@ def standardBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} �
 def reductionBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → Bool)
   : Bitvector 1 :=
   { value := BitVec.ofBool (fn left.value right.value) }
-
 
 public def Bitvector.biNormal {w: Nat} (left: Bitvector w) (right: Bitvector w) (op: DomainBiNormalOp)
   : Bitvector w :=
