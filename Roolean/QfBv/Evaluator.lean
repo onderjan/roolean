@@ -22,31 +22,28 @@ public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
   containment {i} : i < v.usize → inner.contains i
 
 def eval {v w} {α : Nat → Type} [Domain α]
-  (formula: Formula v w) (assignment: Assignment v α) : Except EEvaluator (α w) := do
+  (formula: Formula v w) (assignment: Assignment v α) : α w :=
 
   match formula with
-    | Formula.Constant constant =>
-      let value := Domain.ofBitvector constant
-      Except.ok value
+    | Formula.Constant constant => Domain.ofBitvector constant
 
     | Formula.Variable index =>
       let h := assignment.containment index.property
-      let assignment := assignment.inner.get index h
-      Except.ok assignment
+      assignment.inner.get index h
 
     | Formula.Unary inner op =>
-      let inner ← eval inner assignment
-      Except.ok (Domain.uniOp inner op)
+      let inner := eval inner assignment
+      Domain.uniOp inner op
 
     | Formula.BinaryNormal left right op =>
-      let left ← eval left assignment
-      let right ← eval right assignment
-      Except.ok (Domain.biNormal left right op)
+      let left := eval left assignment
+      let right := eval right assignment
+      Domain.biNormal left right op
 
     | Formula.BinaryReduction left right op =>
-      let left ← eval left assignment
-      let right ← eval right assignment
-      Except.ok (Domain.biReduction left right op)
+      let left := eval left assignment
+      let right := eval right assignment
+      Domain.biReduction left right op
 
 
 /-
@@ -99,10 +96,8 @@ theorem evalBiReduction_sound {w} {α : Nat → Type} [Domain α] [AbstractDomai
 -/
 
 public def eval3 {v} {α : Nat → Type} [Domain α]
-  (formula: Formula v 1) (assignment: Assignment v α) : Except (EEvaluator) (Option Bool) :=
-  match eval formula assignment with
-    | Except.ok result =>
-      match Domain.toBitvector? (result) with
-        | some result => pure (result.value != 0)
-        | none => pure none
-    | Except.error err => Except.error err
+  (formula: Formula v 1) (assignment: Assignment v α) : Option Bool :=
+  let result := eval formula assignment
+  match Domain.toBitvector? result with
+    | some result => result.value != 0
+    | none => none

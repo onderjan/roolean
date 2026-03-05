@@ -360,12 +360,9 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
         IO.println s!"Check satisfiability\nVar widths: {reprStr varWidths}\nFormula: {reprStr formula}"
 
-        let checked := solve formula
-        match checked with
-          | Except.ok satisfiable =>
-            IO.println s!"Satisfiable: {reprStr satisfiable}"
-            pure (Except.ok ())
-          | Except.error err => pure (Except.error (EInterpretation.Checker err))
+        let satisfiable := solve formula
+        IO.println s!"Satisfiable: {reprStr satisfiable}"
+        pure (Except.ok ())
       else
         pure (Except.error EInterpretation.RootWidthNotOne)
     | Except.error err => return (Except.error err)

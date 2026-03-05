@@ -16,20 +16,26 @@ public inductive EChecker
   | Evaluator (err: EEvaluator)
 deriving Repr
 
-public inductive SplitNode
+public inductive SplitNode (v: VarWidths)
   | Leaf
-  | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
+  | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode v) (right: SplitNode v)
+    (hSize: varIndex < v.usize)
 deriving Repr
 
 def Assignment2 (v: VarWidths) := Assignment v Bitvector
 def Assignment3 (v: VarWidths) := Assignment v Bitvector3
 
-def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: SplitNode) : Except EChecker (Option Bool) :=
+def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: SplitNode v) : Option Bool :=
   match node with
     | SplitNode.Leaf =>
-      (eval3 formula assignment).mapError EChecker.Evaluator
-    | SplitNode.Split varIndex bitIndex left right =>
-      if let some varAssignment := assignment.inner.get? varIndex then
+      eval3 formula assignment
+    | SplitNode.Split varIndex bitIndex left right hSize =>
+      let hGet: varIndex ∈ assignment.inner := by
+        have hContains := assignment.containment (i:=varIndex)
+        simp at hContains
+        simp [hSize, hContains]
+
+      let varAssignment := assignment.inner.get varIndex hGet
         let (leftSplit, rightSplit) := varAssignment.split bitIndex
 
         if let some rightSplit := rightSplit then
@@ -44,9 +50,8 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
           let rightAssignment := { inner := rightAssignment, containment := hRightContainment }
 
           match checkNode formula leftAssignment left, checkNode formula rightAssignment right with
-            | Except.ok (some left), Except.ok (some right) => Except.ok (some (left || right))
-            | Except.ok _, Except.ok _ => Except.ok none
-            | Except.error err, _ | _, Except.error err => Except.error err
+            | some left, some right => some (left || right)
+            | _, _ => none
         else
 
           let leftAssignment := assignment.inner.insert varIndex leftSplit
@@ -54,9 +59,6 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
           let leftAssignment := { inner := assignment.inner.insert varIndex leftSplit, containment := hLeftContainment }
 
           checkNode formula leftAssignment left
-
-      else
-        Except.error (EChecker.BadSplitVariable varIndex)
 
 /-
 def Assignment3.containsConcrete {v} (abstract: Assignment3 v) (concrete: Assignment2 v) : Bool :=
@@ -163,7 +165,7 @@ structure Dependent (v: VarWidths) where
   value: (Bitvector3 ∘ v.varWidth) index
 
 
-public def check {v} (formula: Formula v 1) (splitTree: SplitNode) : Except EChecker (Option Bool) := do
+public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool := do
 
   let range := Std.Rco.mk 0 v.usize
   let rangeContainment {i} : (i < v.usize → i ∈ range) := by simp[range, Std.Rco.mem_iff]
@@ -199,12 +201,11 @@ public def check {v} (formula: Formula v 1) (splitTree: SplitNode) : Except EChe
 
 
 
-public def solve {v: VarWidths} (formula: Formula v 1) : Except EChecker (Option Bool) := do
+public def solve {v: VarWidths} (formula: Formula v 1) : Option Bool := do
   let mut splitTree := SplitNode.Leaf
-  let mut varIndex := 0
-  for index in 0...v.usize do
-    for bitIndex in 0...(VarWidths.varWidth v index) do
-      splitTree := SplitNode.Split varIndex bitIndex splitTree splitTree
-    varIndex := varIndex + 1
+  for h: varIndex in 0...v.usize do
+    for bitIndex in 0...(v.varWidth varIndex) do
+      let hSize: varIndex < v.usize := by simp [Std.Rco.mem_iff] at h; simp[h]
+      splitTree := SplitNode.Split varIndex bitIndex splitTree splitTree hSize
 
   check formula splitTree
