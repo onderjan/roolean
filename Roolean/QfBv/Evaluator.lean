@@ -17,31 +17,22 @@ public structure EvalValue (α : Nat → Type) [Domain α] where
   width: Nat
   value: α width
 
-public structure Assignment (α : Nat → Type) [Domain α] where
-  -- TODO figure out what to use instead of a hashmap
-  inner: Array (EvalValue α)
+public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
+  inner: Std.DHashMap USize (α ∘ VarWidths.width v)
 
 
-
-def eval {w} {α : Nat → Type} [Domain α]
-  (formula: Formula w) (assignment: Assignment α) : Except EEvaluator (α w) := do
+def eval {v w} {α : Nat → Type} [Domain α]
+  (formula: Formula v w) (assignment: Assignment v α) : Except EEvaluator (α w) := do
 
   match formula with
-    | Formula.Leaf primary =>
-      match primary with
-        | Primary.Constant constant =>
-          let value := Domain.ofBitvector constant
-          Except.ok value
-        | Primary.Variable index =>
-          if let some assignment := assignment.inner[index]? then
-            if h: assignment.width = w then
-              have h : α assignment.width = α w := by simp[h]
-              let value := cast h assignment.value
-              Except.ok value
-            else
-              Except.error (EEvaluator.WrongVariableWidth index)
-          else
-            Except.error (EEvaluator.VariableNotAssigned index)
+    | Formula.Constant constant =>
+      let value := Domain.ofBitvector constant
+      Except.ok value
+    | Formula.Variable index =>
+      if let some assignment := assignment.inner.get? index then
+        Except.ok assignment
+      else
+        Except.error (EEvaluator.VariableNotAssigned index)
 
     | Formula.Unary inner op =>
       let inner ← eval inner assignment
@@ -107,8 +98,8 @@ theorem evalBiReduction_sound {w} {α : Nat → Type} [Domain α] [AbstractDomai
   exact hOpSound
 -/
 
-public def eval3 {α : Nat → Type} [Domain α]
-  (formula: Formula 1) (assignment: Assignment α) : Except (EEvaluator) (Option Bool) :=
+public def eval3 {v} {α : Nat → Type} [Domain α]
+  (formula: Formula v 1) (assignment: Assignment v α) : Except (EEvaluator) (Option Bool) :=
   match eval formula assignment with
     | Except.ok result =>
       match Domain.toBitvector? (result) with

@@ -20,39 +20,34 @@ public inductive SplitNode
   | Split (varIndex: USize) (bitIndex: Nat) (left: SplitNode) (right: SplitNode)
 deriving Repr
 
-def Assignment2 := Assignment Bitvector
-def Assignment3 := Assignment Bitvector3
+def Assignment2 (v: VarWidths) := Assignment v Bitvector
+def Assignment3 (v: VarWidths) := Assignment v Bitvector3
 
-def checkNode (formula: Formula 1) (assignment: Assignment3) (node: SplitNode) : Except EChecker (Option Bool) :=
+def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: SplitNode) : Except EChecker (Option Bool) :=
   match node with
     | SplitNode.Leaf =>
       (eval3 formula assignment).mapError EChecker.Evaluator
     | SplitNode.Split varIndex bitIndex left right =>
-      if hx: varIndex.toNat < assignment.inner.size then
-
-        let varAssignment := assignment.inner.uget varIndex hx
-        let (leftSplit, rightSplit) := varAssignment.value.split bitIndex
-
-
-        let leftSplit: EvalValue Bitvector3 := { width := varAssignment.width, value := leftSplit }
+      if let some varAssignment := assignment.inner.get? varIndex then
+        let (leftSplit, rightSplit) := varAssignment.split bitIndex
 
         if let some rightSplit := rightSplit then
-          let rightSplit: EvalValue Bitvector3 := { width := varAssignment.width, value := rightSplit }
 
-          let leftAssignment := { inner := assignment.inner.uset varIndex leftSplit hx }
-          let rightAssignment := { inner := assignment.inner.uset varIndex rightSplit hx }
+          let leftAssignment := { inner := assignment.inner.insert varIndex leftSplit }
+          let rightAssignment := { inner := assignment.inner.insert varIndex rightSplit }
           match checkNode formula leftAssignment left, checkNode formula rightAssignment right with
             | Except.ok (some left), Except.ok (some right) => Except.ok (some (left || right))
             | Except.ok _, Except.ok _ => Except.ok none
             | Except.error err, _ | _, Except.error err => Except.error err
         else
-          let leftAssignment := { inner := assignment.inner.uset varIndex leftSplit hx }
+          let leftAssignment := { inner := assignment.inner.insert varIndex leftSplit }
           checkNode formula leftAssignment left
 
       else
         Except.error (EChecker.BadSplitVariable varIndex)
 
-def Assignment3.containsConcrete (abstract: Assignment3) (concrete: Assignment2) : Bool :=
+/-
+def Assignment3.containsConcrete {v} (abstract: Assignment3 v) (concrete: Assignment2 v) : Bool :=
   let abstract := abstract.inner
   let concrete := concrete.inner
   if abstract.size == concrete.size then
@@ -63,6 +58,7 @@ def Assignment3.containsConcrete (abstract: Assignment3) (concrete: Assignment2)
     )
   else
     false
+-/
 
 /-
 theorem domain_sound
@@ -128,22 +124,24 @@ theorem checkNode_sound (formula: Formula) (node: SplitNode)
   }
 -/
 
-public def check (variables: Array BitvectorType) (formula: Formula 1) (splitTree: SplitNode) : Except EChecker (Option Bool) := do
-  let foldFn := fun array e => array.push { width := e.width, value := Bitvector3.allUnknown e.width }
+public def check {v} (formula: Formula v 1) (splitTree: SplitNode) : Except EChecker (Option Bool) := do
+  let mut map: Std.DHashMap USize (Bitvector3 ∘ VarWidths.width v) := {}
 
-  let array := variables.foldl foldFn #[]
+  for index in 0...v.size do
+    let bv3 := Bitvector3.allUnknown (VarWidths.width v index)
+    map := map.insert index bv3
 
-  let assignment: Assignment3 := { inner := array }
+  let assignment: Assignment3 v := { inner := map }
 
   checkNode formula assignment splitTree
 
 
-public def solve (variables: Array BitvectorType) (formula: Formula 1) : Except EChecker (Option Bool) := do
+public def solve {v: VarWidths} (formula: Formula v 1) : Except EChecker (Option Bool) := do
   let mut splitTree := SplitNode.Leaf
   let mut varIndex := 0
-  for var in variables do
-    for bitIndex in 0...var.width do
+  for index in 0...v.size do
+    for bitIndex in 0...(VarWidths.width v index) do
       splitTree := SplitNode.Split varIndex bitIndex splitTree splitTree
     varIndex := varIndex + 1
 
-  check variables formula splitTree
+  check formula splitTree

@@ -37,15 +37,11 @@ public inductive EInterpretation
   | LetNotImplemented -- TODO implement
 deriving Repr
 
-structure VariableData where
-  index: USize
-  width: Nat
+abbrev VariableMap := Std.HashMap String8 USize
 
-abbrev VariableMap := Std.HashMap String8 VariableData
-
-structure FormulaW where
+structure FormulaW (v: VarWidths) where
   width: Nat
-  value: Formula width
+  value: Formula v width
 deriving Repr, Nonempty
 
 def interpretVariableSort (sort: SmtSort): Except EInterpretation BitvectorType :=
@@ -64,8 +60,8 @@ def interpretVariableSort (sort: SmtSort): Except EInterpretation BitvectorType 
       -- expected a bitvector, which is a sort indexed by width
       Except.error EInterpretation.SortNotBitVec
 
-def interpretSpecialConstant (constant: SmtSpecialConstant)
-  : (Except EInterpretation) FormulaW := do
+def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
+  : (Except EInterpretation) (FormulaW v) := do
   let (value, width) ← match constant with
 
     | SmtSpecialConstant.Hexadecimal value numDigits =>
@@ -79,10 +75,10 @@ def interpretSpecialConstant (constant: SmtSpecialConstant)
       Except.error EInterpretation.InvalidSpecialConstant
 
   let bv: Bitvector width := { value := (BitVec.ofNat width value) }
-  pure { width, value := Formula.Leaf (Primary.Constant bv)}
+  pure { width, value := Formula.Constant bv}
 
-def interpretQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIdent)
-  : (Except EInterpretation) FormulaW := do
+def interpretQualifiedIdent {v} (variables: VariableMap) (qualified: SmtQualifiedIdent)
+  : (Except EInterpretation) (FormulaW v) := do
 
   let name ← match qualified with
   | SmtQualifiedIdent.Ident (SmtIdent.Symbol name) => pure name
@@ -95,7 +91,7 @@ def interpretQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIde
           | #[SmtIndex.Numeral width _] =>
             -- construct bitvector
             let bv := { value := BitVec.ofNat width value }
-            return { width, value := Formula.Leaf (Primary.Constant bv)}
+            return { width, value := Formula.Constant bv}
           | _ =>
             -- bvX should have a single index, width
             Except.error (EInterpretation.InvalidDecimalBitvec name)
@@ -107,18 +103,19 @@ def interpretQualifiedIdent (variables: VariableMap) (qualified: SmtQualifiedIde
       Except.error EInterpretation.InvalidIndexedQualifiedIdent
 
   match variables.get? name with
-  | some varData =>
+  | some index =>
     -- construct a reference to the variable
-
-    pure { width := varData.width, value := Formula.Leaf (Primary.Variable varData.index) }
+    let width := v.width index
+    let value := Formula.Variable index
+    pure { width, value }
   | none =>
     -- variable with the given name not found
     Except.error (EInterpretation.VariableNotFound name)
 
 -- TODO prove termination
 mutual
-partial def interpretUniOp (variables: VariableMap) (op: UniOp) (terms: Array SmtTerm)
-  : (Except EInterpretation) FormulaW := do
+partial def interpretUniOp {v} (variables: VariableMap) (op: UniOp) (terms: Array SmtTerm)
+  : (Except EInterpretation) (FormulaW v) := do
    -- expecting exactly one term
   match terms with
     | #[inner] =>
@@ -128,20 +125,20 @@ partial def interpretUniOp (variables: VariableMap) (op: UniOp) (terms: Array Sm
     | _ => Except.error EInterpretation.TooManyUniOpArgs
 
 
-partial def interpretBiNormalPair (left: FormulaW) (right: FormulaW) (op: BiNormalOp)
-  : (Except EInterpretation) FormulaW :=
+partial def interpretBiNormalPair {v} (left: FormulaW v) (right: FormulaW v) (op: BiNormalOp)
+  : (Except EInterpretation) (FormulaW v) :=
   let width := left.width
   if h: left.width = right.width then
-    have h : Formula right.width = Formula left.width := by simp[h]
+    have h : Formula v right.width = Formula v left.width := by simp[h]
     let rightValue := cast h right.value
     pure { width, value := Formula.BinaryNormal left.value rightValue op }
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiNormalOp (variables: VariableMap) (op: BiNormalOp) (terms: Array SmtTerm)
-  : (Except EInterpretation) FormulaW := do
+partial def interpretBiNormalOp {v} (variables: VariableMap) (op: BiNormalOp) (terms: Array SmtTerm)
+  : (Except EInterpretation) (FormulaW v) := do
 
-  let ((left, right) : FormulaW × FormulaW) ← if h: terms.size < 2 then
+  let (left, right) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- exactly two args, evaluate normally
@@ -170,18 +167,18 @@ partial def interpretBiNormalOp (variables: VariableMap) (op: BiNormalOp) (terms
 
   interpretBiNormalPair left right op
 
-partial def interpretBiReductionPair (left: FormulaW) (right: FormulaW) (op: BiReductionOp)
-  : (Except EInterpretation) (Formula 1) :=
+partial def interpretBiReductionPair {v} (left: FormulaW v) (right: FormulaW v) (op: BiReductionOp)
+  : (Except EInterpretation) (Formula v 1) :=
   let width := left.width
   if h: left.width = right.width then
-    have h : Formula right.width = Formula left.width := by simp[h]
+    have h : Formula v right.width = Formula v left.width := by simp[h]
     let rightValue := cast h right.value
     pure (Formula.BinaryReduction left.value rightValue op)
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiReductionOp (variables: VariableMap) (op: BiReductionOp) (terms: Array SmtTerm)
-  : (Except EInterpretation) FormulaW := do
+partial def interpretBiReductionOp {v} (variables: VariableMap) (op: BiReductionOp) (terms: Array SmtTerm)
+  : (Except EInterpretation) (FormulaW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
@@ -195,8 +192,8 @@ partial def interpretBiReductionOp (variables: VariableMap) (op: BiReductionOp) 
     Except.error EInterpretation.TooManyBiOpArgs
 
 
-partial def interpretNeOp (variables: VariableMap) (terms: Array SmtTerm)
-  : (Except EInterpretation) FormulaW := do
+partial def interpretNeOp {v} (variables: VariableMap) (terms: Array SmtTerm)
+  : (Except EInterpretation) (FormulaW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
@@ -210,9 +207,9 @@ partial def interpretNeOp (variables: VariableMap) (terms: Array SmtTerm)
     -- cannot process this operation with more than two terms
     Except.error EInterpretation.TooManyBiOpArgs
 
-partial def interpretImpliesOp (variables: VariableMap) (terms: Array SmtTerm)
-  : (Except EInterpretation) FormulaW := do
-  let ((left, right) : FormulaW × FormulaW) ← if h: terms.size < 2 then
+partial def interpretImpliesOp {v} (variables: VariableMap) (terms: Array SmtTerm)
+  : (Except EInterpretation) (FormulaW v) := do
+  let ((left, right) : FormulaW v × FormulaW v) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- consider a => b to work bit-wise:
@@ -236,8 +233,8 @@ partial def interpretImpliesOp (variables: VariableMap) (terms: Array SmtTerm)
   pure { width := 1, value := eqResult }
 
 
-partial def intepretApplication (variables: VariableMap) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
-  : (Except EInterpretation) FormulaW := do
+partial def intepretApplication {v} (variables: VariableMap) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
+  : (Except EInterpretation) (FormulaW v) := do
 
   -- all supported applications are just symbols
   let name ← match qualified with
@@ -296,11 +293,11 @@ partial def intepretApplication (variables: VariableMap) (qualified: SmtQualifie
 
     | _ => Except.error EInterpretation.UnsupportedApplication
 
-partial def interpretLet (variables: VariableMap) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
-  : Except EInterpretation FormulaW := do
+partial def interpretLet {v} (variables: VariableMap) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
+  : Except EInterpretation (FormulaW v) := do
   Except.error EInterpretation.LetNotImplemented -- TODO implement
 
-partial def interpretTerm (variables: VariableMap) (term: SmtTerm): (Except EInterpretation) FormulaW :=
+partial def interpretTerm {v} (variables: VariableMap) (term: SmtTerm): Except EInterpretation (FormulaW v) :=
   match term with
   | SmtTerm.SpecialConstant constant => interpretSpecialConstant constant
   | SmtTerm.QualifiedIdent qualified => interpretQualifiedIdent variables qualified
@@ -341,29 +338,31 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
   let mut variableMap: VariableMap := {}
   let mut index: USize := 0
   for (name, type) in interpretation.variables do
-    variableMap := variableMap.insert name { index, width := type.width }
+    variableMap := variableMap.insert name index
     index := index + 1
 
-  let formula ← match interpretTerm variableMap assertion with
-    | Except.ok formula => pure formula
+  let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd.width) }
+
+  match interpretTerm (v := varWidths) variableMap assertion with
+    | Except.ok formula =>
+      if h: formula.width = 1 then
+        have h : Formula varWidths (FormulaW.width formula) = Formula varWidths 1 := by simp[h]
+        let formula: Formula varWidths 1 := cast h formula.value
+
+        let variables := interpretation.variables.map (λ (var) => var.snd)
+
+        IO.println s!"Check satisfiability\nVar widths: {reprStr varWidths}\nFormula: {reprStr formula}"
+
+        let checked := solve formula
+        match checked with
+          | Except.ok satisfiable =>
+            IO.println s!"Satisfiable: {reprStr satisfiable}"
+            pure (Except.ok ())
+          | Except.error err => pure (Except.error (EInterpretation.Checker err))
+      else
+        pure (Except.error EInterpretation.RootWidthNotOne)
     | Except.error err => return (Except.error err)
 
-  if h: formula.width = 1 then
-    have h : Formula formula.width = Formula 1 := by simp[h]
-    let formula: Formula 1 := cast h formula.value
-
-    let variables := interpretation.variables.map (λ (var) => var.snd)
-
-    IO.println s!"Check satisfiability\nVariables: {reprStr variables}\nFormula: {reprStr formula}"
-
-    let checked := solve variables formula
-    match checked with
-      | Except.ok satisfiable =>
-        IO.println s!"Satisfiable: {reprStr satisfiable}"
-        pure (Except.ok ())
-      | Except.error err => pure (Except.error (EInterpretation.Checker err))
-  else
-    pure (Except.error EInterpretation.RootWidthNotOne)
 
 instance : Interpret Interpretation EInterpretation where
   new := Interpretation.new

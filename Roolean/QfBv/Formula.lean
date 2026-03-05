@@ -8,11 +8,24 @@ public inductive Primary (w: Nat) where
   | Variable (index: USize)
 deriving Repr, Inhabited
 
-public inductive Formula: Nat → Type where
-  | Leaf: {n: Nat} → Primary n → Formula n
-  | Unary: {n: Nat} → Formula n → UniOp → Formula n
-  | BinaryNormal: {n: Nat} → Formula n → Formula n → BiNormalOp → Formula n
-  | BinaryReduction: {n: Nat} → Formula n → Formula n → BiReductionOp → Formula 1
+public structure VarWidths where
+  inner: Array Nat
+deriving Repr
+
+public def VarWidths.width (v: VarWidths) (index: USize) :=
+  match v.inner[index]? with
+  | some width => width
+  | none => 0
+
+public def VarWidths.size (v: VarWidths) :=
+  v.inner.usize
+
+public inductive Formula (v: VarWidths): Nat → Type where
+  | Constant: {w: Nat} → Bitvector w → Formula v w
+  | Variable: (a: USize) → Formula v (VarWidths.width v a)
+  | Unary: {w: Nat} → Formula v w → UniOp → Formula v w
+  | BinaryNormal: {w: Nat} → Formula v w → Formula v w → BiNormalOp → Formula v w
+  | BinaryReduction: {w: Nat} → Formula v w → Formula v w → BiReductionOp → Formula v 1
 deriving Repr, Nonempty
 
 
