@@ -32,12 +32,15 @@ public inductive EInterpretation
   | UnsupportedLogic (logic: String8)
   | RootWidthNotOne
 
+  | BadIndex
+
   | Checker (err: EChecker)
 
   | LetNotImplemented -- TODO implement
 deriving Repr
 
-abbrev VariableMap := Std.HashMap String8 USize
+structure VariableMap (v: VarWidths) where
+  inner: Std.HashMap String8 {a: USize // a < v.usize}
 
 structure FormulaW (v: VarWidths) where
   width: Nat
@@ -77,7 +80,7 @@ def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
   let bv: Bitvector width := { value := (BitVec.ofNat width value) }
   pure { width, value := Formula.Constant bv}
 
-def interpretQualifiedIdent {v} (variables: VariableMap) (qualified: SmtQualifiedIdent)
+def interpretQualifiedIdent {v} (variables: VariableMap v) (qualified: SmtQualifiedIdent)
   : (Except EInterpretation) (FormulaW v) := do
 
   let name ← match qualified with
@@ -102,10 +105,10 @@ def interpretQualifiedIdent {v} (variables: VariableMap) (qualified: SmtQualifie
       -- we do not support indexed idents other than bvX
       Except.error EInterpretation.InvalidIndexedQualifiedIdent
 
-  match variables.get? name with
+  match variables.inner.get? name with
   | some index =>
     -- construct a reference to the variable
-    let width := v.width index
+    let width := v.varWidth index
     let value := Formula.Variable index
     pure { width, value }
   | none =>
@@ -114,7 +117,7 @@ def interpretQualifiedIdent {v} (variables: VariableMap) (qualified: SmtQualifie
 
 -- TODO prove termination
 mutual
-partial def interpretUniOp {v} (variables: VariableMap) (op: UniOp) (terms: Array SmtTerm)
+partial def interpretUniOp {v} (variables: VariableMap v) (op: UniOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
    -- expecting exactly one term
   match terms with
@@ -135,7 +138,7 @@ partial def interpretBiNormalPair {v} (left: FormulaW v) (right: FormulaW v) (op
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiNormalOp {v} (variables: VariableMap) (op: BiNormalOp) (terms: Array SmtTerm)
+partial def interpretBiNormalOp {v} (variables: VariableMap v) (op: BiNormalOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
 
   let (left, right) ← if h: terms.size < 2 then
@@ -177,7 +180,7 @@ partial def interpretBiReductionPair {v} (left: FormulaW v) (right: FormulaW v) 
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiReductionOp {v} (variables: VariableMap) (op: BiReductionOp) (terms: Array SmtTerm)
+partial def interpretBiReductionOp {v} (variables: VariableMap v) (op: BiReductionOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
@@ -192,7 +195,7 @@ partial def interpretBiReductionOp {v} (variables: VariableMap) (op: BiReduction
     Except.error EInterpretation.TooManyBiOpArgs
 
 
-partial def interpretNeOp {v} (variables: VariableMap) (terms: Array SmtTerm)
+partial def interpretNeOp {v} (variables: VariableMap v) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
@@ -207,7 +210,7 @@ partial def interpretNeOp {v} (variables: VariableMap) (terms: Array SmtTerm)
     -- cannot process this operation with more than two terms
     Except.error EInterpretation.TooManyBiOpArgs
 
-partial def interpretImpliesOp {v} (variables: VariableMap) (terms: Array SmtTerm)
+partial def interpretImpliesOp {v} (variables: VariableMap v) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
   let ((left, right) : FormulaW v × FormulaW v) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
@@ -233,7 +236,7 @@ partial def interpretImpliesOp {v} (variables: VariableMap) (terms: Array SmtTer
   pure { width := 1, value := eqResult }
 
 
-partial def intepretApplication {v} (variables: VariableMap) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
+partial def intepretApplication {v} (variables: VariableMap v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
 
   -- all supported applications are just symbols
@@ -293,11 +296,11 @@ partial def intepretApplication {v} (variables: VariableMap) (qualified: SmtQual
 
     | _ => Except.error EInterpretation.UnsupportedApplication
 
-partial def interpretLet {v} (variables: VariableMap) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
+partial def interpretLet {v} (variables: VariableMap v) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
   : Except EInterpretation (FormulaW v) := do
   Except.error EInterpretation.LetNotImplemented -- TODO implement
 
-partial def interpretTerm {v} (variables: VariableMap) (term: SmtTerm): Except EInterpretation (FormulaW v) :=
+partial def interpretTerm {v} (variables: VariableMap v) (term: SmtTerm): Except EInterpretation (FormulaW v) :=
   match term with
   | SmtTerm.SpecialConstant constant => interpretSpecialConstant constant
   | SmtTerm.QualifiedIdent qualified => interpretQualifiedIdent variables qualified
@@ -335,13 +338,17 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
         -- combine the assertions in a conjunction, which is left-associative
         SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) interpretation.assertions
 
-  let mut variableMap: VariableMap := {}
+  let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd.width) }
+
+  let mut variableMap: VariableMap varWidths := { inner := {} }
   let mut index: USize := 0
   for (name, type) in interpretation.variables do
-    variableMap := variableMap.insert name index
-    index := index + 1
-
-  let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd.width) }
+    if h : index < varWidths.usize then
+      let restricted := Subtype.mk index h
+      variableMap := { inner := variableMap.inner.insert name restricted }
+      index := index + 1
+    else
+      return Except.error EInterpretation.BadIndex
 
   match interpretTerm (v := varWidths) variableMap assertion with
     | Except.ok formula =>

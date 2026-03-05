@@ -18,8 +18,8 @@ public structure EvalValue (α : Nat → Type) [Domain α] where
   value: α width
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
-  inner: Std.DHashMap USize (α ∘ VarWidths.width v)
-
+  inner: Std.DHashMap USize (α ∘ VarWidths.varWidth v)
+  containment {i} : i < v.usize → inner.contains i
 
 def eval {v w} {α : Nat → Type} [Domain α]
   (formula: Formula v w) (assignment: Assignment v α) : Except EEvaluator (α w) := do
@@ -28,11 +28,11 @@ def eval {v w} {α : Nat → Type} [Domain α]
     | Formula.Constant constant =>
       let value := Domain.ofBitvector constant
       Except.ok value
+
     | Formula.Variable index =>
-      if let some assignment := assignment.inner.get? index then
-        Except.ok assignment
-      else
-        Except.error (EEvaluator.VariableNotAssigned index)
+      let h := assignment.containment index.property
+      let assignment := assignment.inner.get index h
+      Except.ok assignment
 
     | Formula.Unary inner op =>
       let inner ← eval inner assignment

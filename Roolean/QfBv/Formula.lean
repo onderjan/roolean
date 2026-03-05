@@ -12,27 +12,18 @@ public structure VarWidths where
   inner: Array Nat
 deriving Repr
 
-public def VarWidths.width (v: VarWidths) (index: USize) :=
+public def VarWidths.varWidth (v: VarWidths) (index: USize) :=
   match v.inner[index]? with
   | some width => width
   | none => 0
 
-public def VarWidths.size (v: VarWidths) :=
+public def VarWidths.usize (v: VarWidths) :=
   v.inner.usize
 
 public inductive Formula (v: VarWidths): Nat → Type where
   | Constant: {w: Nat} → Bitvector w → Formula v w
-  | Variable: (a: USize) → Formula v (VarWidths.width v a)
+  | Variable: (i : {a: USize // a < v.usize}) → Formula v (VarWidths.varWidth v i)
   | Unary: {w: Nat} → Formula v w → UniOp → Formula v w
   | BinaryNormal: {w: Nat} → Formula v w → Formula v w → BiNormalOp → Formula v w
   | BinaryReduction: {w: Nat} → Formula v w → Formula v w → BiReductionOp → Formula v 1
 deriving Repr, Nonempty
-
-
-/-
-  | Constant (w: Nat) (constant: Bitvector w)
-  | Variable (index: USize)
-  | Unary (op: UniOperator) (inner: Formula w)
-  | Binary (op: BiOperator) (a: Nat) (left: Formula a) (right: Formula a)
--/
---deriving Repr, Inhabited
