@@ -2,12 +2,12 @@ module
 
 public import Roolean.QfBv.Bitvector
 
-public inductive DomainUniOp
+public inductive UniOp
   | Not
   | Neg
 deriving Repr, Inhabited
 
-public inductive DomainBiNormalOp
+public inductive BiNormalOp
   | Add
   | Sub
   | Mul
@@ -25,7 +25,7 @@ public inductive DomainBiNormalOp
   | Ashr
 deriving Repr, Inhabited
 
-public inductive DomainBiReductionOp
+public inductive BiReductionOp
   | Eq
   | Ult
   | Ule
@@ -38,6 +38,6 @@ public class Domain (α: Nat → Type) where
   ofBitvector {w}: Bitvector w → α w
   toBitvector? {w}: α w → Option (Bitvector w)
 
-  uniOp {w}: α w → DomainUniOp → α w
-  biNormal{w}: α w → α w → DomainBiNormalOp → α w
-  biReduction {w}: α w → α w → DomainBiReductionOp → α 1
+  uniOp {w}: α w → UniOp → α w
+  biNormal{w}: α w → α w → BiNormalOp → α w
+  biReduction {w}: α w → α w → BiReductionOp → α 1

@@ -1,8 +1,8 @@
 module
 
-public import Roolean.QfBv.Formula
 public import Roolean.QfBv.AbstractDomain
 public import Roolean.QfBv.Domain.Bitvector
+public import Roolean.QfBv.Domain
 
 public structure Bitvector3 (w: Nat) where
   zeros: BitVec w
@@ -35,8 +35,7 @@ public def Bitvector3.toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvecto
   else
     none
 
-
-public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: DomainUniOp)
+public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: UniOp)
   : Bitvector3 w :=
   match domain.toBitvector? with
   | some bitvector =>
@@ -44,7 +43,7 @@ public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: DomainUniOp)
     Bitvector3.ofBitvector result
   | none => Bitvector3.allUnknown w
 
-public def Bitvector3.biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: DomainBiNormalOp)
+public def Bitvector3.biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormalOp)
   : Bitvector3 w :=
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
@@ -53,7 +52,7 @@ public def Bitvector3.biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (o
   | _, _ =>
     Bitvector3.allUnknown w
 
-public def Bitvector3.biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: DomainBiReductionOp)
+public def Bitvector3.biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiReductionOp)
   : Bitvector3 1 :=
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
@@ -264,7 +263,7 @@ theorem Bitvector3.containsConcrete_toBitvector? {w} (a: Bitvector3 w) (c d: Bit
   }
   { intro h; contradiction }
 
-public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: DomainUniOp)
+public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
   : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
   simp[uniOp]
   intro h1
@@ -286,7 +285,7 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op
     apply containsConcrete_allUnknown
   }
 
-public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: DomainBiNormalOp) (ca cb: Bitvector w)
+public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
     : containsConcrete a ca → containsConcrete b cb
       → containsConcrete (Bitvector3.biNormal a b op) (Domain.biNormal ca cb op) := by
   intro ha hb
@@ -311,7 +310,7 @@ public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: DomainBiNo
     apply containsConcrete_allUnknown
   }
 
-public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: DomainBiReductionOp) (ca cb: Bitvector w)
+public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca cb: Bitvector w)
     : containsConcrete a ca → containsConcrete b cb
       → containsConcrete (Bitvector3.biReduction a b op) (Domain.biReduction ca cb op) := by
   intro ha hb

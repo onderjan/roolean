@@ -1,6 +1,7 @@
 module
 
 public import Roolean.QfBv.Domain.Bitvector
+public import Roolean.QfBv.Domain
 
 public class AbstractDomain (α : Nat → Type) [Domain α] where
   top (w: Nat) : α w
@@ -14,11 +15,11 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
     : split a n = (left, some right) → containsConcrete a c →
       containsConcrete left c ∨ containsConcrete right c
 
-  uniOp_sound {w} (a: α w) (c: Bitvector w) (op: DomainUniOp)
+  uniOp_sound {w} (a: α w) (c: Bitvector w) (op: UniOp)
     : containsConcrete a c → containsConcrete (Domain.uniOp a op) (Domain.uniOp c op)
-  biNormal_sound {w} (a b: α w) (op: DomainBiNormalOp) (ca cb: Bitvector w)
+  biNormal_sound {w} (a b: α w) (op: BiNormalOp) (ca cb: Bitvector w)
     : containsConcrete a ca → containsConcrete b cb
       → containsConcrete (Domain.biNormal a b op) (Domain.biNormal ca cb op)
-  biReduction_sound {w} (a b: α w) (op: DomainBiReductionOp) (ca cb: Bitvector w)
+  biReduction_sound {w} (a b: α w) (op: BiReductionOp) (ca cb: Bitvector w)
     : containsConcrete a ca → containsConcrete b cb
       → containsConcrete (Domain.biReduction a b op) (Domain.biReduction ca cb op)
