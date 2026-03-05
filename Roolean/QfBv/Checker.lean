@@ -18,8 +18,8 @@ deriving Repr
 
 public inductive SplitNode (v: VarWidths)
   | Leaf
-  | Split (varIndex: USize) (bitIndex: {b: Nat // b < v.varWidth varIndex}) (left: SplitNode v) (right: SplitNode v)
-    (hVarIndex: varIndex < v.usize)
+  | Split (left: SplitNode v) (right: SplitNode v)
+    (varIndex: {i: USize // i < v.usize}) (bitIndex: {b: Nat // b < v.varWidth varIndex})
 deriving Repr
 
 def Assignment2 (v: VarWidths) := Assignment v Bitvector
@@ -29,11 +29,11 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
   match node with
     | SplitNode.Leaf =>
       eval3 formula assignment
-    | SplitNode.Split varIndex bitIndex left right hVarIndex =>
-      let hGet: varIndex ∈ assignment.inner := by
+    | SplitNode.Split left right varIndex bitIndex =>
+      let hGet: varIndex.val ∈ assignment.inner := by
         have hContains := assignment.containment (i:=varIndex)
         simp at hContains
-        simp [hVarIndex, hContains]
+        simp [varIndex.property, hContains]
 
       let varAssignment := assignment.inner.get varIndex hGet
         let (leftSplit, rightSplit) := varAssignment.split bitIndex
@@ -199,15 +199,16 @@ public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bo
 
   checkNode formula assignment splitTree
 
-
-
 public def solve {v: VarWidths} (formula: Formula v 1) : Option Bool := do
   let mut splitTree := SplitNode.Leaf
   for h1: varIndex in 0...v.usize do
     for h2: bitIndex in 0...(v.varWidth varIndex) do
       let hVarIndex: varIndex < v.usize := by simp [Std.Rco.mem_iff] at h1; simp[h1]
       let hBitIndex: bitIndex < v.varWidth varIndex := by simp [Std.Rco.mem_iff] at h2; simp[h2]
+
+      let varIndex := Subtype.mk varIndex hVarIndex
       let bitIndex := Subtype.mk bitIndex hBitIndex
-      splitTree := SplitNode.Split varIndex bitIndex splitTree splitTree hVarIndex
+
+      splitTree := SplitNode.Split splitTree splitTree varIndex bitIndex
 
   check formula splitTree
