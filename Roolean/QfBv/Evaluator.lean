@@ -16,17 +16,18 @@ public inductive EEvaluator
   | WrongVariableWidth (index: USize)
 deriving Repr
 
-public structure EvalValue (α : Nat → Type) [Domain α] where
-  width: Nat
-  value: α width
-
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
   inner: Std.DHashMap (Fin v.size) (α ∘ VarWidths.varWidth v)
   membership (i: (Fin v.size)) : i ∈ inner
 
 public def Assignment.getElem {v} {α : Nat → Type} [Domain α]
-  (assignment: Assignment v α) (index: (Fin v.size)) : (α ∘ v.varWidth) index :=
-  assignment.inner.get index (assignment.membership index)
+  (a: Assignment v α) (index: (Fin v.size)) : (α ∘ v.varWidth) index :=
+  a.inner.get index (a.membership index)
+
+public def Assignment.setElem {v} {α : Nat → Type} [Domain α]
+  (a: Assignment v α) (index: (Fin v.size)) (value: (α ∘ v.varWidth) index) : Assignment v α :=
+  let map := a.inner.insert index value
+  { inner := map, membership := by simp[map, a.membership] }
 
 public def Assignment.γ {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) (c: Assignment v Bitvector) : Bool :=
@@ -47,7 +48,7 @@ public def Assignment.γ_elem {v} {α : Nat → Type} [Domain α] [AbstractDomai
   : a.γ c → AbstractDomain.γ (a.getElem i) (c.getElem i) := by
   intro h; exact Iff.mp (Assignment.γ_forall a c) h i
 
-def eval {v w} {α : Nat → Type} [Domain α]
+public def eval {v w} {α : Nat → Type} [Domain α]
   (formula: Formula v w) (assignment: Assignment v α) : α w :=
 
   match formula with
@@ -70,9 +71,7 @@ def eval {v w} {α : Nat → Type} [Domain α]
       let right := eval right assignment
       Domain.biReduction left right op
 
-
-
-theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
+public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (f: Formula v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
   : AbstractDomain.γ (eval f a) (eval f c) := by
   induction f
@@ -104,22 +103,3 @@ theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
     exact AbstractDomain.biReduction_sound (eval left a) (eval right a)
       op (eval left c) (eval right c) h1 h2
   }
-
-public def eval3 {v} {α : Nat → Type} [Domain α]
-  (formula: Formula v 1) (assignment: Assignment v α) : Option (Bitvector 1) :=
-  let result := eval formula assignment
-  Domain.toBitvector? result
-
-theorem eval3_sound {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
-  (f: Formula v 1) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
-  (r: Bitvector 1) (hR: some r = eval3 f a)
-  : some r = eval3 f c := by
-  simp[eval3] at hR
-  simp[eval3]
-
-  rw[BitvectorDomain.toBitvector?_someSelf (eval f c)]
-
-  let hToBitvector? := AbstractDomain.toBitvector?_sound (eval f a) r (eval f c) hR
-  let hEval := eval_sound f a c h
-  let hA := (Iff.mp hToBitvector?) hEval
-  rw [hA]

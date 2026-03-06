@@ -145,26 +145,22 @@ theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
 
 
 public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
-   : Bitvector3 w × Option (Bitvector3 w) :=
+   : Bitvector3 w × Bitvector3 w :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
   if domain.zeros &&& domain.ones &&& bitMask == bitMask then
     let left := domain.setBitToZero bitIndex
     let right := domain.setBitToOne bitIndex
 
-    (left, some right)
+    (left, right)
   else
-    -- not unknown, do not split
-    (domain, none)
+    -- not unknown, "split" in name only
+    (domain, domain)
 
 
-public theorem Bitvector3.split_noop_id {w} (a b : Bitvector3 w) (n: Fin w)
-  : split a n = (b, none) → a = b := by
-  rw[split]; split; simp; simp
-
-public theorem Bitvector3.split_preserves {w: Nat} (a left right : Bitvector3 w)
+public theorem Bitvector3.split_sound {w: Nat} (a left right : Bitvector3 w)
   (n: Fin w) (c: Bitvector w)
-    : split a n = (left, some right) → γ a c →
+    : split a n = (left, right) → γ a c →
       γ left c ∨ γ right c := by
   let h := splitBit_lemma a n c
 
@@ -181,6 +177,10 @@ public theorem Bitvector3.split_preserves {w: Nat} (a left right : Bitvector3 w)
   {
     -- no split happened
     simp
+    intro hLeft hRight hContains
+    left
+    rw[hLeft] at hContains
+    exact hContains
   }
 
 public theorem Bitvector3.top_γ_all {w: Nat} (c: Bitvector w)
@@ -359,8 +359,7 @@ public instance : AbstractDomain Bitvector3 where
 
   top_γ_all := Bitvector3.top_γ_all
   γ_nonempty := Bitvector3.γ_nonempty
-  split_noop_id := Bitvector3.split_noop_id
-  split_preserves := Bitvector3.split_preserves
+  split_sound := Bitvector3.split_sound
 
   uniOp_sound := Bitvector3.uniOp_sound
   biNormal_sound := Bitvector3.biNormal_sound
