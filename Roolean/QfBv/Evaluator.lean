@@ -73,10 +73,8 @@ def eval {v w} {α : Nat → Type} [Domain α]
 
 
 theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
-  (a: Assignment v α) (c: Assignment v Bitvector) (f: Formula v w)
-  : a.containsConcrete c →
-      AbstractDomain.containsConcrete (eval f a) (eval f c) := by
-  intro h
+  (f: Formula v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.containsConcrete c)
+  : AbstractDomain.containsConcrete (eval f a) (eval f c) := by
   induction f
   {
     -- constant
@@ -108,8 +106,20 @@ theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   }
 
 public def eval3 {v} {α : Nat → Type} [Domain α]
-  (formula: Formula v 1) (assignment: Assignment v α) : Option Bool :=
+  (formula: Formula v 1) (assignment: Assignment v α) : Option (Bitvector 1) :=
   let result := eval formula assignment
-  match Domain.toBitvector? result with
-    | some result => result.value != 0
-    | none => none
+  Domain.toBitvector? result
+
+theorem eval3_sound {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
+  (f: Formula v 1) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.containsConcrete c)
+  (r: Bitvector 1) (hR: some r = eval3 f a)
+  : some r = eval3 f c := by
+  simp[eval3] at hR
+  simp[eval3]
+
+  rw[BitvectorDomain.toBitvector?_someSelf (eval f c)]
+
+  let hToBitvector? := AbstractDomain.toBitvector?_sound (eval f a) r (eval f c) hR
+  let hEval := eval_sound f a c h
+  let hA := (Iff.mp hToBitvector?) hEval
+  rw [hA]

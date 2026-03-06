@@ -10,6 +10,7 @@ import Roolean.QfBv.AbstractDomain
 import Roolean.QfBv.Evaluator
 import Std.Data.DHashMap.Lemmas
 import Roolean.QfBv.Evaluator
+import Roolean.QfBv.Domain.Bitvector
 
 
 public inductive EChecker
@@ -26,7 +27,7 @@ deriving Repr
 def Assignment2 (v: VarWidths) := Assignment v Bitvector
 def Assignment3 (v: VarWidths) := Assignment v Bitvector3
 
-def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: SplitNode v) : Option Bool :=
+def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: SplitNode v) : Option (Bitvector 1) :=
   match node with
     | SplitNode.Leaf =>
       eval3 formula assignment
@@ -47,7 +48,7 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
           let rightAssignment := { inner := rightAssignment, membership := hRightMem }
 
           match checkNode formula leftAssignment left, checkNode formula rightAssignment right with
-            | some left, some right => some (left || right)
+            | some left, some right => some (Domain.biNormal left right BiNormalOp.BitOr)
             | _, _ => none
         else
           let leftAssignment := assignment.inner.insert varIndex leftSplit
@@ -156,22 +157,7 @@ def makeTopAssignment {v} {index: Nat} (part: PartialAssignment v index.toUSize)
     { inner := part.inner, containment := finalContains }
 -/
 
-public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool := do
-
-  /-let range := Std.Rco.mk 0 v.usize
-
-  let rangeContainment (i) : (i < v.usize ↔ i ∈ range) := by simp[range, Std.Rco.mem_iff]
-
-
-  let indices := range.toArray
-  let arrayContainment (i) : (i < v.usize ↔ i ∈ indices) := by
-    simp[indices, Std.Rco.mem_toArray_iff_mem]
-    apply Iff.intro
-    { intro h; exact Iff.mp (rangeContainment i) h }
-    { intro h; exact Iff.mpr (rangeContainment i) h }
-
-  let indices := indices.fin
-  -/
+public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option (Bitvector 1) := do
 
   let indices := Array.ofFn (fun (i: Fin v.size) => i)
 
@@ -207,4 +193,6 @@ public def solve {v: VarWidths} (formula: Formula v 1) : Option Bool := do
         SplitNode.Split splitTree splitTree varIndex bitIndex) splitTree
     ) SplitNode.Leaf
 
-  check formula splitTree
+  match check formula splitTree with
+    | some bv => some bv.toBool
+    | none => none

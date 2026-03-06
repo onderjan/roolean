@@ -233,35 +233,43 @@ theorem Bitvector3.containsConcrete_allUnknown {w} (c: Bitvector w)
   rw[allUnknown, containsConcrete]
   simp
 
-theorem Bitvector3.containsConcrete_toBitvector? {w} (a: Bitvector3 w) (c d: Bitvector w)
-  : some c = a.toBitvector? → a.containsConcrete d → c = d := by
-  rw[toBitvector?]
-  split
+public theorem Bitvector3.toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
+    : some c = a.toBitvector? → (containsConcrete a d ↔ c = d) := by
+  simp[containsConcrete, toBitvector?, BitVec.not_xor_left]
+  intro h1 h2
+  simp[h1, h2]
+  apply Iff.intro
   {
-    rename_i h0
-    simp
-    intro h1 h2
-    rw[containsConcrete] at h2
-    simp_all
-    rw[BitVec.not_xor_left] at h0
-    rw[BitVec.xor_eq_zero_iff] at h0
-    rw[h0] at h2
+    intro h1
+    rename_i hC
+
+    let h1L := h1.left
+    let h1R := h1.right
 
     rw[Bitvector.mk.injEq]
     rw[BitVec.eq_of_getElem_eq_iff]
 
-    let h3 := h2.left
-    let h4 := h2.right
-    rw[BitVec.eq_of_getElem_eq_iff] at h3
-    rw[BitVec.eq_of_getElem_eq_iff] at h4
     intro i hi
-    let h3 := h3 i hi
-    let h4 := h4 i hi
-    simp at h3
-    simp at h4
+
+    rw[BitVec.eq_of_getElem_eq_iff] at h1L
+    rw[BitVec.eq_of_getElem_eq_iff] at h1R
+    let h1L := h1L i hi
+    let h1R := h1R i hi
+    simp at h1L
+    simp at h1R
     grind -- TODO nicer proof
   }
-  { intro h; contradiction }
+  {
+    intro h1
+
+    apply And.intro
+    {
+      grind -- TODO nicer proof
+    }
+    {
+      grind -- TODO nicer proof
+    }
+  }
 
 public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
   : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
@@ -277,7 +285,7 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op
     repeat {
       let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
       simp[h4]
-      let h5 := containsConcrete_toBitvector? (w:=w) a hBv c h3 h1
+      let h5 := Iff.mp (toBitvector?_sound (w:=w) a hBv c h3) h1
       simp[h5]
     }
   }
@@ -301,8 +309,8 @@ public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp
     let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
     simp[h4]
 
-    let h5 := containsConcrete_toBitvector? (w:=w) a hA ca hAto ha
-    let h6 := containsConcrete_toBitvector? (w:=w) b hB cb hBto hb
+    let h5 := Iff.mp (toBitvector?_sound (w:=w) a hA ca hAto) ha
+    let h6 := Iff.mp (toBitvector?_sound (w:=w) b hB cb hBto) hb
     simp[h5,h6]
     trivial
   }
@@ -327,8 +335,8 @@ public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReduc
 
     simp[h4]
 
-    let h5 := containsConcrete_toBitvector? (w:=w) a hA ca hAto ha
-    let h6 := containsConcrete_toBitvector? (w:=w) b hB cb hBto hb
+    let h5 := Iff.mp (toBitvector?_sound (w:=w) a hA ca hAto) ha
+    let h6 := Iff.mp (toBitvector?_sound (w:=w) b hB cb hBto) hb
     simp[h5,h6]
     trivial
   }
@@ -359,3 +367,4 @@ public instance : AbstractDomain Bitvector3 where
   biReduction_sound := Bitvector3.biReduction_sound
 
   ofBitvector_sound := Bitvector3.ofBitvector_sound
+  toBitvector?_sound := Bitvector3.toBitvector?_sound
