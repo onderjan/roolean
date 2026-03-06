@@ -28,24 +28,24 @@ public def Assignment.getElem {v} {α : Nat → Type} [Domain α]
   (assignment: Assignment v α) (index: (Fin v.size)) : (α ∘ v.varWidth) index :=
   assignment.inner.get index (assignment.membership index)
 
-public def Assignment.containsConcrete {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
+public def Assignment.γ {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) (c: Assignment v Bitvector) : Bool :=
-  a.inner.all λ index elemA => AbstractDomain.containsConcrete elemA (c.getElem index)
+  a.inner.all λ index elemA => AbstractDomain.γ elemA (c.getElem index)
 
-public def Assignment.containsConcrete_forall {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
+public def Assignment.γ_forall {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) (c: Assignment v Bitvector)
-  : a.containsConcrete c = true ↔ ∀ (i: Fin v.size), AbstractDomain.containsConcrete (a.getElem i) (c.getElem i) := by
-  rw[containsConcrete]
+  : a.γ c = true ↔ ∀ (i: Fin v.size), AbstractDomain.γ (a.getElem i) (c.getElem i) := by
+  rw[γ]
   simp[Std.DHashMap.all_eq_true_iff_forall_mem_get]
   apply Iff.intro
   { intro h i; let h := h i (a.membership i); simp[getElem] at h; simp[getElem,h] }
   { intro h i; simp[getElem] at h; simp[getElem,h] }
 
 
-public def Assignment.containsConcrete_elem {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
+public def Assignment.γ_elem {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) (c: Assignment v Bitvector) (i: Fin v.size)
-  : a.containsConcrete c → AbstractDomain.containsConcrete (a.getElem i) (c.getElem i) := by
-  intro h; exact Iff.mp (Assignment.containsConcrete_forall a c) h i
+  : a.γ c → AbstractDomain.γ (a.getElem i) (c.getElem i) := by
+  intro h; exact Iff.mp (Assignment.γ_forall a c) h i
 
 def eval {v w} {α : Nat → Type} [Domain α]
   (formula: Formula v w) (assignment: Assignment v α) : α w :=
@@ -73,8 +73,8 @@ def eval {v w} {α : Nat → Type} [Domain α]
 
 
 theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
-  (f: Formula v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.containsConcrete c)
-  : AbstractDomain.containsConcrete (eval f a) (eval f c) := by
+  (f: Formula v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
+  : AbstractDomain.γ (eval f a) (eval f c) := by
   induction f
   {
     -- constant
@@ -84,7 +84,7 @@ theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
     -- variable
     rename_i i
     simp[eval.eq_def]
-    exact (Assignment.containsConcrete_elem a c i) h
+    exact (Assignment.γ_elem a c i) h
   }
   {
     -- unary
@@ -111,7 +111,7 @@ public def eval3 {v} {α : Nat → Type} [Domain α]
   Domain.toBitvector? result
 
 theorem eval3_sound {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
-  (f: Formula v 1) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.containsConcrete c)
+  (f: Formula v 1) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
   (r: Bitvector 1) (hR: some r = eval3 f a)
   : some r = eval3 f c := by
   simp[eval3] at hR

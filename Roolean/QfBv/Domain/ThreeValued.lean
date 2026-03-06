@@ -23,19 +23,19 @@ public def Bitvector3.ofBitvector {w} (bitvector: Bitvector w): Bitvector3 w :=
 
   {  zeros, ones, zeros_or_ones_set }
 
-public def Bitvector3.containsConcrete
+public def Bitvector3.γ
   (domain: Bitvector3 w) (concrete: Bitvector w) : Bool :=
     let concreteZeros := ~~~concrete.value
     let concreteOnes := concrete.value
     -- no zeros and ones in the concrete bitvector are outside zeros/ones in the abstract one
     (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
 
-public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
-  : ∃x, Bitvector3.containsConcrete a x := by
+public theorem Bitvector3.γ_nonempty {w} (a: Bitvector3 w)
+  : ∃x, Bitvector3.γ a x := by
 
   let bv: Bitvector w := { value := a.ones }
   exists bv
-  rw[Bitvector3.containsConcrete]
+  rw[Bitvector3.γ]
   simp[bv]
   let h := a.zeros_or_ones_set
   rw[BitVec.or_comm] at h
@@ -45,8 +45,8 @@ public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
   exact h
 
 public theorem Bitvector3.ofBitvector_sound {w} (c: Bitvector w)
-  : Bitvector3.containsConcrete (Bitvector3.ofBitvector c) c := by
-  simp[ofBitvector, containsConcrete]
+  : Bitvector3.γ (Bitvector3.ofBitvector c) c := by
+  simp[ofBitvector, γ]
 
 public def Bitvector3.allZeros (w: Nat): Bitvector3 w :=
   Bitvector3.ofBitvector (Bitvector.allZeros)
@@ -133,11 +133,11 @@ def Bitvector3.setBitToZero {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvecto
 
 
 theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
-  : a.containsConcrete c → (Bitvector3.setBitToZero a n).containsConcrete c
-  ∨ (Bitvector3.setBitToOne a n).containsConcrete c := by
+  : a.γ c → (Bitvector3.setBitToZero a n).γ c
+  ∨ (Bitvector3.setBitToOne a n).γ c := by
   rw[Bitvector3.setBitToOne]
   rw[Bitvector3.setBitToZero]
-  repeat rw [Bitvector3.containsConcrete]
+  repeat rw [Bitvector3.γ]
   simp
   intro hZeros
   intro hOnes
@@ -164,8 +164,8 @@ public theorem Bitvector3.split_noop_id {w} (a b : Bitvector3 w) (n: Fin w)
 
 public theorem Bitvector3.split_preserves {w: Nat} (a left right : Bitvector3 w)
   (n: Fin w) (c: Bitvector w)
-    : split a n = (left, some right) → containsConcrete a c →
-      containsConcrete left c ∨ containsConcrete right c := by
+    : split a n = (left, some right) → γ a c →
+      γ left c ∨ γ right c := by
   let h := splitBit_lemma a n c
 
   rw [split]
@@ -183,9 +183,9 @@ public theorem Bitvector3.split_preserves {w: Nat} (a left right : Bitvector3 w)
     simp
   }
 
-public theorem Bitvector3.top_containsConcrete_all {w: Nat} (c: Bitvector w)
-  : containsConcrete (Bitvector3.allUnknown w) c := by
-  rw[allUnknown, containsConcrete]; simp
+public theorem Bitvector3.top_γ_all {w: Nat} (c: Bitvector w)
+  : γ (Bitvector3.allUnknown w) c := by
+  rw[allUnknown, γ]; simp
 
 theorem xor_or_of_ands {w} (a b: BitVec w) : (~~~a &&& b) ||| (a &&& ~~~b) = a ^^^ b := by
   ext h ih
@@ -195,9 +195,9 @@ theorem xor_or_of_ands {w} (a b: BitVec w) : (~~~a &&& b) ||| (a &&& ~~~b) = a ^
   simp; simp; simp
 
 
-theorem Bitvector3.containsConcrete_ofBitvector {w} (c: Bitvector w) (d: Bitvector w)
-  : Bitvector3.containsConcrete (Bitvector3.ofBitvector c) d ↔ c = d := by
-  rw[ofBitvector, containsConcrete]
+theorem Bitvector3.γ_ofBitvector {w} (c: Bitvector w) (d: Bitvector w)
+  : Bitvector3.γ (Bitvector3.ofBitvector c) d ↔ c = d := by
+  rw[ofBitvector, γ]
 
   simp
   apply Iff.intro
@@ -228,14 +228,14 @@ theorem Bitvector3.containsConcrete_ofBitvector {w} (c: Bitvector w) (d: Bitvect
     simp
   }
 
-theorem Bitvector3.containsConcrete_allUnknown {w} (c: Bitvector w)
-  : Bitvector3.containsConcrete (Bitvector3.allUnknown w) c := by
-  rw[allUnknown, containsConcrete]
+theorem Bitvector3.γ_allUnknown {w} (c: Bitvector w)
+  : Bitvector3.γ (Bitvector3.allUnknown w) c := by
+  rw[allUnknown, γ]
   simp
 
 public theorem Bitvector3.toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
-    : some c = a.toBitvector? → (containsConcrete a d ↔ c = d) := by
-  simp[containsConcrete, toBitvector?, BitVec.not_xor_left]
+    : some c = a.toBitvector? → (γ a d ↔ c = d) := by
+  simp[γ, toBitvector?, BitVec.not_xor_left]
   intro h1 h2
   simp[h1, h2]
   apply Iff.intro
@@ -272,7 +272,7 @@ public theorem Bitvector3.toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvect
   }
 
 public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
-  : containsConcrete a c → containsConcrete (a.uniOp op) (c.uniOp op):= by
+  : γ a c → γ (a.uniOp op) (c.uniOp op):= by
   simp[uniOp]
   intro h1
 
@@ -283,19 +283,19 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op
     simp[Bitvector.uniOp]
     split
     repeat {
-      let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
+      let h4 := Bitvector3.γ_ofBitvector (w:=w)
       simp[h4]
       let h5 := Iff.mp (toBitvector?_sound (w:=w) a hBv c h3) h1
       simp[h5]
     }
   }
   {
-    apply containsConcrete_allUnknown
+    apply γ_allUnknown
   }
 
 public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
-    : containsConcrete a ca → containsConcrete b cb
-      → containsConcrete (Bitvector3.biNormal a b op) (Domain.biNormal ca cb op) := by
+    : γ a ca → γ b cb
+      → γ (Bitvector3.biNormal a b op) (Domain.biNormal ca cb op) := by
   intro ha hb
 
   simp[biNormal]
@@ -306,7 +306,7 @@ public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp
     rw[Eq.comm] at hAto
     rw[Eq.comm] at hBto
 
-    let h4 := Bitvector3.containsConcrete_ofBitvector (w:=w)
+    let h4 := Bitvector3.γ_ofBitvector (w:=w)
     simp[h4]
 
     let h5 := Iff.mp (toBitvector?_sound (w:=w) a hA ca hAto) ha
@@ -315,12 +315,12 @@ public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp
     trivial
   }
   {
-    apply containsConcrete_allUnknown
+    apply γ_allUnknown
   }
 
 public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca cb: Bitvector w)
-    : containsConcrete a ca → containsConcrete b cb
-      → containsConcrete (Bitvector3.biReduction a b op) (Domain.biReduction ca cb op) := by
+    : γ a ca → γ b cb
+      → γ (Bitvector3.biReduction a b op) (Domain.biReduction ca cb op) := by
   intro ha hb
 
   simp[biReduction]
@@ -331,7 +331,7 @@ public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReduc
     rw[Eq.comm] at hAto
     rw[Eq.comm] at hBto
 
-    let h4 := Bitvector3.containsConcrete_ofBitvector (w:=1)
+    let h4 := Bitvector3.γ_ofBitvector (w:=1)
 
     simp[h4]
 
@@ -341,7 +341,7 @@ public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReduc
     trivial
   }
   {
-    apply containsConcrete_allUnknown
+    apply γ_allUnknown
   }
 
 public instance : Domain Bitvector3 where
@@ -355,10 +355,10 @@ public instance : Domain Bitvector3 where
 public instance : AbstractDomain Bitvector3 where
   top := Bitvector3.allUnknown
   split := Bitvector3.split
-  containsConcrete := Bitvector3.containsConcrete
+  γ := Bitvector3.γ
 
-  top_containsConcrete_all := Bitvector3.top_containsConcrete_all
-  containsConcrete_nonempty := Bitvector3.containsConcrete_nonempty
+  top_γ_all := Bitvector3.top_γ_all
+  γ_nonempty := Bitvector3.γ_nonempty
   split_noop_id := Bitvector3.split_noop_id
   split_preserves := Bitvector3.split_preserves
 

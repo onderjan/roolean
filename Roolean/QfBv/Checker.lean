@@ -58,14 +58,14 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
           checkNode formula leftAssignment left
 
 /-
-def Assignment3.containsConcrete {v} (abstract: Assignment3 v) (concrete: Assignment2 v) : Bool :=
+def Assignment3.γ {v} (abstract: Assignment3 v) (concrete: Assignment2 v) : Bool :=
   let abstract := abstract.inner
   let concrete := concrete.inner
   if abstract.size == concrete.size then
     (abstract.zip concrete).all (λ (abstract, concrete) =>
         let concreteValue: Bitvector abstract.width :=
           { value := BitVec.ofNat abstract.width (BitVec.toNat concrete.value.value)}
-        AbstractDomain.containsConcrete abstract.value concreteValue
+        AbstractDomain.γ abstract.value concreteValue
     )
   else
     false
@@ -75,11 +75,11 @@ def Assignment3.containsConcrete {v} (abstract: Assignment3 v) (concrete: Assign
 theorem domain_sound
   (formula: Formula) (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
   : eval3 formula abstract = Except.ok (some result) →
-    abstract.containsConcrete concrete → eval3 formula concrete = Except.ok (some result) := sorry
+    abstract.γ concrete → eval3 formula concrete = Except.ok (some result) := sorry
 
 theorem checkNode_sound (formula: Formula) (node: SplitNode)
   (abstract: Assignment3) (concrete: Assignment2) (result: Bool)
-  : checkNode formula abstract node = Except.ok (some result) → abstract.containsConcrete concrete →
+  : checkNode formula abstract node = Except.ok (some result) → abstract.γ concrete →
     eval3 formula concrete = Except.ok (some result) := by
 
   induction node
