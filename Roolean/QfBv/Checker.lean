@@ -12,6 +12,7 @@ import Std.Data.DHashMap.Lemmas
 import Roolean.QfBv.Evaluator
 import Roolean.QfBv.Domain.Bitvector
 import Roolean.QfBv.Evaluator
+import Roolean.QfBv.Domain.Bitvector
 
 
 public inductive EChecker
@@ -42,57 +43,32 @@ def checkNode {w v} {α} [Domain α] [AbstractDomain α]
 
       Domain.biNormal leftResult rightResult BiNormalOp.BitOr
 
-/-
-theorem checkNode_sound {v} (f: Formula v 1) (n: SplitNode v) (a: Assignment3 v)
-  (r: Bitvector 1) (hR: some r = checkNode f a n)
-  (c: Assignment2 v) (hC: Assignment.γ a c) : some r = eval3 f c := by
-  let hEval3Sound := eval3_sound f a c hC r
+def isConcretizationOrResult {w v} {α} [Domain α] [AbstractDomain α]
+  (f: Formula v w) (a: Assignment v α) (candidate: Bitvector w)
+  := ∀ c, Assignment.γ a c → Domain.biNormal (eval f c) candidate BiNormalOp.BitOr = candidate
 
-  induction n
+theorem checkNode_sound {w v} {α} [Domain α] [AbstractDomain α]
+  (f: Formula v w) (a: Assignment v α) (n: SplitNode v)
+  (r: Bitvector w) (hR: isConcretizationOrResult f a r)
+  : AbstractDomain.γ (checkNode f a n) r := by
+  rw[isConcretizationOrResult] at hR
+
+  rw[checkNode.eq_def]; simp
+  split
   {
-    -- base case: leaf
-    rw[checkNode.eq_def] at hR
-    simp at hR; rw[hEval3Sound hR]
+    -- leaf
+    rename_i hEq
+
+    let hEvalSound := eval_sound f a
+
+    sorry -- TODO
   }
   {
     -- inductive
-    rename_i leftNode rightNode varIndex bitIndex left_ih right_ih
-    rw[checkNode.eq_def] at hR
-    split at hR
-    {
-      -- leaf
-      rename_i hEq
-      simp[hR] at hEval3Sound
-      simp[hR, hEval3Sound]
-    }
-    {
-      -- split
-      rename_i splitLeftNode splitRightNode splitVarIndex splitBitIndex hRightSplit
-      simp at hRightSplit
-      extract_lets varDomain at hR
-      split at hR
-      rename_i leftDomain rightDomainOpt hDomain
-      extract_lets left right at hR
-      split at hR
-      {
-        -- both results have a concrete value
-
-        rename_i rightDomain
-        extract_lets leftMap left rightMap right at hR
-        split at hR
-        {
-          rename_i leftResult rightResult hCheckLeft hCheckRight
-          sorry
-        }
-        { contradiction }
-      }
-      {
-        -- at least one result does not have a concrete value
-        contradiction
-      }
-    }
+    rename_i left right varIndex bitIndex left_ih right_ih
+    sorry -- TODO
   }
--/
+
 
 def makeTopAssignment {α} [Domain α] [AbstractDomain α]
   (v: VarWidths) : Assignment v α :=
