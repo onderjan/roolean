@@ -19,7 +19,7 @@ public structure EvalValue (α : Nat → Type) [Domain α] where
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
   inner: Std.DHashMap USize (α ∘ VarWidths.varWidth v)
-  containment {i} : i < v.usize → inner.contains i
+  containment {i} : i < v.usize ↔ inner.contains i
 
 def eval {v w} {α : Nat → Type} [Domain α]
   (formula: Formula v w) (assignment: Assignment v α) : α w :=
@@ -28,7 +28,7 @@ def eval {v w} {α : Nat → Type} [Domain α]
     | Formula.Constant constant => Domain.ofBitvector constant
 
     | Formula.Variable index =>
-      let h := assignment.containment index.property
+      let h := (Iff.mp assignment.containment) index.property
       assignment.inner.get index h
 
     | Formula.Unary inner op =>

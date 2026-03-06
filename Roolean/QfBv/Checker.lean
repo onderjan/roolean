@@ -33,7 +33,8 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
       let hGet: varIndex.val ∈ assignment.inner := by
         have hContains := assignment.containment (i:=varIndex)
         simp at hContains
-        simp [varIndex.property, hContains]
+        apply (Iff.mp hContains)
+        simp [varIndex.property]
 
       let varAssignment := assignment.inner.get varIndex hGet
         let (leftSplit, rightSplit) := varAssignment.split bitIndex
@@ -41,12 +42,12 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
         if let some rightSplit := rightSplit then
 
           let leftAssignment := assignment.inner.insert varIndex leftSplit
-          let hLeftContainment := by intro i hI; simp[hI, assignment.containment (i := i)]
+          let hLeftContainment := by intro i; simp[assignment.containment (i := i)]; intro hI; rw[← hI]; simp[hGet]
 
           let leftAssignment := { inner := leftAssignment, containment := hLeftContainment }
 
           let rightAssignment := assignment.inner.insert varIndex rightSplit
-          let hRightContainment := by intro i hI; simp[hI, assignment.containment (i := i)]
+          let hRightContainment := by intro i; simp[assignment.containment (i := i)]; intro hI; rw[← hI]; simp[hGet]
           let rightAssignment := { inner := rightAssignment, containment := hRightContainment }
 
           match checkNode formula leftAssignment left, checkNode formula rightAssignment right with
@@ -55,7 +56,7 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
         else
 
           let leftAssignment := assignment.inner.insert varIndex leftSplit
-          let hLeftContainment := by intro i hI; simp[hI, assignment.containment (i := i)]
+          let hLeftContainment := by intro i; simp[assignment.containment (i := i)]; intro hI; rw[← hI]; simp[hGet]
           let leftAssignment := { inner := assignment.inner.insert varIndex leftSplit, containment := hLeftContainment }
 
           checkNode formula leftAssignment left
@@ -168,12 +169,15 @@ structure Dependent (v: VarWidths) where
 public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool := do
 
   let range := Std.Rco.mk 0 v.usize
-  let rangeContainment {i} : (i < v.usize → i ∈ range) := by simp[range, Std.Rco.mem_iff]
+  let rangeContainment (i) : (i < v.usize ↔ i ∈ range) := by simp[range, Std.Rco.mem_iff]
 
   let indices := range.toArray
-  let arrayContainment {i} : (i < v.usize → indices.contains i) := by
-    intro h
-    simp[h, rangeContainment, indices, Std.Rco.mem_toArray_iff_mem]
+  let arrayContainment (i) : (i < v.usize ↔ indices.contains i) := by
+    simp[indices, Std.Rco.mem_toArray_iff_mem]
+    apply Iff.intro
+    { intro h; exact Iff.mp (rangeContainment i) h }
+    { intro h; exact Iff.mpr (rangeContainment i) h }
+
 
   let insertFn := λ (index: USize) =>
     let bv3 : (Bitvector3 ∘ v.varWidth) index := (Bitvector3.allUnknown (v.varWidth index))
@@ -184,16 +188,20 @@ public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bo
 
   let mut map: Std.DHashMap USize (Bitvector3 ∘ VarWidths.varWidth v) := Std.DHashMap.ofArray array
 
-  let containment: ∀ {i : USize}, i < v.usize → map.contains i := by
+  let containment: ∀ {i : USize}, i < v.usize ↔ map.contains i := by
     intro ix
-    intro h
-    simp
-    simp[map]
-    simp[array]
-    simp[insertFn]
-    exists ⟨ix, Bitvector3.allUnknown (v.varWidth ix)⟩
-    simp
-    grind
+    simp[map]; simp[array, insertFn]
+    apply Iff.intro
+    {
+      intro hI
+      exists ⟨ix, Bitvector3.allUnknown (v.varWidth ix)⟩
+      simp
+      exists ix
+      let h2 := Iff.mp (arrayContainment ix) hI
+      simp at h2
+      simp[h2]
+    }
+    { simp; grind } -- TODO nicer proof
 
   let assignment: Assignment3 v := { inner := map, containment }
 
