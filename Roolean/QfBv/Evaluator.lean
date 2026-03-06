@@ -7,6 +7,7 @@ import Roolean.QfBv.Domain
 import Std.Data.TreeMap.Basic
 import Std.Data.DHashMap.Basic
 public import Std.Data.DHashMap.Basic
+public import Roolean.QfBv.Formula
 
 public inductive EEvaluator
   | VariableNotAssigned (index: USize)
@@ -18,8 +19,16 @@ public structure EvalValue (α : Nat → Type) [Domain α] where
   value: α width
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
-  inner: Std.DHashMap USize (α ∘ VarWidths.varWidth v)
-  containment {i} : i < v.usize ↔ inner.contains i
+  inner: Std.DHashMap (Fin v.size) (α ∘ VarWidths.varWidth v)
+  membership (i: (Fin v.size)) : i ∈ inner
+
+public def Assignment.getElem {v} {α : Nat → Type} [Domain α]
+  (assignment: Assignment v α) (index: (Fin v.size)) :=
+  assignment.inner.get index (assignment.membership index)
+
+public def Assignment.containsConcrete {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
+  (a: Assignment v α) (c: Assignment v Bitvector) : Bool :=
+  a.inner.all λ index elemA => AbstractDomain.containsConcrete elemA (c.getElem index)
 
 def eval {v w} {α : Nat → Type} [Domain α]
   (formula: Formula v w) (assignment: Assignment v α) : α w :=
@@ -28,8 +37,7 @@ def eval {v w} {α : Nat → Type} [Domain α]
     | Formula.Constant constant => Domain.ofBitvector constant
 
     | Formula.Variable index =>
-      let h := (Iff.mp assignment.containment) index.property
-      assignment.inner.get index h
+      assignment.getElem index
 
     | Formula.Unary inner op =>
       let inner := eval inner assignment

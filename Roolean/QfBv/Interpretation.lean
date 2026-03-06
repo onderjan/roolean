@@ -32,15 +32,13 @@ public inductive EInterpretation
   | UnsupportedLogic (logic: String8)
   | RootWidthNotOne
 
-  | BadIndex
-
   | Checker (err: EChecker)
 
   | LetNotImplemented -- TODO implement
 deriving Repr
 
 structure VariableMap (v: VarWidths) where
-  inner: Std.HashMap String8 {a: USize // a < v.usize}
+  inner: Std.HashMap String8 (Fin v.size)
 
 structure FormulaW (v: VarWidths) where
   width: Nat
@@ -340,15 +338,13 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
   let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd.width) }
 
-  let mut variableMap: VariableMap varWidths := { inner := {} }
-  let mut index: USize := 0
-  for (name, type) in interpretation.variables do
-    if h : index < varWidths.usize then
-      let restricted := Subtype.mk index h
-      variableMap := { inner := variableMap.inner.insert name restricted }
-      index := index + 1
-    else
-      return Except.error EInterpretation.BadIndex
+  let numVariables := interpretation.variables.size
+
+  let variableArray: Array (String8 × (Fin varWidths.size)) := interpretation.variables.mapFinIdx λ index var h =>
+    let h: index < varWidths.size := by simp[varWidths, VarWidths.size, h]
+    (var.fst, Fin.mk index h)
+
+  let variableMap: VariableMap varWidths := { inner := Std.HashMap.ofArray variableArray }
 
   match interpretTerm (v := varWidths) variableMap assertion with
     | Except.ok formula =>

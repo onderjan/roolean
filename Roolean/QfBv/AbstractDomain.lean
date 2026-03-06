@@ -6,12 +6,12 @@ public import Roolean.QfBv.Domain
 public class AbstractDomain (α : Nat → Type) [Domain α] where
   top (w: Nat) : α w
   containsConcrete {w}: α w → Bitvector w → Bool
-  split {w}: α w → {n: Nat // n < w}  → (α w × Option (α w))
+  split {w}: α w → Fin w → (α w × Option (α w))
 
   top_containsConcrete_all {w} (c: Bitvector w) : containsConcrete (top w) c
   containsConcrete_nonempty {w} (a: α w) : ∃c, containsConcrete a c
   split_noop_id {w} (a b : α w) (n) : split a n = (b, none) → a = b
-  split_preserves {w: Nat} (a left right : α w) (n: {n: Nat // n < w}) (c: Bitvector w)
+  split_preserves {w: Nat} (a left right : α w) (n: Fin w) (c: Bitvector w)
     : split a n = (left, some right) → containsConcrete a c →
       containsConcrete left c ∨ containsConcrete right c
 

@@ -145,7 +145,7 @@ theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
   grind -- TODO: nice proof
 
 
-public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: {n: Nat // n < w})
+public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
    : Bitvector3 w × Option (Bitvector3 w) :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
@@ -159,12 +159,12 @@ public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: {n: Nat // n <
     (domain, none)
 
 
-public theorem Bitvector3.split_noop_id {w} (a b : Bitvector3 w) (n: {n: Nat // n < w})
+public theorem Bitvector3.split_noop_id {w} (a b : Bitvector3 w) (n: Fin w)
   : split a n = (b, none) → a = b := by
   rw[split]; split; simp; simp
 
 public theorem Bitvector3.split_preserves {w: Nat} (a left right : Bitvector3 w)
-  (n: {n: Nat // n < w}) (c: Bitvector w)
+  (n: Fin w) (c: Bitvector w)
     : split a n = (left, some right) → containsConcrete a c →
       containsConcrete left c ∨ containsConcrete right c := by
   let h := splitBit_lemma a n c

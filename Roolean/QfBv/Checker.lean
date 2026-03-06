@@ -9,6 +9,7 @@ import Roolean.QfBv.Domain.Bitvector
 import Roolean.QfBv.AbstractDomain
 import Roolean.QfBv.Evaluator
 import Std.Data.DHashMap.Lemmas
+import Roolean.QfBv.Evaluator
 
 
 public inductive EChecker
@@ -19,7 +20,7 @@ deriving Repr
 public inductive SplitNode (v: VarWidths)
   | Leaf
   | Split (left: SplitNode v) (right: SplitNode v)
-    (varIndex: {i: USize // i < v.usize}) (bitIndex: {b: Nat // b < v.varWidth varIndex})
+    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex))
 deriving Repr
 
 def Assignment2 (v: VarWidths) := Assignment v Bitvector
@@ -30,34 +31,28 @@ def checkNode {v} (formula: Formula v 1) (assignment: Assignment3 v) (node: Spli
     | SplitNode.Leaf =>
       eval3 formula assignment
     | SplitNode.Split left right varIndex bitIndex =>
-      let hGet: varIndex.val ∈ assignment.inner := by
-        have hContains := assignment.containment (i:=varIndex)
-        simp at hContains
-        apply (Iff.mp hContains)
-        simp [varIndex.property]
 
-      let varAssignment := assignment.inner.get varIndex hGet
+      let varAssignment := assignment.getElem varIndex
         let (leftSplit, rightSplit) := varAssignment.split bitIndex
 
         if let some rightSplit := rightSplit then
 
           let leftAssignment := assignment.inner.insert varIndex leftSplit
-          let hLeftContainment := by intro i; simp[assignment.containment (i := i)]; intro hI; rw[← hI]; simp[hGet]
+          let hLeftMem := by simp[leftAssignment, assignment.membership]
 
-          let leftAssignment := { inner := leftAssignment, containment := hLeftContainment }
+          let leftAssignment := { inner := leftAssignment, membership := hLeftMem }
 
           let rightAssignment := assignment.inner.insert varIndex rightSplit
-          let hRightContainment := by intro i; simp[assignment.containment (i := i)]; intro hI; rw[← hI]; simp[hGet]
-          let rightAssignment := { inner := rightAssignment, containment := hRightContainment }
+          let hRightMem := by simp[rightAssignment, assignment.membership]
+          let rightAssignment := { inner := rightAssignment, membership := hRightMem }
 
           match checkNode formula leftAssignment left, checkNode formula rightAssignment right with
             | some left, some right => some (left || right)
             | _, _ => none
         else
-
           let leftAssignment := assignment.inner.insert varIndex leftSplit
-          let hLeftContainment := by intro i; simp[assignment.containment (i := i)]; intro hI; rw[← hI]; simp[hGet]
-          let leftAssignment := { inner := assignment.inner.insert varIndex leftSplit, containment := hLeftContainment }
+          let hLeftContainment := by simp[assignment.membership]
+          let leftAssignment := { inner := assignment.inner.insert varIndex leftSplit, membership := hLeftContainment }
 
           checkNode formula leftAssignment left
 
@@ -161,62 +156,55 @@ def makeTopAssignment {v} {index: Nat} (part: PartialAssignment v index.toUSize)
     { inner := part.inner, containment := finalContains }
 -/
 
-structure Dependent (v: VarWidths) where
-  index: USize
-  value: (Bitvector3 ∘ v.varWidth) index
-
-
 public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool := do
 
-  let range := Std.Rco.mk 0 v.usize
+  /-let range := Std.Rco.mk 0 v.usize
+
   let rangeContainment (i) : (i < v.usize ↔ i ∈ range) := by simp[range, Std.Rco.mem_iff]
 
+
   let indices := range.toArray
-  let arrayContainment (i) : (i < v.usize ↔ indices.contains i) := by
+  let arrayContainment (i) : (i < v.usize ↔ i ∈ indices) := by
     simp[indices, Std.Rco.mem_toArray_iff_mem]
     apply Iff.intro
     { intro h; exact Iff.mp (rangeContainment i) h }
     { intro h; exact Iff.mpr (rangeContainment i) h }
 
+  let indices := indices.fin
+  -/
 
-  let insertFn := λ (index: USize) =>
+  let indices := Array.ofFn (fun (i: Fin v.size) => i)
+
+  let hIndicesMembership (i : Fin v.size) : i ∈ indices := by simp[indices, Array.mem_ofFn]
+
+  let insertFn := λ (index: Fin v.size) =>
     let bv3 : (Bitvector3 ∘ v.varWidth) index := (Bitvector3.allUnknown (v.varWidth index))
     Sigma.mk index bv3
 
-  let array: Array ((a : USize) × (Bitvector3 ∘ v.varWidth) a) :=
+  let array: Array ((a : Fin v.size) × (Bitvector3 ∘ v.varWidth) a) :=
     indices.map insertFn
 
-  let mut map: Std.DHashMap USize (Bitvector3 ∘ VarWidths.varWidth v) := Std.DHashMap.ofArray array
+  let hArrayMembership (i : Fin v.size): (insertFn i) ∈ array := by
+    simp[array, insertFn]
+    exists i
+    simp[hIndicesMembership]
 
-  let containment: ∀ {i : USize}, i < v.usize ↔ map.contains i := by
+  let mut map: Std.DHashMap (Fin v.size) (Bitvector3 ∘ VarWidths.varWidth v) := Std.DHashMap.ofArray array
+
+  let hMapMembership: ∀ (i : Fin v.size), i ∈ map := by
     intro ix
-    simp[map]; simp[array, insertFn]
-    apply Iff.intro
-    {
-      intro hI
-      exists ⟨ix, Bitvector3.allUnknown (v.varWidth ix)⟩
-      simp
-      exists ix
-      let h2 := Iff.mp (arrayContainment ix) hI
-      simp at h2
-      simp[h2]
-    }
-    { simp; grind } -- TODO nicer proof
+    simp[Std.DHashMap.ofArray_eq_ofList, Std.DHashMap.mem_ofList, map]
+    exists insertFn ix
+    simp[hArrayMembership, insertFn]
 
-  let assignment: Assignment3 v := { inner := map, containment }
+  let assignment: Assignment3 v := { inner := map, membership := hMapMembership }
 
   checkNode formula assignment splitTree
 
 public def solve {v: VarWidths} (formula: Formula v 1) : Option Bool := do
-  let mut splitTree := SplitNode.Leaf
-  for h1: varIndex in 0...v.usize do
-    for h2: bitIndex in 0...(v.varWidth varIndex) do
-      let hVarIndex: varIndex < v.usize := by simp [Std.Rco.mem_iff] at h1; simp[h1]
-      let hBitIndex: bitIndex < v.varWidth varIndex := by simp [Std.Rco.mem_iff] at h2; simp[h2]
-
-      let varIndex := Subtype.mk varIndex hVarIndex
-      let bitIndex := Subtype.mk bitIndex hBitIndex
-
-      splitTree := SplitNode.Split splitTree splitTree varIndex bitIndex
+  let splitTree: SplitNode v := Fin.foldl v.size (λ (splitTree: SplitNode v) varIndex =>
+    Fin.foldl (v.varWidth varIndex) (λ splitTree bitIndex =>
+        SplitNode.Split splitTree splitTree varIndex bitIndex) splitTree
+    ) SplitNode.Leaf
 
   check formula splitTree
