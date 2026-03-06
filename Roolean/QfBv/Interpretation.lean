@@ -2,15 +2,15 @@ module
 
 public import Roolean.SmtLib2.Parser
 public import Roolean.SmtLib2.Executor
-public import Roolean.QfBv.Formula
-public import Roolean.QfBv.Checker
 
-import Std.Data.HashMap.Basic
+import Roolean.QfBv.Formula
 import Roolean.QfBv.Checker
+import Roolean.QfBv.Domain.ThreeValued
+import Std.Data.HashMap.Basic
 
 
 public structure Interpretation where
-  variables: Array (String8 × BitvectorType)
+  variables: Array (String8 × Nat)
   assertions: Array SmtTerm
 
 public inductive EInterpretation
@@ -32,8 +32,6 @@ public inductive EInterpretation
   | UnsupportedLogic (logic: String8)
   | RootWidthNotOne
 
-  | Checker (err: EChecker)
-
   | LetNotImplemented -- TODO implement
 deriving Repr
 
@@ -45,13 +43,13 @@ structure FormulaW (v: VarWidths) where
   value: Formula v width
 deriving Repr, Nonempty
 
-def interpretVariableSort (sort: SmtSort): Except EInterpretation BitvectorType :=
+def interpretVariableSort (sort: SmtSort): Except EInterpretation Nat :=
   match sort with
     | SmtSort.Ident (SmtIdent.Indexed typename #[width]) =>
       if let some "BitVec" := typename.toString? then
         match width with
           | SmtIndex.Numeral width _width_num_length =>
-            pure {width := width}
+            pure width
           | _ =>
             -- bitvector width must be a numeral
             Except.error EInterpretation.BitvectorWidthNotNumeral
@@ -336,7 +334,7 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
         -- combine the assertions in a conjunction, which is left-associative
         SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) interpretation.assertions
 
-  let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd.width) }
+  let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd) }
 
   let numVariables := interpretation.variables.size
 
