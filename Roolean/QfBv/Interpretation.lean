@@ -356,7 +356,7 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
         IO.println s!"Check satisfiability\nVar widths: {reprStr varWidths}\nFormula: {reprStr formula}"
 
-        let satisfiable := solve formula
+        let satisfiable := solve Bitvector3 formula
         IO.println s!"Satisfiable: {reprStr satisfiable}"
         pure (Except.ok ())
       else

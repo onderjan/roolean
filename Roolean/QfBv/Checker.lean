@@ -25,16 +25,14 @@ public inductive SplitNode (v: VarWidths)
     (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex))
 deriving Repr
 
-def Assignment2 (v: VarWidths) := Assignment v Bitvector
-def Assignment3 (v: VarWidths) := Assignment v Bitvector3
-
-def checkNode {w v} (formula: Formula v w) (assignment: Assignment3 v) (node: SplitNode v) : Bitvector3 w :=
+def checkNode {w v} {α} [Domain α] [AbstractDomain α]
+  (formula: Formula v w) (assignment: Assignment v α) (node: SplitNode v) : α w :=
   match node with
     | SplitNode.Leaf =>
       eval formula assignment
     | SplitNode.Split leftNode rightNode varIndex bitIndex =>
       let varDomain := assignment.getElem varIndex
-      let (leftDomain, rightDomain) := varDomain.split bitIndex
+      let (leftDomain, rightDomain) := AbstractDomain.split varDomain bitIndex
 
       let leftAssignment := assignment.setElem varIndex leftDomain
       let rightAssignment := assignment.setElem varIndex rightDomain
@@ -96,21 +94,20 @@ theorem checkNode_sound {v} (f: Formula v 1) (n: SplitNode v) (a: Assignment3 v)
   }
 -/
 
-def makeTopAssignment (v: VarWidths) : Assignment3 v :=
+def makeTopAssignment {α} [Domain α] [AbstractDomain α]
+  (v: VarWidths) : Assignment v α :=
   let indices := Array.ofFn (fun (i: Fin v.size) => i)
   let hIndicesMembership (i : Fin v.size) : i ∈ indices := by simp[indices, Array.mem_ofFn]
 
-  let insertFn := λ (index: Fin v.size) =>
-    let bv3 : (Bitvector3 ∘ v.varWidth) index := (Bitvector3.allUnknown (v.varWidth index))
-    Sigma.mk index bv3
+  let insertFn := λ (index: Fin v.size) => Sigma.mk index (AbstractDomain.top (v.varWidth index))
 
-  let array: Array ((a : Fin v.size) × (Bitvector3 ∘ v.varWidth) a) :=
+  let array: Array ((a : Fin v.size) × (α ∘ v.varWidth) a) :=
     indices.map insertFn
 
   let hArrayMembership (i : Fin v.size): (insertFn i) ∈ array := by
     simp[array, insertFn]; exists i; simp[hIndicesMembership]
 
-  let map: Std.DHashMap (Fin v.size) (Bitvector3 ∘ VarWidths.varWidth v) := Std.DHashMap.ofArray array
+  let map: Std.DHashMap (Fin v.size) (α ∘ VarWidths.varWidth v) := Std.DHashMap.ofArray array
 
   let hMapMembership: ∀ (i : Fin v.size), i ∈ map := by
     intro ix
@@ -120,18 +117,22 @@ def makeTopAssignment (v: VarWidths) : Assignment3 v :=
 
   { inner := map, membership := hMapMembership }
 
-def compute {w v} (formula: Formula v w) (splitTree: SplitNode v) : Bitvector3 w :=
+def compute {w v} (α) [Domain α] [AbstractDomain α]
+  (formula: Formula v w) (splitTree: SplitNode v) : α w :=
   let topAssignment := makeTopAssignment v
   checkNode formula topAssignment splitTree
 
-public def check {v} (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool :=
-  let result := compute formula splitTree
-  result.toBitvector?.map Bitvector.toBool
+public def check {v} (α) [Domain α] [AbstractDomain α]
+  (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool :=
+  let result := compute α formula splitTree
+  let result := Domain.toBitvector? result
+  result.map Bitvector.toBool
 
-public def solve {v: VarWidths} (formula: Formula v 1) : Option Bool := do
+public def solve {v: VarWidths} (α) [Domain α] [AbstractDomain α]
+  (formula: Formula v 1) : Option Bool := do
   let splitTree: SplitNode v := Fin.foldl v.size (λ (splitTree: SplitNode v) varIndex =>
     Fin.foldl (v.varWidth varIndex) (λ splitTree bitIndex =>
         SplitNode.Split splitTree splitTree varIndex bitIndex) splitTree
     ) SplitNode.Leaf
 
-  check formula splitTree
+  check α formula splitTree
