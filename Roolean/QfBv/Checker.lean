@@ -2,6 +2,7 @@ module
 public import Roolean.QfBv.Evaluator
 
 import Std.Data.DHashMap.Lemmas
+import Roolean.QfBv.Assignment
 
 public inductive SplitNode (v: VarWidths)
   | Leaf
@@ -15,11 +16,7 @@ def checkNode {w v} {α} [Domain α] [AbstractDomain α]
     | SplitNode.Leaf =>
       eval formula assignment
     | SplitNode.Split leftNode rightNode varIndex bitIndex =>
-      let varDomain := assignment.getElem varIndex
-      let (leftDomain, rightDomain) := AbstractDomain.split varDomain bitIndex
-
-      let leftAssignment := assignment.setElem varIndex leftDomain
-      let rightAssignment := assignment.setElem varIndex rightDomain
+      let (leftAssignment, rightAssignment) := assignment.split varIndex bitIndex
 
       let leftResult := checkNode formula leftAssignment leftNode
       let rightResult := checkNode formula rightAssignment rightNode

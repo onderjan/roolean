@@ -58,3 +58,13 @@ public def Assignment.top (α) [Domain α] [AbstractDomain α]
     simp[hArrayMembership, insertFn]
 
   { inner := map, membership := hMapMembership }
+
+public def Assignment.split {v} {α} [Domain α] [AbstractDomain α]
+  (a: Assignment v α) (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex))
+  : (Assignment v α) × (Assignment v α) :=
+    let varDomain := a.getElem varIndex
+    let (leftDomain, rightDomain) := AbstractDomain.split varDomain bitIndex
+
+    let leftAssignment := a.setElem varIndex leftDomain
+    let rightAssignment := a.setElem varIndex rightDomain
+    (leftAssignment, rightAssignment)
