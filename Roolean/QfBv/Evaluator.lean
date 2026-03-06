@@ -3,11 +3,6 @@ module
 public import Roolean.QfBv.AbstractDomain
 public import Roolean.QfBv.Assignment
 
-public inductive EEvaluator
-  | VariableNotAssigned (index: USize)
-  | WrongVariableWidth (index: USize)
-deriving Repr
-
 public def eval {v w} {α : Nat → Type} [Domain α]
   (formula: Formula v w) (assignment: Assignment v α) : α w :=
 
