@@ -23,6 +23,31 @@ public def Bitvector3.ofBitvector {w} (bitvector: Bitvector w): Bitvector3 w :=
 
   {  zeros, ones, zeros_or_ones_set }
 
+public def Bitvector3.containsConcrete
+  (domain: Bitvector3 w) (concrete: Bitvector w) : Bool :=
+    let concreteZeros := ~~~concrete.value
+    let concreteOnes := concrete.value
+    -- no zeros and ones in the concrete bitvector are outside zeros/ones in the abstract one
+    (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
+
+public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
+  : ∃x, Bitvector3.containsConcrete a x := by
+
+  let bv: Bitvector w := { value := a.ones }
+  exists bv
+  rw[Bitvector3.containsConcrete]
+  simp[bv]
+  let h := a.zeros_or_ones_set
+  rw[BitVec.or_comm] at h
+  rw[← BitVec.not_or]
+  rw[BitVec.not_eq_comm]
+  rw[BitVec.not_zero]
+  exact h
+
+public theorem Bitvector3.ofBitvector_sound {w} (c: Bitvector w)
+  : Bitvector3.containsConcrete (Bitvector3.ofBitvector c) c := by
+  simp[ofBitvector, containsConcrete]
+
 public def Bitvector3.allZeros (w: Nat): Bitvector3 w :=
   Bitvector3.ofBitvector (Bitvector.allZeros)
 
@@ -60,32 +85,6 @@ public def Bitvector3.biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w)
     Bitvector3.ofBitvector result
   | _, _ =>
       Bitvector3.allUnknown 1
-
-public def Bitvector3.containsConcrete
-  (domain: Bitvector3 w) (concrete: Bitvector w) : Bool :=
-    let concreteZeros := ~~~concrete.value
-    let concreteOnes := concrete.value
-    -- no zeros and ones in the concrete bitvector are outside zeros/ones in the abstract one
-    (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
-
-public theorem Bitvector3.containsConcrete_nonempty {w} (a: Bitvector3 w)
-  : ∃x, Bitvector3.containsConcrete a x := by
-
-  let bv: Bitvector w := { value := a.ones }
-  exists bv
-  rw[Bitvector3.containsConcrete]
-  simp[bv]
-
-  /-rw[← BitVec.not_or]
-  rw[← BitVec.not_allOnes]
-  rw[BitVec.not_inj]-/
-
-  let h := a.zeros_or_ones_set
-  rw[BitVec.or_comm] at h
-  rw[← BitVec.not_or]
-  rw[BitVec.not_eq_comm]
-  rw[BitVec.not_zero]
-  exact h
 
 theorem bvandZeros {w} {a b: BitVec w} : (a = 0#w ∧ b = 0#w) → (a &&& b  = 0#w) := by
   simp
@@ -358,3 +357,5 @@ public instance : AbstractDomain Bitvector3 where
   uniOp_sound := Bitvector3.uniOp_sound
   biNormal_sound := Bitvector3.biNormal_sound
   biReduction_sound := Bitvector3.biReduction_sound
+
+  ofBitvector_sound := Bitvector3.ofBitvector_sound

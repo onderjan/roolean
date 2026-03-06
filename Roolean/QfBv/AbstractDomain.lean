@@ -23,3 +23,5 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
   biReduction_sound {w} (a b: α w) (op: BiReductionOp) (ca cb: Bitvector w)
     : containsConcrete a ca → containsConcrete b cb
       → containsConcrete (Domain.biReduction a b op) (Domain.biReduction ca cb op)
+
+  ofBitvector_sound {w} (c: Bitvector w) : containsConcrete (Domain.ofBitvector c) c
