@@ -89,7 +89,7 @@ def Assignment.bitvectorEnumerateRec {v: VarWidths}
   let finN := (Fin.mk n hN)
   let nextN := n + 1
 
-  (Bitvector.enumerate (v.varWidth finN)).flatMap (λ bv =>
+  (Bitvector.enumerate (v.varWidth finN)).toArray.flatMap (λ bv =>
     let nextInner := combination.inner.push (Sigma.mk finN bv)
     let hSize : nextInner.size = n + 1 := by simp[nextInner, Array.size_push, combination.hSize]
     let hMembership: ∀ (i : Fin v.size), i < nextInner.size → ∃ a, a ∈ nextInner ∧ a.fst = i := by
