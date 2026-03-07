@@ -80,3 +80,10 @@ public theorem BitvectorDomain.ofBitvector_id {w} (b: Bitvector w) : BitvectorDo
     by simp[BitvectorDomain, Bitvector.ofBitvector]
 public theorem BitvectorDomain.toBitvector?_someSelf {w} (b: Bitvector w) : BitvectorDomain.toBitvector? b = some b
   := by simp[BitvectorDomain, Bitvector.toBitvector?]
+
+public def Bitvector.enumerate (w: Nat) : Array (Bitvector w) :=
+  Array.ofFn λ (n: Fin (2^w)) => { value := BitVec.ofFin n }
+
+public theorem Bitvector.enumerate_containsAll (w: Nat) (c: Bitvector w)
+  : c ∈ Bitvector.enumerate w := by
+  rw[Bitvector.enumerate]; rw[Array.mem_ofFn]; exists c.value.toFin
