@@ -67,6 +67,7 @@ public def Bitvector.biReduction {w: Nat} (left: Bitvector w) (right: Bitvector 
   | .Slt => reductionBi left right λ a b => (a.slt b)
   | .Sle => reductionBi left right λ a b => (a.sle b)
 
+public def Bitvector.fmt {w} (domain: Bitvector w) : String := s!"{domain.value}"
 
 public instance BitvectorDomain : Domain Bitvector where
   ofBitvector := Bitvector.ofBitvector
@@ -75,6 +76,7 @@ public instance BitvectorDomain : Domain Bitvector where
   uniOp := Bitvector.uniOp
   biNormal := Bitvector.biNormal
   biReduction := Bitvector.biReduction
+  fmt := Bitvector.fmt
 
 public theorem BitvectorDomain.ofBitvector_id {w} (b: Bitvector w) : BitvectorDomain.ofBitvector b = b :=
     by simp[BitvectorDomain, Bitvector.ofBitvector]

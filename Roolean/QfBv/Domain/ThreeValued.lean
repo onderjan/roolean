@@ -344,6 +344,8 @@ public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReduc
     apply γ_allUnknown
   }
 
+public def Bitvector3.fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
+
 public instance : Domain Bitvector3 where
   ofBitvector := Bitvector3.ofBitvector
   toBitvector? := Bitvector3.toBitvector?
@@ -351,6 +353,8 @@ public instance : Domain Bitvector3 where
   uniOp := Bitvector3.uniOp
   biNormal := Bitvector3.biNormal
   biReduction := Bitvector3.biReduction
+
+  fmt := Bitvector3.fmt
 
 public instance : AbstractDomain Bitvector3 where
   top := Bitvector3.allUnknown

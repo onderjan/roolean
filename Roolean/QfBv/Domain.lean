@@ -41,3 +41,5 @@ public class Domain (α: Nat → Type) where
   uniOp {w}: α w → UniOp → α w
   biNormal{w}: α w → α w → BiNormalOp → α w
   biReduction {w}: α w → α w → BiReductionOp → α 1
+
+  fmt {w}: α w → String
