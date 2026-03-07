@@ -84,68 +84,61 @@ structure Combination (v: VarWidths) (n: Nat) where
   hMembership: ∀ (i: Fin v.size), i < inner.size → (∃ a, (a ∈ inner ∧ a.fst = i))
 
 def Assignment.bitvectorEnumerateRec {v: VarWidths}
-  (n: Nat) (combinations: Array (Combination v n)) (hN: n < v.size): Array (Assignment v Bitvector) :=
+  (n: Nat) (combination: Combination v n) (hN: n < v.size): Array (Assignment v Bitvector) :=
 
   let finN := (Fin.mk n hN)
-
-  let combinationsFn (current: Combination v n) : Array (Combination v (n+1)) :=
-      Array.ofFn λ (bv : Fin (2^(v.varWidth finN))) =>
-        let possibility := Sigma.mk finN { value := (BitVec.ofFin bv) }
-        let nextInner := current.inner.push possibility
-        let hSize : nextInner.size = n + 1 := by simp[nextInner, Array.size_push, current.hSize]
-        let hMembership: ∀ (i : Fin v.size), i < nextInner.size → ∃ a, a ∈ nextInner ∧ a.fst = i := by
-          intro i hI
-          let h := current.hMembership i
-          by_cases i < current.inner.size
-          {
-            rename_i hCase
-            simp [hCase] at h
-            grind -- TODO nice proof
-          }
-          {
-            rename_i hCase
-            simp [nextInner] at hI
-            simp[nextInner]
-            exists possibility
-            simp[possibility, finN]
-            grind -- TODO nice proof
-          }
-        { inner := nextInner, hSize, hMembership }
-
-  let nextCombinations := combinations.flatMap combinationsFn
-
   let nextN := n + 1
-  if hNext: nextN < v.size then
-    Assignment.bitvectorEnumerateRec nextN nextCombinations hNext
-  else
-    let hNextN : nextN = v.size := by grind -- TODO nice proof
-    nextCombinations.map (λ (combination: Combination v nextN) =>
-      let hMembership:  ∀ (i : Fin v.size), ∃ a, a ∈ combination.inner ∧ a.fst = i := by
+
+  (Bitvector.enumerate (v.varWidth finN)).flatMap (λ bv =>
+    let nextInner := combination.inner.push (Sigma.mk finN bv)
+    let hSize : nextInner.size = n + 1 := by simp[nextInner, Array.size_push, combination.hSize]
+    let hMembership: ∀ (i : Fin v.size), i < nextInner.size → ∃ a, a ∈ nextInner ∧ a.fst = i := by
+      intro i hI
+      let h := combination.hMembership i
+      by_cases i < combination.inner.size
+      {
+        rename_i hCase
+        simp [hCase] at h
+        grind -- TODO nice proof
+      }
+      {
+        rename_i hCase
+        simp [nextInner] at hI
+        simp[nextInner]
+        exists Sigma.mk finN bv
+        simp[finN]
+        grind -- TODO nice proof
+      }
+
+    let nextCombination := { inner := nextInner, hSize, hMembership }
+
+    if hNext: nextN < v.size then
+      Assignment.bitvectorEnumerateRec nextN nextCombination hNext
+    else
+      let hNextN : nextN = v.size := by grind -- TODO nice proof
+      let hMembership:  ∀ (i : Fin v.size), ∃ a, a ∈ nextCombination.inner ∧ a.fst = i := by
         intro i
-        let hM := combination.hMembership i
-        simp [combination.hSize, hNextN] at hM
+        let hM := nextCombination.hMembership i
+        simp [nextCombination.hSize, hNextN] at hM
         simp[hM]
-      Assignment.make Bitvector v combination.inner hMembership)
+      #[Assignment.make Bitvector v nextCombination.inner hMembership]
+    )
+
 
 public def Assignment.bitvectorEnumerate (v: VarWidths) : Array (Assignment v Bitvector) :=
 
+  -- make starting combination
+  let inner := #[]
+  let hMembership := by simp
+  let combination := { inner, hSize := by simp[inner], hMembership }
+
   if hN: 0 < v.size then
-    -- make starting combination
-    let inner := #[]
-    let hSize : inner.size = 0 := by simp[inner]
-    let hMembership := by simp
-    let combination := { inner, hSize, hMembership }
-
-    let combinations: Array (Combination v 0) := #[combination]
-
-    Assignment.bitvectorEnumerateRec 0 combinations hN
-
+    Assignment.bitvectorEnumerateRec 0 combination hN
   else
     -- just one unit assignment
     let inner: Std.DHashMap (Fin v.size) (Bitvector ∘ VarWidths.varWidth v) := {}
-    let membership (i: (Fin v.size)) : i ∈ inner := by
+    let hMembership (i: (Fin v.size)) : ∃ a, a ∈ combination.inner ∧ a.fst = i := by
       simp at hN; simp [hN] at i; exact Fin.elim0 i
+    #[Assignment.make Bitvector v combination.inner hMembership]
 
-    #[{ inner, membership }]
-
--- #eval (Assignment.bitvectorEnumerate  { inner := #[1, 1] }).size
+-- #eval (Assignment.bitvectorEnumerate  { inner := #[3, 1] }).size
