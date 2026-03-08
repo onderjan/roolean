@@ -80,12 +80,12 @@ public def Assignment.top (α) [Domain α] [AbstractDomain α] (v: VarWidths) : 
   Assignment.createFromFn α v (λ n => AbstractDomain.top (v.varWidth n))
 
 def Assignment.bitvectorEnumerateRec {v: VarWidths}
-  (n: Nat) (a: Assignment v Bitvector) (hN: n < v.size): Array (Assignment v Bitvector) :=
+  (n: Nat) (a: Assignment v Bitvector) (hN: n < v.size): Vector (Assignment v Bitvector) (2^(v.widthFrom n)) :=
 
   let finN := (Fin.mk n hN)
   let nextN := n + 1
 
-  (Bitvector.enumerate (v.varWidth finN)).toArray.flatMap (λ bv =>
+  let vector := (Bitvector.enumerate (v.varWidth finN)).flatMap λ bv =>
     let inner := a.inner.insert finN bv
     let membership (i: (Fin v.size)) : i ∈ inner := by simp[inner, a.membership]
     let nextAssignment := { inner, membership }
@@ -93,18 +93,28 @@ def Assignment.bitvectorEnumerateRec {v: VarWidths}
     if hNext: nextN < v.size then
       Assignment.bitvectorEnumerateRec nextN nextAssignment hNext
     else
-      #[nextAssignment]
-  )
+      let nextAssignments: Array (Assignment v Bitvector) := #[nextAssignment]
+      let h : nextAssignments.size = 2 ^ v.widthFrom nextN := by
+        simp at hNext; simp[hNext, nextAssignments, VarWidths.widthFrom_ge_size]
+      Vector.mk nextAssignments h
 
+  let h : (2 ^ v.varWidth finN * 2 ^ v.widthFrom nextN) = (2 ^ v.widthFrom n) := by
+    simp[nextN, finN]
+    rw (occs := .pos [2])[VarWidths.widthFrom]
+    split; repeat rw[Nat.pow_add]
+  vector.cast h
 
-public def Assignment.bitvectorEnumerate (v: VarWidths) : Array (Assignment v Bitvector) :=
-  -- start with zero assignment
+public def Assignment.bitvectorEnumerate (v: VarWidths) : Vector (Assignment v Bitvector) (2^v.widthTotal) :=
+  -- start with all-zero assignment
   let assignment := Assignment.createFromFn Bitvector v (λ n => { value := BitVec.zero (v.varWidth n) })
 
   if hN: 0 < v.size then
     Assignment.bitvectorEnumerateRec 0 assignment hN
   else
     -- just one unit assignment
-    #[assignment]
+    let assignments := #[assignment]
+    let h : assignments.size = 2^(v.widthTotal) := by
+      simp[assignments, VarWidths.widthFrom, VarWidths.widthTotal, hN]
+    Vector.mk assignments h
 
--- #eval (Assignment.bitvectorEnumerate  { inner := #[2, 3] })
+-- #eval (Assignment.bitvectorEnumerate  { inner := #[2, 3] }).toArray
