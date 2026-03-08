@@ -125,7 +125,7 @@ structure AllAssignments (v: VarWidths) (n: Nat) (a: Assignment v Bitvector) whe
   all (q: Assignment v Bitvector)
     : (∀ (i: Fin v.size), i < n → q.getElem i = a.getElem i) → q ∈ inner
 
-def Assignment.bitvectorEnumerateRec {v: VarWidths}
+def Assignment.allNaiveRec {v: VarWidths}
   (a: Assignment v Bitvector) (n: Nat) (hN: n < v.size): AllAssignments v n a :=
 
   let finN := (Fin.mk n hN)
@@ -136,7 +136,7 @@ def Assignment.bitvectorEnumerateRec {v: VarWidths}
     let nextAssignment := a.setElem finN bv
 
     if hNext: nextN < v.size then
-      let all := Assignment.bitvectorEnumerateRec nextAssignment nextN hNext
+      let all := Assignment.allNaiveRec nextAssignment nextN hNext
       all.inner
     else
       let nextAssignments: Array (Assignment v Bitvector) := #[nextAssignment]
@@ -220,17 +220,14 @@ def Assignment.bitvectorEnumerateRec {v: VarWidths}
           simp[h1]
         }
       }
-
-
   { inner, all := hAll }
 
-
-public def Assignment.bitvectorEnumerate (v: VarWidths) : Vector (Assignment v Bitvector) (2^v.widthTotal) :=
+public def Assignment.allNaive (v: VarWidths) : Vector (Assignment v Bitvector) (2^v.widthTotal) :=
   -- start with all-zero assignment
   let assignment := Assignment.createFromFn Bitvector v (λ n => { value := BitVec.zero (v.varWidth n) })
 
   if hN: 0 < v.size then
-    let result := Assignment.bitvectorEnumerateRec assignment 0 hN
+    let result := Assignment.allNaiveRec assignment 0 hN
     result.inner
   else
     -- just one unit assignment
@@ -239,9 +236,9 @@ public def Assignment.bitvectorEnumerate (v: VarWidths) : Vector (Assignment v B
       simp[assignments, VarWidths.widthFrom, VarWidths.widthTotal, hN]
     Vector.mk assignments h
 
-public theorem Assignment.bitvectorEnumerate_containsAll (v: VarWidths) (a: Assignment v Bitvector)
-  : a ∈ Assignment.bitvectorEnumerate v := by
-  rw[bitvectorEnumerate]
+public theorem Assignment.allNaive_containsAll (v: VarWidths) (a: Assignment v Bitvector)
+  : a ∈ Assignment.allNaive v := by
+  rw[Assignment.allNaive]
   split
   {
     rename_i h
