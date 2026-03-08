@@ -18,7 +18,8 @@ public def Bitvector.ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w
 public def Bitvector.toBitvector? {w: Nat} (domain: Bitvector w) : Option (Bitvector w) :=
   some domain
 
-public def Bitvector.toBool (domain: Bitvector 1) : Bool := domain.value != 0
+@[expose]
+public def Bitvector.toBool (domain: Bitvector 1) : Bool := domain.value.msb
 
 @[expose]
 public def Bitvector.uniOp {w: Nat} (domain: Bitvector w) (op: UniOp)
