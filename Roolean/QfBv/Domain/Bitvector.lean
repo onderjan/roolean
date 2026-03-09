@@ -18,8 +18,33 @@ public def Bitvector.ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w
 public def Bitvector.toBitvector? {w: Nat} (domain: Bitvector w) : Option (Bitvector w) :=
   some domain
 
-@[expose]
-public def Bitvector.toBool (domain: Bitvector 1) : Bool := domain.value.msb
+public def Bitvector.toBool (domain: Bitvector 1) : Bool :=
+  match domain.value with
+    | 0 => false
+    | 1 => true
+
+public def Bitvector.fromBool (value: Bool) : Bitvector 1 :=
+  match value with
+    | false => Bitvector.allZeros
+    | true => Bitvector.allOnes
+
+public theorem Bitvector.toBool_fromBool (a: Bitvector 1) (b: Bool)
+  : a.toBool = b ↔ a = Bitvector.fromBool b := by
+  simp[toBool, fromBool, allZeros, allOnes]
+  split; repeat
+  { split; repeat rename_i h value; rw[Bitvector.mk.injEq]; simp[h] }
+
+public theorem Bitvector.toBool_eq (a b: Bitvector 1) : a = b ↔ a.toBool = b.toBool := by
+  simp[toBool]
+  rw[Bitvector.mk.injEq]
+  split
+  repeat {
+    rename_i hA
+    split
+    repeat {
+      rename_i hB; simp[hA, hB]
+    }
+  }
 
 @[expose]
 public def Bitvector.uniOp {w: Nat} (domain: Bitvector w) (op: UniOp)
