@@ -30,19 +30,18 @@ public def Bitvector3.γ
     -- no zeros and ones in the concrete bitvector are outside zeros/ones in the abstract one
     (concreteZeros &&& ~~~domain.zeros) ||| (concreteOnes &&& ~~~domain.ones) == 0
 
-public theorem Bitvector3.γ_nonempty {w} (a: Bitvector3 w)
-  : ∃x, Bitvector3.γ a x := by
-
+public def Bitvector3.choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c} :=
   let bv: Bitvector w := { value := a.ones }
-  exists bv
-  rw[Bitvector3.γ]
-  simp[bv]
-  let h := a.zeros_or_ones_set
-  rw[BitVec.or_comm] at h
-  rw[← BitVec.not_or]
-  rw[BitVec.not_eq_comm]
-  rw[BitVec.not_zero]
-  exact h
+  let h := by
+    rw[Bitvector3.γ]
+    simp[bv]
+    let h := a.zeros_or_ones_set
+    rw[BitVec.or_comm] at h
+    rw[← BitVec.not_or]
+    rw[BitVec.not_eq_comm]
+    rw[BitVec.not_zero]
+    exact h
+  Subtype.mk bv h
 
 public theorem Bitvector3.ofBitvector_sound {w} (c: Bitvector w)
   : Bitvector3.γ (Bitvector3.ofBitvector c) c := by
@@ -360,9 +359,9 @@ public instance : AbstractDomain Bitvector3 where
   top := Bitvector3.allUnknown
   split := Bitvector3.split
   γ := Bitvector3.γ
+  choice := Bitvector3.choice
 
   top_γ_all := Bitvector3.top_γ_all
-  γ_nonempty := Bitvector3.γ_nonempty
   split_sound := Bitvector3.split_sound
 
   uniOp_sound := Bitvector3.uniOp_sound

@@ -53,11 +53,15 @@ theorem checkNodeSat_sound {v} {α} [Domain α] [AbstractDomain α]
     {
       -- sat here
       simp
-      let hEvalSound := eval_sound f a
-      let hToBitvectorSound := AbstractDomain.toBitvector?_sound (eval f a) x
-      let hGammaNonempty := AbstractDomain.γ_nonempty (eval f a)
-      -- TODO: we need to name the element (inductive) or show some sat element must exist (classical)
-      sorry
+      let hChoiceWithin := Assignment.choice_within a
+
+      exists a.choice
+      simp[hChoiceWithin]
+
+      let hEvalSound := eval_sound f a (a.choice.val) hChoiceWithin
+      let hToBitvectorSound := AbstractDomain.toBitvector?_sound (eval f a) x (eval f a.choice.val) hEval
+      simp[hEvalSound] at hToBitvectorSound
+      simp[← hX, hToBitvectorSound]
     }
   }
   {
@@ -73,12 +77,14 @@ public def checkSat {v} (α) [Domain α] [AbstractDomain α]
   (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool :=
   checkNodeSat formula (Assignment.top α v) splitTree
 
+/-
 public def checkSatNaive {v} (formula: Formula v 1) : Bool :=
   (Assignment.allNaive v).any (λ assignment => (eval formula assignment).toBool)
 
 public theorem checkSatNaive_sound {v} (f: Formula v 1) :
   checkSatNaive f = true ↔ ∃ (a: Assignment v Bitvector), (eval f a).toBool = true := by
   simp[checkSatNaive, Vector.any_eq_true', Assignment.allNaive_containsAll v]
+-/
 
 public theorem checkSat_sound {v} {α} [Domain α] [AbstractDomain α]
   (f: Formula v 1) (n: SplitNode v) (r: Bool)
