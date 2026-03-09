@@ -47,6 +47,17 @@ public theorem Assignment.eq_getElem {v} {α : Nat → Type} [Domain α]
     simp[h]
   }
 
+public theorem Assignment.setElem_getElem_exact {v} {α : Nat → Type} [Domain α]
+  (a: Assignment v α) (e: (Fin v.size)) (val: (α ∘ v.varWidth) e)
+  : (a.setElem e val).getElem e = val := by
+  simp[getElem, setElem, Std.ExtDHashMap.get_insert_self]
+
+public theorem Assignment.setElem_getElem_other {v} {α : Nat → Type} [Domain α]
+  (a: Assignment v α) (s p: (Fin v.size)) (val: (α ∘ v.varWidth) s)
+  : s ≠ p → (a.setElem s val).getElem p = a.getElem p := by
+  intro h;
+  simp[getElem, setElem,Std.ExtDHashMap.get_insert, h]
+
 
 public theorem Assignment.setElem_getElem_previous {v} {α : Nat → Type} [Domain α]
   (a: Assignment v α) (s p: (Fin v.size)) (val: (α ∘ v.varWidth) s)
@@ -54,10 +65,6 @@ public theorem Assignment.setElem_getElem_previous {v} {α : Nat → Type} [Doma
   intro h; let h2 := Ne.symm (Fin.ne_of_lt h)
   simp[getElem, setElem,Std.ExtDHashMap.get_insert, h2]
 
-public theorem Assignment.setElem_getElem_exact {v} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (e: (Fin v.size)) (val: (α ∘ v.varWidth) e)
-  : (a.setElem e val).getElem e = val := by
-  simp[getElem, setElem, Std.ExtDHashMap.get_insert_self]
 
 public theorem Assignment.emptyVars_single {v} {α : Nat → Type} [Domain α]
   (h: v.size = 0) (a b: Assignment v α) : a = b := by
@@ -113,6 +120,82 @@ public def Assignment.split {v} {α} [Domain α] [AbstractDomain α]
     let leftAssignment := a.setElem varIndex leftDomain
     let rightAssignment := a.setElem varIndex rightDomain
     (leftAssignment, rightAssignment)
+
+theorem Assignment.split_exact {v} {α} [Domain α] [AbstractDomain α]
+  (a: Assignment v α) (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
+  : a.γ c → AbstractDomain.γ ((split a varIndex bitIndex).fst.getElem varIndex) (c.getElem varIndex) ∨
+    AbstractDomain.γ ((split a varIndex bitIndex).snd.getElem varIndex) (c.getElem varIndex) := by
+  simp[split, setElem_getElem_exact, γ_forall]
+  intro h
+  let hSound := AbstractDomain.split_sound (a.getElem varIndex) bitIndex (c.getElem varIndex)
+  simp[h] at hSound
+  exact hSound
+
+theorem Assignment.split_left_other {v} {α} [Domain α] [AbstractDomain α]
+  (a: Assignment v α) (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex))
+  (otherVarIndex: Fin v.size) : varIndex ≠ otherVarIndex →
+    a.getElem otherVarIndex = (split a varIndex bitIndex).fst.getElem otherVarIndex := by
+  intro h; simp[split, setElem_getElem_other, h]
+
+theorem Assignment.split_right_other {v} {α} [Domain α] [AbstractDomain α]
+  (a: Assignment v α) (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex))
+  (otherVarIndex: Fin v.size) : varIndex ≠ otherVarIndex →
+    a.getElem otherVarIndex = (split a varIndex bitIndex).snd.getElem otherVarIndex := by
+  intro h; simp[split, setElem_getElem_other, h]
+
+public theorem Assignment.split_sound {v} {α} [Domain α] [AbstractDomain α]
+  (a : Assignment v α)
+    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
+    : γ a c → γ (split a varIndex bitIndex).fst c ∨ γ (split a varIndex bitIndex).snd c := by
+  intro hContains
+  simp[split]
+  simp[γ_forall]
+  let hContainsSimp := hContains
+  simp[γ_forall] at hContainsSimp
+
+
+  let hSound := AbstractDomain.split_sound (a.getElem varIndex) bitIndex (c.getElem varIndex)
+  simp[hContainsSimp] at hSound
+
+  let hExact := Assignment.split_exact a varIndex bitIndex c hContains
+
+  cases hSound
+  {
+    rename_i hSound
+    left
+    intro i
+    by_cases i = varIndex
+    {
+      rename_i hI
+      rw[hI]
+      simp[setElem_getElem_exact, hSound]
+    }
+    {
+      rename_i hI
+      rw[Eq.comm] at hI
+      simp[setElem_getElem_other, hI]
+      simp [γ_forall] at hContains
+      simp[hContains]
+    }
+  }
+  {
+    rename_i hSound
+    right
+    intro i
+    by_cases i = varIndex
+    {
+      rename_i hI
+      rw[hI]
+      simp[setElem_getElem_exact, hSound]
+    }
+    {
+      rename_i hI
+      rw[Eq.comm] at hI
+      simp[setElem_getElem_other, hI]
+      simp [γ_forall] at hContains
+      simp[hContains]
+    }
+  }
 
 -- functions to make assignments
 

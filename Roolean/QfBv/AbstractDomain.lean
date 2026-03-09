@@ -10,8 +10,8 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
   choice {w} (a: α w) : { c: Bitvector w // γ a c}
 
   top_γ_all {w} (c: Bitvector w) : γ (top w) c
-  split_sound {w: Nat} (a left right : α w) (n: Fin w) (c: Bitvector w)
-    : split a n = (left, right) → γ a c → γ left c ∨ γ right c
+  split_sound {w: Nat} (a : α w) (n: Fin w) (c: Bitvector w)
+    : γ a c → γ (split a n).fst c ∨ γ (split a n).snd c
 
   uniOp_sound {w} (a: α w) (c: Bitvector w) (op: UniOp)
     : γ a c → γ (Domain.uniOp a op) (Domain.uniOp c op)

@@ -30,7 +30,6 @@ theorem checkNodeSat_sound {v} {α} [Domain α] [AbstractDomain α]
   (f: Formula v 1) (a: Assignment v α) (n: SplitNode v) (r: Bool)
   : checkNodeSat f a n = some r → r =
     ∃ (c: Assignment v Bitvector), Assignment.γ a c ∧ (eval f c).toBool = true := by
-
   --simp[Bitvector.toBool]
   --intro h
   induction n
@@ -42,7 +41,7 @@ theorem checkNodeSat_sound {v} {α} [Domain α] [AbstractDomain α]
     rw[Eq.comm] at hEval
     cases r
     {
-      -- unsat here
+      -- UNSAT here
       simp
       intro c hC
       let hEvalSound := eval_sound f a c hC
@@ -51,7 +50,7 @@ theorem checkNodeSat_sound {v} {α} [Domain α] [AbstractDomain α]
       simp[← hToBitvectorSound, hX]
     }
     {
-      -- sat here
+      -- SAT here
       simp
       let hChoiceWithin := Assignment.choice_within a
 
@@ -66,10 +65,45 @@ theorem checkNodeSat_sound {v} {α} [Domain α] [AbstractDomain α]
   }
   {
     -- split
-    rename_i left right varIndex bitIndex left_ih right_ih
+    rename_i bv aBv left right varIndex bitIndex left_ih right_ih
     simp_all
-    -- TODO: split_sound for assignments
-    sorry
+
+    simp[checkNodeSat]
+    split
+    {
+      rename_i leftResult rightResult leftBool rightBool hLeft hRight
+      cases r
+      {
+        -- UNSAT here
+        simp
+
+        intro leftFalse rightFalse
+        simp[leftFalse] at hLeft
+        simp[rightFalse] at hRight
+        intro c hC
+        sorry
+      }
+      {
+        -- SAT here
+        simp
+        let hChoiceWithin := Assignment.choice_within a
+        intro hBools
+        cases hBools
+        {
+          -- left is true
+          rename_i h
+          simp[h] at hLeft
+          simp[hLeft] at left_ih
+          sorry
+        }
+        {
+          -- right is true
+          sorry
+        }
+
+      }
+    }
+    { simp }
   }
 
 

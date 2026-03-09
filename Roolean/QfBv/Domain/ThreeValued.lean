@@ -157,30 +157,13 @@ public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
     (domain, domain)
 
 
-public theorem Bitvector3.split_sound {w: Nat} (a left right : Bitvector3 w)
+public theorem Bitvector3.split_sound {w: Nat} (a : Bitvector3 w)
   (n: Fin w) (c: Bitvector w)
-    : split a n = (left, right) → γ a c →
-      γ left c ∨ γ right c := by
-  let h := splitBit_lemma a n c
-
-  rw [split]
+    : γ a c → γ (split a n).fst c ∨ γ (split a n).snd c := by
+  intro h; rw [split]
   split
-  {
-    -- we actually have split to left and right
-    simp
-    intro hLeft hRight
-    rw[← hLeft]
-    rw[← hRight]
-    exact h
-  }
-  {
-    -- no split happened
-    simp
-    intro hLeft hRight hContains
-    left
-    rw[hLeft] at hContains
-    exact hContains
-  }
+  { simp[splitBit_lemma a n c h] }
+  { simp; exact h }
 
 public theorem Bitvector3.top_γ_all {w: Nat} (c: Bitvector w)
   : γ (Bitvector3.allUnknown w) c := by
