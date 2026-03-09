@@ -197,6 +197,17 @@ public theorem Assignment.split_sound {v} {α} [Domain α] [AbstractDomain α]
     }
   }
 
+
+public theorem Assignment.split_subsume_left {v} {α} [Domain α] [AbstractDomain α]
+  (a : Assignment v α)
+    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
+    : γ (split a varIndex bitIndex).fst c → γ a c := by sorry
+
+public theorem Assignment.split_subsume_right {v} {α} [Domain α] [AbstractDomain α]
+  (a : Assignment v α)
+    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
+    : γ (split a varIndex bitIndex).snd c → γ a c := by sorry
+
 -- functions to make assignments
 
 public def Assignment.choice {v} {α : Nat → Type} [Domain α] [AbstractDomain α]

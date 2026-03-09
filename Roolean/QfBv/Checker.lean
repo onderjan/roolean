@@ -72,11 +72,25 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
                   rename_i hValue
                   simp[hValue] at hLeftSound
 
-                  sorry
+                  let choiceSpec := Classical.choose_spec hLeftSound
+                  exists Classical.choose hLeftSound
+                  simp[choiceSpec]
+                  let choice := choiceSpec.left
+                  let hSubsume := Assignment.split_subsume_left assignment varIndex bitIndex (Classical.choose hLeftSound)
+                  simp[choice, split] at hSubsume
+                  exact hSubsume
                 }
                 {
                   rename_i hValue
-                  sorry
+                  simp[hValue] at hRightSound
+
+                  let choiceSpec := Classical.choose_spec hRightSound
+                  exists Classical.choose hRightSound
+                  simp[choiceSpec]
+                  let choice := choiceSpec.left
+                  let hSubsume := Assignment.split_subsume_right assignment varIndex bitIndex (Classical.choose hRightSound)
+                  simp[choice, split] at hSubsume
+                  exact hSubsume
                 }
 
               }
@@ -94,7 +108,8 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
               simp[value] at hValue
               simp[value, hValue]
               intro c hC
-              let hSplit := hSplit c hC
+              let hSplit := hSplit c
+              simp[hC] at hSplit
               let hLeftSound := left.sound
               let hRightSound := right.sound
               simp[hValue] at hLeftSound
