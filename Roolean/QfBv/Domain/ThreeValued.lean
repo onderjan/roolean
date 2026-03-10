@@ -157,7 +157,7 @@ public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
     (domain, domain)
 
 
-public theorem Bitvector3.split_sound {w: Nat} (a : Bitvector3 w)
+public theorem Bitvector3.split_comprises {w: Nat} (a : Bitvector3 w)
   (n: Fin w) (c: Bitvector w)
     : γ a c → γ (split a n).fst c ∨ γ (split a n).snd c := by
   intro h; rw [split]
@@ -166,8 +166,8 @@ public theorem Bitvector3.split_sound {w: Nat} (a : Bitvector3 w)
   { simp; exact h }
 
 
-public theorem Bitvector3.split_subsume_left {w} (a: Bitvector3 w) (n) (c)
-  : γ (split a n).fst c → γ a c := by
+public theorem Bitvector3.split_within {w} (a: Bitvector3 w) (n) (c)
+  : γ (split a n).fst c ∨ γ (split a n).snd c → γ a c := by
   intro h; rw [split] at h
   let hSet := a.zeros_or_ones_set
   split at h
@@ -176,49 +176,30 @@ public theorem Bitvector3.split_subsume_left {w} (a: Bitvector3 w) (n) (c)
     simp at hShift
     simp[BitVec.eq_of_getElem_eq_iff] at hShift
 
-    simp[Bitvector3.setBitToZero, Bitvector3.γ] at h
+    simp[setBitToZero, setBitToOne, Bitvector3.γ] at h
     simp[BitVec.eq_of_getElem_eq_iff, ← forall_and] at h
     simp[Bitvector3.γ]
     simp[BitVec.eq_of_getElem_eq_iff]
     simp[← forall_and]
     intro i hI
-    let h := h i hI
-    simp at h
     simp[BitVec.eq_of_getElem_eq_iff] at hSet
     let hSet := hSet i hI
     let hShift := hShift i hI
     simp at hShift
-    grind -- TODO nice proof
+
+    cases h with
+    | inl h => {
+      let h := h i hI
+      simp at h
+      grind -- TODO nice proof
+    }
+    | inr h => {
+      let h := h i hI
+      simp at h
+      grind -- TODO nice proof
+    }
   }
   { simp at h; exact h }
-
-
-public theorem Bitvector3.split_subsume_right {w} (a: Bitvector3 w) (n) (c)
-  : γ (split a n).snd c → γ a c := by
-  intro h; rw [split] at h
-  let hSet := a.zeros_or_ones_set
-  split at h
-  {
-    rename_i hShift
-    simp at hShift
-    simp[BitVec.eq_of_getElem_eq_iff] at hShift
-
-    simp[Bitvector3.setBitToOne, Bitvector3.γ] at h
-    simp[BitVec.eq_of_getElem_eq_iff, ← forall_and] at h
-    simp[Bitvector3.γ]
-    simp[BitVec.eq_of_getElem_eq_iff]
-    simp[← forall_and]
-    intro i hI
-    let h := h i hI
-    simp at h
-    simp[BitVec.eq_of_getElem_eq_iff] at hSet
-    let hSet := hSet i hI
-    let hShift := hShift i hI
-    simp at hShift
-    grind -- TODO nice proof
-  }
-  { simp at h; exact h }
-
 
 public theorem Bitvector3.top_γ_all {w: Nat} (c: Bitvector w)
   : γ (Bitvector3.allUnknown w) c := by
@@ -400,9 +381,8 @@ public instance : AbstractDomain Bitvector3 where
   choice := Bitvector3.choice
 
   top_γ_all := Bitvector3.top_γ_all
-  split_sound := Bitvector3.split_sound
-  split_subsume_left := Bitvector3.split_subsume_left
-  split_subsume_right := Bitvector3.split_subsume_right
+  split_comprises := Bitvector3.split_comprises
+  split_within := Bitvector3.split_within
 
   uniOp_sound := Bitvector3.uniOp_sound
   biNormal_sound := Bitvector3.biNormal_sound

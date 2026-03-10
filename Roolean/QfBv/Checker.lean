@@ -46,7 +46,7 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
 
     | SplitNode.Split leftNode rightNode varIndex bitIndex =>
       let split := assignment.split varIndex bitIndex
-      let hSplit := Assignment.split_sound assignment varIndex bitIndex
+      let hSplit := Assignment.split_comprises assignment varIndex bitIndex
 
       let leftResult := checkNodeSat formula split.fst leftNode
       let rightResult := checkNodeSat formula split.snd rightNode
@@ -76,7 +76,7 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
                   exists Classical.choose hLeftSound
                   simp[choiceSpec]
                   let choice := choiceSpec.left
-                  let hSubsume := Assignment.split_subsume_left assignment varIndex bitIndex (Classical.choose hLeftSound)
+                  let hSubsume := Assignment.split_within assignment varIndex bitIndex (Classical.choose hLeftSound)
                   simp[choice, split] at hSubsume
                   exact hSubsume
                 }
@@ -88,7 +88,7 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
                   exists Classical.choose hRightSound
                   simp[choiceSpec]
                   let choice := choiceSpec.left
-                  let hSubsume := Assignment.split_subsume_right assignment varIndex bitIndex (Classical.choose hRightSound)
+                  let hSubsume := Assignment.split_within assignment varIndex bitIndex (Classical.choose hRightSound)
                   simp[choice, split] at hSubsume
                   exact hSubsume
                 }

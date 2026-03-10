@@ -127,7 +127,7 @@ theorem Assignment.split_exact {v} {α} [Domain α] [AbstractDomain α]
     AbstractDomain.γ ((split a varIndex bitIndex).snd.getElem varIndex) (c.getElem varIndex) := by
   simp[split, setElem_getElem_exact, γ_forall]
   intro h
-  let hSound := AbstractDomain.split_sound (a.getElem varIndex) bitIndex (c.getElem varIndex)
+  let hSound := AbstractDomain.split_comprises (a.getElem varIndex) bitIndex (c.getElem varIndex)
   simp[h] at hSound
   exact hSound
 
@@ -143,7 +143,7 @@ theorem Assignment.split_right_other {v} {α} [Domain α] [AbstractDomain α]
     a.getElem otherVarIndex = (split a varIndex bitIndex).snd.getElem otherVarIndex := by
   intro h; simp[split, setElem_getElem_other, h]
 
-public theorem Assignment.split_sound {v} {α} [Domain α] [AbstractDomain α]
+public theorem Assignment.split_comprises {v} {α} [Domain α] [AbstractDomain α]
   (a : Assignment v α)
     (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
     : γ a c → γ (split a varIndex bitIndex).fst c ∨ γ (split a varIndex bitIndex).snd c := by
@@ -153,8 +153,7 @@ public theorem Assignment.split_sound {v} {α} [Domain α] [AbstractDomain α]
   let hContainsSimp := hContains
   simp[γ_forall] at hContainsSimp
 
-
-  let hSound := AbstractDomain.split_sound (a.getElem varIndex) bitIndex (c.getElem varIndex)
+  let hSound := AbstractDomain.split_comprises (a.getElem varIndex) bitIndex (c.getElem varIndex)
   simp[hContainsSimp] at hSound
 
   let hExact := Assignment.split_exact a varIndex bitIndex c hContains
@@ -197,45 +196,32 @@ public theorem Assignment.split_sound {v} {α} [Domain α] [AbstractDomain α]
     }
   }
 
-
-public theorem Assignment.split_subsume_left {v} {α} [Domain α] [AbstractDomain α]
+public theorem Assignment.split_within {v} {α} [Domain α] [AbstractDomain α]
   (a : Assignment v α)
     (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
-    : γ (split a varIndex bitIndex).fst c → γ a c := by
+    : γ (split a varIndex bitIndex).fst c ∨ γ (split a varIndex bitIndex).snd c → γ a c := by
   simp[γ_forall]
   intro h i
-  let h := h i
+
   by_cases varIndex = i
   {
     rename_i hI
-    rw[← hI] at h; rw[← hI]
-    simp[split, setElem_getElem_exact] at h
-    exact AbstractDomain.split_subsume_left (a.getElem varIndex) bitIndex (c.getElem varIndex) h
+    rw[← hI]
+    cases h
+    repeat {
+      rename_i h
+      let h := h varIndex
+      simp[split, setElem_getElem_exact] at h
+      let hWithin := AbstractDomain.split_within (a.getElem varIndex) bitIndex (c.getElem varIndex)
+      simp[h] at hWithin
+      exact hWithin
+    }
   }
   {
     rename_i hI
-    simp[Assignment.split_left_other a varIndex bitIndex i hI]
-    exact h
-  }
-
-public theorem Assignment.split_subsume_right {v} {α} [Domain α] [AbstractDomain α]
-  (a : Assignment v α)
-    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
-    : γ (split a varIndex bitIndex).snd c → γ a c := by
-  simp[γ_forall]
-  intro h i
-  let h := h i
-  by_cases varIndex = i
-  {
-    rename_i hI
-    rw[← hI] at h; rw[← hI]
-    simp[split, setElem_getElem_exact] at h
-    exact AbstractDomain.split_subsume_right (a.getElem varIndex) bitIndex (c.getElem varIndex) h
-  }
-  {
-    rename_i hI
-    simp[Assignment.split_right_other a varIndex bitIndex i hI]
-    exact h
+    cases h with
+      | inl h => simp[Assignment.split_left_other a varIndex bitIndex i hI, h]
+      | inr h => simp[Assignment.split_right_other a varIndex bitIndex i hI, h]
   }
 
 -- functions to make assignments
