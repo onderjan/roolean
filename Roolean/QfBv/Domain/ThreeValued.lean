@@ -165,6 +165,61 @@ public theorem Bitvector3.split_sound {w: Nat} (a : Bitvector3 w)
   { simp[splitBit_lemma a n c h] }
   { simp; exact h }
 
+
+public theorem Bitvector3.split_subsume_left {w} (a: Bitvector3 w) (n) (c)
+  : γ (split a n).fst c → γ a c := by
+  intro h; rw [split] at h
+  let hSet := a.zeros_or_ones_set
+  split at h
+  {
+    rename_i hShift
+    simp at hShift
+    simp[BitVec.eq_of_getElem_eq_iff] at hShift
+
+    simp[Bitvector3.setBitToZero, Bitvector3.γ] at h
+    simp[BitVec.eq_of_getElem_eq_iff, ← forall_and] at h
+    simp[Bitvector3.γ]
+    simp[BitVec.eq_of_getElem_eq_iff]
+    simp[← forall_and]
+    intro i hI
+    let h := h i hI
+    simp at h
+    simp[BitVec.eq_of_getElem_eq_iff] at hSet
+    let hSet := hSet i hI
+    let hShift := hShift i hI
+    simp at hShift
+    grind -- TODO nice proof
+  }
+  { simp at h; exact h }
+
+
+public theorem Bitvector3.split_subsume_right {w} (a: Bitvector3 w) (n) (c)
+  : γ (split a n).snd c → γ a c := by
+  intro h; rw [split] at h
+  let hSet := a.zeros_or_ones_set
+  split at h
+  {
+    rename_i hShift
+    simp at hShift
+    simp[BitVec.eq_of_getElem_eq_iff] at hShift
+
+    simp[Bitvector3.setBitToOne, Bitvector3.γ] at h
+    simp[BitVec.eq_of_getElem_eq_iff, ← forall_and] at h
+    simp[Bitvector3.γ]
+    simp[BitVec.eq_of_getElem_eq_iff]
+    simp[← forall_and]
+    intro i hI
+    let h := h i hI
+    simp at h
+    simp[BitVec.eq_of_getElem_eq_iff] at hSet
+    let hSet := hSet i hI
+    let hShift := hShift i hI
+    simp at hShift
+    grind -- TODO nice proof
+  }
+  { simp at h; exact h }
+
+
 public theorem Bitvector3.top_γ_all {w: Nat} (c: Bitvector w)
   : γ (Bitvector3.allUnknown w) c := by
   rw[allUnknown, γ]; simp
@@ -346,6 +401,8 @@ public instance : AbstractDomain Bitvector3 where
 
   top_γ_all := Bitvector3.top_γ_all
   split_sound := Bitvector3.split_sound
+  split_subsume_left := Bitvector3.split_subsume_left
+  split_subsume_right := Bitvector3.split_subsume_right
 
   uniOp_sound := Bitvector3.uniOp_sound
   biNormal_sound := Bitvector3.biNormal_sound
