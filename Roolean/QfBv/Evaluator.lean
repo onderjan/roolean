@@ -73,7 +73,6 @@ theorem eval3bv_sound {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   intro h1
   let hToBvSound := AbstractDomain.toBitvector?_sound (eval f a) r (eval f c)
   simp[h1] at hToBvSound
-  --simp[Assignment.γ_forall] at h
 
   let hEvalSound := eval_sound f a c h
   simp[hEvalSound] at hToBvSound
