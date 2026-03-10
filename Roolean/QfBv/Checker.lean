@@ -129,10 +129,27 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
           none
 
 public def checkSat {v} (α) [Domain α] [AbstractDomain α]
-  (formula: Formula v 1) (splitTree: SplitNode v) : Option Bool :=
-  match checkNodeSat formula (Assignment.top α v) splitTree with
+  (formula: Formula v 1) (node: SplitNode v) : Option Bool :=
+  match checkNodeSat formula (Assignment.top α v) node with
     | some known => known.value
     | none => none
+
+public theorem checkSat_sound {v} (α) [Domain α] [AbstractDomain α]
+  (f: Formula v 1) (n: SplitNode v) (r: Bool)
+  : (checkSat α f n) = some r → r = (∃ (c: Assignment v Bitvector), (eval f c).toBool = true) := by
+  intro h
+  simp[checkSat] at h
+  split at h
+  {
+    rename_i x known hCheck
+    let hKnown := known.sound
+    simp at h
+    rw[h] at hKnown
+    rw[hKnown]
+    simp[Assignment.top_γ_all α v]
+  }
+  { contradiction }
+
 
 public def solve {v: VarWidths} (α) [Domain α] [AbstractDomain α]
   (formula: Formula v 1) : Option Bool := do

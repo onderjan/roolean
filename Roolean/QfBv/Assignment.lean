@@ -249,17 +249,67 @@ public def Assignment.createFromFn (α) [Domain α] (v: VarWidths)
 
   let insertFn (index: Fin v.size) := Sigma.mk index (fn index)
 
-  let array: Array ((a : Fin v.size) × (α ∘ v.varWidth) a) := Array.ofFn (insertFn)
-  let hArrayMembership (i : Fin v.size): ∃ a, (a ∈ array ∧ a.fst = i) := by
-    exists insertFn i; simp[insertFn, array]
+  let list: List ((a : Fin v.size) × (α ∘ v.varWidth) a) := List.ofFn (insertFn)
+  let hListMembership (i : Fin v.size): ∃ a, (a ∈ list ∧ a.fst = i) := by
+    exists insertFn i; simp[insertFn, list]
 
-  -- TODO this converts to list first
-  let map: Std.ExtDHashMap (Fin v.size) (α ∘ VarWidths.varWidth v) := Std.ExtDHashMap.ofList array.toList
+  let map: Std.ExtDHashMap (Fin v.size) (α ∘ VarWidths.varWidth v) := Std.ExtDHashMap.ofList list
   let hMapMembership: ∀ (i : Fin v.size), i ∈ map := by
-    intro ix; simp[map]; exact hArrayMembership ix
+    intro ix; simp[map]; exact hListMembership ix
 
   { inner := map, membership := hMapMembership }
 
+theorem Assignment.createFromFn_elem  {α} [Domain α] [AbstractDomain α] {v: VarWidths}
+  (fn : (n: Fin v.size) → α (v.varWidth n)) (i: Fin v.size)
+  : (Assignment.createFromFn α v fn).getElem i = fn i := by
+  simp[Assignment.getElem]
+  simp (config := { zeta := false }) [Assignment.createFromFn]
+  extract_lets insertFn list map hMapMembership
+  let hMem :  ⟨i, fn i⟩ ∈ list := by
+    simp[list]; exists i
+  let hPairwise : List.Pairwise (fun a b => (a.fst == b.fst) = false) list := by
+    simp[List.pairwise_iff_getElem]
+    intro i j hi hj
+    simp[list]
+    simp[insertFn]
+    intro h
+    simp[Nat.ne_of_lt h]
+  let kBeq : i == i := by simp
+  let assignment := (Assignment.createFromFn α v fn)
+  let hOfList := Std.ExtDHashMap.get_ofList_of_mem (l := list) kBeq (mem:=hMem) (h:=hMapMembership i) hPairwise
+  simp at hOfList
+  simp[map, hOfList]
+
+theorem Assignment.createFromFn_contains {α} [Domain α] [AbstractDomain α] {v: VarWidths}
+  (fn : (n: Fin v.size) → α (v.varWidth n)) (c: Assignment v Bitvector)
+  : (∀ (i: Fin v.size), AbstractDomain.γ (fn i) (c.getElem i)) ↔
+    (Assignment.createFromFn α v fn).γ c := by
+  simp[Assignment.γ_forall]
+  apply Iff.intro
+  {
+    intro h i
+    let h := h i
+    let hElem := Assignment.createFromFn_elem fn i
+    simp[hElem, h]
+  }
+  {
+      intro h i
+      let h := h i
+      let hElem := Assignment.createFromFn_elem fn i
+      simp[hElem] at h
+      exact h
+  }
 
 public def Assignment.top (α) [Domain α] [AbstractDomain α] (v: VarWidths) : Assignment v α :=
-  Assignment.createFromFn α v (λ n => AbstractDomain.top (v.varWidth n))
+  let fn := (λ n => AbstractDomain.top (v.varWidth n))
+  Assignment.createFromFn α v fn
+
+public theorem Assignment.top_γ_all (α)[Domain α] [AbstractDomain α] (v: VarWidths)
+  (c: Assignment v Bitvector) : (top α v).γ c := by
+  simp (config := { zeta := false })[top]
+  extract_lets
+  rename_i fn
+  simp[← Assignment.createFromFn_contains fn c]
+  intro i
+  simp[fn]
+  exact AbstractDomain.top_γ_all (α:=α) (c.getElem i)
