@@ -10,6 +10,8 @@ public structure Bitvector3 (w: Nat) where
   zeros_or_ones_set: zeros ||| ones = BitVec.allOnes w
 deriving Repr
 
+ --- DEFINITIONS ---
+
 public def Bitvector3.allUnknown (w: Nat): Bitvector3 w :=
   let zeros := BitVec.allOnes w
   let ones := BitVec.allOnes w
@@ -44,7 +46,21 @@ public def Bitvector3.choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c}
     exact h
   Subtype.mk bv h
 
+public def Bitvector3.allZeros (w: Nat): Bitvector3 w :=
+  Bitvector3.ofBitvector (Bitvector.allZeros)
+
+public def Bitvector3.allOnes (w: Nat): Bitvector3 w :=
+  Bitvector3.ofBitvector (Bitvector.allOnes)
+
+public def Bitvector3.toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
+  if ~~~(domain.zeros ^^^ domain.ones) == 0 then
+    some { value := domain.ones }
+  else
+    none
+
 public def Bitvector3.fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
+
+ --- THEOREMS ---
 
 public theorem Bitvector3.ofBitvector_sound {w} (c: Bitvector w)
   : Bitvector3.γ (Bitvector3.ofBitvector c) c := by
@@ -87,18 +103,6 @@ public theorem Bitvector3.γ_allUnknown {w} (c: Bitvector w)
   : Bitvector3.γ (Bitvector3.allUnknown w) c := by
   rw[allUnknown, γ]
   simp
-
-public def Bitvector3.allZeros (w: Nat): Bitvector3 w :=
-  Bitvector3.ofBitvector (Bitvector.allZeros)
-
-public def Bitvector3.allOnes (w: Nat): Bitvector3 w :=
-  Bitvector3.ofBitvector (Bitvector.allOnes)
-
-public def Bitvector3.toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
-  if ~~~(domain.zeros ^^^ domain.ones) == 0 then
-    some { value := domain.ones }
-  else
-    none
 
 public theorem Bitvector3.toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
     : some c = a.toBitvector? → (γ a d ↔ c = d) := by

@@ -2,6 +2,8 @@ module
 
 public import Roolean.QfBv.Domain.ThreeValued.Basic
 
+ --- DEFINITIONS ---
+
 public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: UniOp)
   : Bitvector3 w :=
   match op with
@@ -36,6 +38,7 @@ public def Bitvector3.biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w)
   | _, _ =>
       Bitvector3.allUnknown 1
 
+ --- THEOREMS ---
 
 public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
   : γ a c → γ (a.uniOp op) (c.uniOp op):= by
