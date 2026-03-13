@@ -14,18 +14,30 @@ namespace Bitvector3
 
  --- DEFINITIONS ---
 
-public def allUnknown (w: Nat): Bitvector3 w :=
-  let zeros := BitVec.allOnes w
-  let ones := BitVec.allOnes w
-  let zeros_or_ones_set := by simp[zeros,ones]
-  { zeros, ones, zeros_or_ones_set }
-
 public def ofBitvector {w} (bitvector: Bitvector w): Bitvector3 w :=
   let zeros := ~~~bitvector.value
   let ones := bitvector.value
   let zeros_or_ones_set := by simp[zeros,ones]
 
   {  zeros, ones, zeros_or_ones_set }
+
+public def allUnknown (w: Nat): Bitvector3 w :=
+  let zeros := BitVec.allOnes w
+  let ones := BitVec.allOnes w
+  let zeros_or_ones_set := by simp[zeros,ones]
+  { zeros, ones, zeros_or_ones_set }
+
+public def allZeros (w: Nat): Bitvector3 w :=
+  ofBitvector (Bitvector.allZeros)
+
+public def allOnes (w: Nat): Bitvector3 w :=
+  ofBitvector (Bitvector.allOnes)
+
+public def toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
+  if ~~~(domain.zeros ^^^ domain.ones) == 0 then
+    some { value := domain.ones }
+  else
+    none
 
 @[expose]
 public def γ {w}
@@ -47,25 +59,18 @@ public def choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c} :=
     exact h
   Subtype.mk bv h
 
-public def allZeros (w: Nat): Bitvector3 w :=
-  ofBitvector (Bitvector.allZeros)
-
-public def allOnes (w: Nat): Bitvector3 w :=
-  ofBitvector (Bitvector.allOnes)
-
-public def toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
-  if ~~~(domain.zeros ^^^ domain.ones) == 0 then
-    some { value := domain.ones }
-  else
-    none
 
 public def fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
 
  --- THEOREMS ---
 
-public theorem ofBitvector_sound {w} (c: Bitvector w)
-  : γ (ofBitvector c) c := by
-  simp[ofBitvector, γ]
+public theorem γ_allUnknown {w} (c: Bitvector w)
+  : γ (allUnknown w) c := by
+  rw[allUnknown, γ]
+  simp
+
+public theorem top_γ_all {w: Nat} (c: Bitvector w)
+  : γ (allUnknown w) c := by rw[allUnknown, γ]; simp
 
 public theorem γ_ofBitvector {w} (c: Bitvector w) (d: Bitvector w)
   : γ (ofBitvector c) d ↔ c = d := by
@@ -100,10 +105,9 @@ public theorem γ_ofBitvector {w} (c: Bitvector w) (d: Bitvector w)
     simp
   }
 
-public theorem γ_allUnknown {w} (c: Bitvector w)
-  : γ (allUnknown w) c := by
-  rw[allUnknown, γ]
-  simp
+public theorem ofBitvector_sound {w} (c: Bitvector w)
+  : γ (ofBitvector c) c := by
+  simp[ofBitvector, γ]
 
 public theorem toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
     : some c = a.toBitvector? → (γ a d ↔ c = d) := by
@@ -142,6 +146,3 @@ public theorem toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
       grind -- TODO nicer proof
     }
   }
-
-public theorem top_γ_all {w: Nat} (c: Bitvector w)
-  : γ (allUnknown w) c := by rw[allUnknown, γ]; simp
