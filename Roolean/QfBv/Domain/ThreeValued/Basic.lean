@@ -38,8 +38,7 @@ public def γ {w}
 public def choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c} :=
   let bv: Bitvector w := { value := a.ones }
   let h := by
-    rw[γ]
-    simp[bv]
+    simp[γ,bv]
     let h := a.zeros_or_ones_set
     rw[BitVec.or_comm] at h
     rw[← BitVec.not_or]
