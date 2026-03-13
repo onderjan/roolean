@@ -2,9 +2,11 @@ module
 
 public import Roolean.QfBv.Domain.ThreeValued.Basic
 
+namespace Bitvector3
+
  --- DEFINITIONS ---
 
-public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: UniOp)
+public def uniOp {w} (domain: Bitvector3 w) (op: UniOp)
   : Bitvector3 w :=
   match op with
   | UniOp.Not =>
@@ -17,30 +19,30 @@ public def Bitvector3.uniOp {w} (domain: Bitvector3 w) (op: UniOp)
     match domain.toBitvector? with
     | some bitvector =>
       let result := bitvector.uniOp UniOp.Neg
-      Bitvector3.ofBitvector result
-    | none => Bitvector3.allUnknown w
+      ofBitvector result
+    | none => allUnknown w
 
-public def Bitvector3.biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormalOp)
+public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormalOp)
   : Bitvector3 w :=
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
     let result := Bitvector.biNormal left right op
-    Bitvector3.ofBitvector result
+    ofBitvector result
   | _, _ =>
-    Bitvector3.allUnknown w
+    allUnknown w
 
-public def Bitvector3.biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiReductionOp)
+public def biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiReductionOp)
   : Bitvector3 1 :=
   match left.toBitvector?, right.toBitvector? with
   | some left, some right =>
     let result := Bitvector.biReduction left right op
-    Bitvector3.ofBitvector result
+    ofBitvector result
   | _, _ =>
-      Bitvector3.allUnknown 1
+      allUnknown 1
 
  --- THEOREMS ---
 
-public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
+public theorem uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
   : γ a c → γ (a.uniOp op) (c.uniOp op):= by
   simp[uniOp]
   intro h1
@@ -50,8 +52,8 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op
     -- not
     rename_i hOp
     simp[Bitvector.uniOp]
-    simp[Bitvector3.γ] at h1
-    simp[Bitvector3.γ, h1]
+    simp[γ] at h1
+    simp[γ, h1]
   }
   {
     -- neg
@@ -61,7 +63,7 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op
       rw[Eq.comm] at h3
       simp[Bitvector.uniOp]
 
-      let h4 := Bitvector3.γ_ofBitvector (w:=w)
+      let h4 := γ_ofBitvector (w:=w)
       simp[h4]
       let h5 := Iff.mp (toBitvector?_sound (w:=w) a hBv c h3) h1
       simp[h5]
@@ -71,7 +73,7 @@ public theorem Bitvector3.uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op
     }
   }
 
-public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
+public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
     : γ a ca → γ b cb
       → γ (biNormal a b op) (Domain.biNormal ca cb op) := by
   intro ha hb
@@ -84,7 +86,7 @@ public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp
     rw[Eq.comm] at hAto
     rw[Eq.comm] at hBto
 
-    let h4 := Bitvector3.γ_ofBitvector (w:=w)
+    let h4 := γ_ofBitvector (w:=w)
     simp[h4]
 
     let h5 := Iff.mp (toBitvector?_sound (w:=w) a hA ca hAto) ha
@@ -96,7 +98,7 @@ public theorem Bitvector3.biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp
     apply γ_allUnknown
   }
 
-public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca cb: Bitvector w)
+public theorem biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca cb: Bitvector w)
     : γ a ca → γ b cb
       → γ (biReduction a b op) (Domain.biReduction ca cb op) := by
   intro ha hb
@@ -109,7 +111,7 @@ public theorem Bitvector3.biReduction_sound {w} (a b: Bitvector3 w) (op: BiReduc
     rw[Eq.comm] at hAto
     rw[Eq.comm] at hBto
 
-    let h4 := Bitvector3.γ_ofBitvector (w:=1)
+    let h4 := γ_ofBitvector (w:=1)
 
     simp[h4]
 

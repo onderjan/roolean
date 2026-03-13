@@ -2,6 +2,8 @@ module
 
 public import Roolean.QfBv.Domain.ThreeValued.Basic
 
+namespace Bitvector3
+
 theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c) = (a ||| b ||| c) := by
   ext i hi; simp
   cases a[i]
@@ -9,7 +11,7 @@ theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c
   { simp; cases c[i]; simp; simp }
 
 
-def Bitvector3.setBitToOne {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvector3 w :=
+def setBitToOne {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvector3 w :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
   let zeros := domain.zeros &&& ~~~bitMask
@@ -29,7 +31,7 @@ theorem setBitToZero_lemma {w: Nat} {a b c: BitVec w} : (a ||| c) ||| (b &&& ~~~
   { simp; cases c[i]; simp; simp }
   { simp }
 
-def Bitvector3.setBitToZero {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvector3 w :=
+def setBitToZero {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvector3 w :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
   let zeros := domain.zeros ||| bitMask
@@ -44,17 +46,17 @@ def Bitvector3.setBitToZero {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvecto
   { zeros, ones, zeros_or_ones_set }
 
 theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
-  : a.γ c → (Bitvector3.setBitToZero a n).γ c
-  ∨ (Bitvector3.setBitToOne a n).γ c := by
-  rw[Bitvector3.setBitToOne]
-  rw[Bitvector3.setBitToZero]
-  repeat rw [Bitvector3.γ]
+  : a.γ c → (setBitToZero a n).γ c
+  ∨ (setBitToOne a n).γ c := by
+  rw[setBitToOne]
+  rw[setBitToZero]
+  repeat rw [γ]
   simp
   intro hZeros
   intro hOnes
   grind -- TODO: nice proof
 
-public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
+public def split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
    : Bitvector3 w × Bitvector3 w :=
   let bitMask := BitVec.shiftLeft (BitVec.ofNat w 1) bitIndex
 
@@ -68,7 +70,7 @@ public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
     (domain, domain)
 
 
-public theorem Bitvector3.split_comprises {w: Nat} (a : Bitvector3 w)
+public theorem split_comprises {w: Nat} (a : Bitvector3 w)
   (n: Fin w) (c: Bitvector w)
     : γ a c → γ (split a n).fst c ∨ γ (split a n).snd c := by
   intro h; rw [split]
@@ -77,7 +79,7 @@ public theorem Bitvector3.split_comprises {w: Nat} (a : Bitvector3 w)
   { simp; exact h }
 
 
-public theorem Bitvector3.split_within {w} (a: Bitvector3 w) (n) (c)
+public theorem split_within {w} (a: Bitvector3 w) (n) (c)
   : γ (split a n).fst c ∨ γ (split a n).snd c → γ a c := by
   intro h; rw [split] at h
   let hSet := a.zeros_or_ones_set
@@ -87,9 +89,9 @@ public theorem Bitvector3.split_within {w} (a: Bitvector3 w) (n) (c)
     simp at hShift
     simp[BitVec.eq_of_getElem_eq_iff] at hShift
 
-    simp[setBitToZero, setBitToOne, Bitvector3.γ] at h
+    simp[setBitToZero, setBitToOne, γ] at h
     simp[BitVec.eq_of_getElem_eq_iff, ← forall_and] at h
-    simp[Bitvector3.γ]
+    simp[γ]
     simp[BitVec.eq_of_getElem_eq_iff]
     simp[← forall_and]
     intro i hI
