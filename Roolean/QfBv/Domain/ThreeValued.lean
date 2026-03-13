@@ -1,7 +1,9 @@
 module
 public import Roolean.QfBv.Domain.ThreeValued.Basic
 public import Roolean.QfBv.Domain.ThreeValued.Split
-public import Roolean.QfBv.Domain.ThreeValued.Ops
+public import Roolean.QfBv.Domain.ThreeValued.UniOps
+public import Roolean.QfBv.Domain.ThreeValued.BiNormalOps
+public import Roolean.QfBv.Domain.ThreeValued.BiReductionOps
 
 public instance : Domain Bitvector3 where
   ofBitvector := Bitvector3.ofBitvector
