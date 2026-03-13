@@ -2,11 +2,6 @@ module
 
 public import Roolean.QfBv.Domain.ThreeValued.Basic
 
-
-theorem bvandZeros {w} {a b: BitVec w} : (a = 0#w ∧ b = 0#w) → (a &&& b  = 0#w) := by
-  simp
-  grind
-
 theorem setBitToOne_lemma {w: Nat} {a b c: BitVec w} : (a &&& ~~~c) ||| (b ||| c) = (a ||| b ||| c) := by
   ext i hi; simp
   cases a[i]
@@ -48,7 +43,6 @@ def Bitvector3.setBitToZero {w} (domain: Bitvector3 w) (bitIndex: Nat): Bitvecto
 
   { zeros, ones, zeros_or_ones_set }
 
-
 theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
   : a.γ c → (Bitvector3.setBitToZero a n).γ c
   ∨ (Bitvector3.setBitToOne a n).γ c := by
@@ -59,7 +53,6 @@ theorem splitBit_lemma {w} (a: Bitvector3 w) (n: Nat) (c: Bitvector w)
   intro hZeros
   intro hOnes
   grind -- TODO: nice proof
-
 
 public def Bitvector3.split {w} (domain: Bitvector3 w) (bitIndex: Fin w)
    : Bitvector3 w × Bitvector3 w :=

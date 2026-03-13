@@ -24,7 +24,7 @@ public def Bitvector3.ofBitvector {w} (bitvector: Bitvector w): Bitvector3 w :=
   {  zeros, ones, zeros_or_ones_set }
 
 @[expose]
-public def Bitvector3.γ
+public def Bitvector3.γ {w}
   (domain: Bitvector3 w) (concrete: Bitvector w) : Bool :=
     let concreteZeros := ~~~concrete.value
     let concreteOnes := concrete.value
@@ -139,13 +139,4 @@ public theorem Bitvector3.toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvect
   }
 
 public theorem Bitvector3.top_γ_all {w: Nat} (c: Bitvector w)
-  : γ (Bitvector3.allUnknown w) c := by
-  rw[allUnknown, γ]; simp
-
-
-theorem xor_or_of_ands {w} (a b: BitVec w) : (~~~a &&& b) ||| (a &&& ~~~b) = a ^^^ b := by
-  ext h ih
-  simp
-  cases a[h]
-  cases b[h]
-  simp; simp; simp
+  : γ (Bitvector3.allUnknown w) c := by rw[allUnknown, γ]; simp
