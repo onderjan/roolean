@@ -55,11 +55,11 @@ public def Bitvector.uniOp {w: Nat} (domain: Bitvector w) (op: UniOp)
   | .Neg =>
     { value := -domain.value }
 
-def standardBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → BitVec w)
+public def Bitvector.standardBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → BitVec w)
   : Bitvector w :=
   { value := fn left.value right.value }
 
-def reductionBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → Bool)
+public def Bitvector.reductionBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → Bool)
   : Bitvector 1 :=
   { value := BitVec.ofBool (fn left.value right.value) }
 
