@@ -33,6 +33,34 @@ public def allZeros (w: Nat): Bitvector3 w :=
 public def allOnes (w: Nat): Bitvector3 w :=
   ofBitvector (Bitvector.allOnes)
 
+@[expose]
+public def minValue {w} (b: Bitvector3 w): BitVec w :=
+  b.zeros &&& b.ones
+
+@[expose]
+public def maxValue {w} (b: Bitvector3 w): BitVec w :=
+  b.ones
+
+public def ofFn {w} (fn: Fin w → Option Bool): Bitvector3 w :=
+  let finRange := (List.finRange w)
+  let zerosList: List Bool := (finRange.map λ i => (fn i) ≠ some true)
+  let onesList: List Bool := (finRange.map λ i => (fn i) ≠ some false)
+
+  let hZeros := by simp[zerosList, finRange]
+  let hOnes := by simp[onesList, finRange]
+
+  let zeros := BitVec.cast hZeros (BitVec.ofBoolListLE zerosList)
+  let ones := BitVec.cast hOnes (BitVec.ofBoolListLE onesList)
+
+  let zeros_or_ones_set := by
+    simp[zeros, ones]
+    ext i hI
+    repeat rw[← BitVec.getLsbD_eq_getElem]
+    simp[BitVec.getLsbD_ofBoolListLE, zerosList, onesList]
+    grind
+  { zeros, ones, zeros_or_ones_set }
+
+
 public def toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
   if ~~~(domain.zeros ^^^ domain.ones) == 0 then
     some { value := domain.ones }
@@ -63,6 +91,45 @@ public def choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c} :=
 public def fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
 
  --- THEOREMS ---
+
+public theorem ofFn_zeros_elem {w} (fn: Fin w → Option Bool) (i: Nat) (hI: i < w)
+  : (ofFn fn).zeros[i] = true ↔ fn (Fin.mk i hI) ≠ some true := by
+  simp[ofFn]
+  apply Iff.intro
+  {
+    intro h
+    repeat rw[← BitVec.getLsbD_eq_getElem] at h
+    rw[BitVec.getLsbD_ofBoolListLE] at h
+    simp[hI] at h
+    exact h
+  }
+  {
+    intro h
+    repeat rw[← BitVec.getLsbD_eq_getElem]
+    rw[BitVec.getLsbD_ofBoolListLE]
+    simp[hI]
+    exact h
+  }
+
+
+public theorem ofFn_ones_elem {w} (fn: Fin w → Option Bool) (i: Nat) (hI: i < w)
+  : (ofFn fn).ones[i] = true ↔ fn (Fin.mk i hI) ≠ some false := by
+  simp[ofFn]
+  apply Iff.intro
+  {
+    intro h
+    repeat rw[← BitVec.getLsbD_eq_getElem] at h
+    rw[BitVec.getLsbD_ofBoolListLE] at h
+    simp[hI] at h
+    exact h
+  }
+  {
+    intro h
+    repeat rw[← BitVec.getLsbD_eq_getElem]
+    rw[BitVec.getLsbD_ofBoolListLE]
+    simp[hI]
+    exact h
+  }
 
 public theorem γ_allUnknown {w} (c: Bitvector w)
   : γ (allUnknown w) c := by
