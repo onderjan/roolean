@@ -34,12 +34,12 @@ public def allOnes (w: Nat): Bitvector3 w :=
   ofBitvector (Bitvector.allOnes)
 
 @[expose]
-public def minValue {w} (b: Bitvector3 w): BitVec w :=
-  b.zeros &&& b.ones
+public def umin {w} (b: Bitvector3 w): Bitvector w :=
+  { value := ~~~b.zeros &&& b.ones }
 
 @[expose]
-public def maxValue {w} (b: Bitvector3 w): BitVec w :=
-  b.ones
+public def umax {w} (b: Bitvector3 w): Bitvector w :=
+  { value := b.ones }
 
 public def ofFn {w} (fn: Fin w → Option Bool): Bitvector3 w :=
   let finRange := (List.finRange w)
@@ -135,6 +135,58 @@ public theorem γ_allUnknown {w} (c: Bitvector w)
   : γ (allUnknown w) c := by
   rw[allUnknown, γ]
   simp
+
+public theorem umin_in_γ {w} (a: Bitvector3 w)
+  : γ a (a.umin) := by
+  simp[γ, umin]
+  simp[BitVec.eq_of_getElem_eq_iff]
+  intro i hI h
+  let hZO := a.zeros_or_ones_set
+  simp[BitVec.eq_of_getElem_eq_iff] at hZO
+  let hZO := hZO i hI
+  cases h with
+  | inl h => rename_i h; exact h
+  | inr h => rename_i h; simp[h] at hZO; exact hZO
+
+public theorem umax_in_γ {w} (a: Bitvector3 w)
+  : γ a (a.umax) := by
+  simp[γ, umax]
+  simp[BitVec.eq_of_getElem_eq_iff]
+  intro i hI h
+  let hZO := a.zeros_or_ones_set
+  simp[BitVec.eq_of_getElem_eq_iff] at hZO
+  let hZO := hZO i hI
+  simp[h] at hZO
+  exact hZO
+
+theorem BitVec_lt_elem {w} (a b: BitVec w)
+  : a < b ↔ ∃ (k: Fin w), a[k] = false ∧ b[k] = true ∧ ∀ i > k, a[k] = b[k] := by
+  apply Iff.intro
+  {
+    intro h
+    sorry
+  }
+  {
+    intro h
+    sorry
+  }
+
+public theorem umin_le_γ {w} (a: Bitvector3 w) (c: Bitvector w)
+  : γ a c → a.umin.value ≤ c.value := by
+  simp[γ]
+  simp[umin]
+  intro h1 h2
+  simp[BitVec.eq_of_getElem_eq_iff] at h1 h2
+
+  sorry
+
+public theorem γ_le_umax {w} (a: Bitvector3 w) (c: Bitvector w)
+  : γ a c → c.value ≤ a.umax.value := by
+  simp[umax, γ]
+  intro h1 h2
+  simp[BitVec.eq_of_getElem_eq_iff] at h1 h2
+
+  sorry
 
 public theorem top_γ_all {w: Nat} (c: Bitvector w)
   : γ (allUnknown w) c := by rw[allUnknown, γ]; simp
