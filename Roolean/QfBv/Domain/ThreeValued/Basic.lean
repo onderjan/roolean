@@ -92,6 +92,26 @@ public def fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
 
  --- THEOREMS ---
 
+public def γ_forall {w}
+  (a: Bitvector3 w) (c: Bitvector w)
+  : γ a c ↔ ∀ (i: Fin w), (!c.value[i] → a.zeros[i]) ∧ (c.value[i] → a.ones[i]) := by
+  simp[γ]
+  apply Iff.intro
+  {
+    intro h i
+    simp[BitVec.eq_of_getElem_eq_iff, ← forall_and] at h
+    let h := h i.toNat i.isLt
+    simp at h
+    exact h
+  }
+  {
+    simp[BitVec.eq_of_getElem_eq_iff, ← forall_and]
+    intro h i hI
+    let h := h (Fin.mk i hI)
+    simp at h
+    exact h
+  }
+
 public theorem ofFn_zeros_elem {w} (fn: Fin w → Option Bool) (i: Nat) (hI: i < w)
   : (ofFn fn).zeros[i] = true ↔ fn (Fin.mk i hI) ≠ some true := by
   simp[ofFn]
