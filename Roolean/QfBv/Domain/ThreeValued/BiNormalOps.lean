@@ -93,7 +93,7 @@ theorem extremeMax_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
   rw[BitVec.le_def] at hUmaxA hUmaxB
   simp[hUmaxA, hUmaxB, Nat.add_le_add]
 
-theorem extreme_soundBit {w} (a b: Bitvector3 w) (ca cb: Bitvector w) (k: Nat) (r: Bool)
+theorem extreme_soundNat {w} (a b: Bitvector3 w) (ca cb: Bitvector w) (k: Nat) (r: Bool)
   : γ a ca → γ b cb → extreme a b k = some r → r = (ca.value.toNat + cb.value.toNat).testBit k := by
   intro ha hb hExtreme
   simp[extreme] at hExtreme
@@ -113,6 +113,12 @@ theorem extreme_soundBit {w} (a b: Bitvector3 w) (ca cb: Bitvector w) (k: Nat) (
   simp[Nat.testBit]
   simp[← hConcrete]
 
+theorem extreme_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w) (k: Fin w) (r: Bool)
+  : γ a ca → γ b cb → extreme a b k = some r → r = (ca.value + cb.value)[k] := by
+  intro ha hb hExtreme
+  simp[BitVec.add_def, BitVec.ofNat]
+  exact extreme_soundNat a b ca cb k r ha hb hExtreme
+
 public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
     : γ a ca → γ b cb
       → γ (biNormal a b op) (Bitvector.biNormal ca cb op) := by
@@ -131,45 +137,19 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
 
     intro k
 
-
-
     apply And.intro
     {
       simp[ofFn_zeros_elem]
       intro h1 h2
-      sorry
+      let hExtremeSound := extreme_sound a b ca cb k true ha hb h2
+      simp[h1] at hExtremeSound
     }
     {
       simp[ofFn_ones_elem]
       intro h1 h2
-      sorry
+      let hExtremeSound := extreme_sound a b ca cb k false ha hb h2
+      simp[h1] at hExtremeSound
     }
-
-    /-
-    --simp[γ,BitVec.eq_of_getElem_eq_iff] at ha
-    --simp[γ,BitVec.eq_of_getElem_eq_iff] at hb
-    let ha := ha i hI
-    let hb := hb i hI
-    simp[ofFn_zeros_elem, ofFn_ones_elem]
-    apply And.intro
-    {
-      intro h
-      simp[modularExtremeBit]
-      intro h2
-      let hUminA := umin_le_γ a ca
-      simp[umin]
-
-      sorry
-    }
-    {
-      intro h
-      simp[modularExtremeBit]
-      intro h2
-
-
-      sorry
-    }
-    -/
   }
   -- BitAnd, BitOr, BitXor
   iterate 3 { simp[Bitvector.biNormal, Bitvector.standardBi]; grind[zeros_or_ones_set, γ] }
