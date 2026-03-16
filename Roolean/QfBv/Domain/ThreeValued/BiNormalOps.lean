@@ -9,10 +9,10 @@ namespace Bitvector3
  --- DEFINITIONS ---
 
  def modularExtremeBit {w} (left: Bitvector3 w) (right: Bitvector3 w) (k: Nat) : Option Bool :=
-  let minLeft := left.minimum.toNat % (2^(k+1))
-  let maxLeft := left.maximum.toNat % (2^(k+1))
-  let minRight := right.minimum.toNat % (2^(k+1))
-  let maxRight := right.maximum.toNat % (2^(k+1))
+  let minLeft := left.umin.value.toNat % (2^(k+1))
+  let maxLeft := left.umax.value.toNat % (2^(k+1))
+  let minRight := right.umin.value.toNat % (2^(k+1))
+  let maxRight := right.umax.value.toNat % (2^(k+1))
   let min := (minLeft + minRight)
   let max := (maxLeft + maxRight)
 
@@ -71,8 +71,7 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
       intro h
       simp[modularExtremeBit]
       intro h2
-      simp[minimum, Bitvector3.mmaximum
-      simp[minimum]
+      simp[umin]
 
       sorry
     }
