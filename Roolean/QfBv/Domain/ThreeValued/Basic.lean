@@ -159,75 +159,14 @@ public theorem umax_in_γ {w} (a: Bitvector3 w)
   simp[h] at hZO
   exact hZO
 
-
-theorem BitVec_le_lemma_hi {w} (a: BitVec w) (k: Fin w)
-  : a[k] = true → (2^k.toNat) ≤ a.toNat := by
-  intro h1
-  let h2 := BitVec.le_toNat_iff_getLsbD_eq_true (x:=a) k.isLt
-  simp[h2]
-  exists 0
-
-theorem BitVec_lt_lemma_lo {w} (a: BitVec w) (k: Fin w)
-  : (∀ i, k ≤ i → a[i] = false) → a.toNat < (2^k.toNat) := by
-  intro h1
-
-  let h2 := BitVec.toNat_lt_iff_getLsbD_eq_false (x:=a) k.toNat k.isLt
-  rw[h2]
-  intro i
-  by_cases k.toNat + i < w
-  {
-    rename_i hKI
-    rw[BitVec.getLsbD_eq_getElem hKI]
-    let h1 := h1 (Fin.mk (k.toNat + i) hKI)
-    simp[Fin.le_def] at h1
-    simp[h1]
-  }
-  {
-    rename_i hKI
-    grind
-  }
-
-/-
-theorem Nat_lt_lemma (a b: Nat) (m: Nat)
-  : a / 2^m = b / 2^m → (a ≤ b ↔ a % 2^m ≤ b % 2^m) := by
-  intro h1
-  apply Iff.intro
-  {
-    intro h2
-    repeat rw[Nat.mod_def]
-    rw[h1]
-    grind
-  }
-  {
-    intro h2
-    repeat rw[Nat.mod_def] at h2
-
-    rw[h1] at h2
-    by_cases 2 ^ m * (b / 2 ^ m) ≤ b
-    {
-      rename_i h3
-      let h4 := Nat.le_of_sub_le_sub_right (n:=a) (m:=b) h3 h2
-      exact h4
-    }
-    {
-      rename_i h3
-      simp at h3
-      grind
-    }
-    simp[Nat.le_of_sub_le_sub_right]
-
-    grind
-  }
--/
-
-theorem BitVec_le_lemma {w} (a b: BitVec w)
+theorem le_lemma_sub {w} (a b: BitVec w)
   : a - (a &&& b) ≤ b - (a &&& b) ↔ a ≤ b := by
   let hA: a &&& b ≤ a := by simp[BitVec.le_def, Nat.and_le_left]
   let hB: a &&& b ≤ b := by simp[BitVec.le_def, Nat.and_le_right]
   let hLe := BitVec.sub_le_sub_iff_le (x:=a) (y:=b) (z:=a &&& b) hA hB
   exact hLe
 
-theorem BitVec_le_lemma2 {w} (a b: BitVec w)
+theorem le_lemma_and_not_eq_sub {w} (a b: BitVec w)
   : a &&& ~~~b = a - (a &&& b) := by
   rw[← BitVec.not_inj]
   rw[BitVec.not_and]
@@ -247,141 +186,12 @@ theorem BitVec_le_lemma2 {w} (a b: BitVec w)
   simp[hCarry]
   grind
 
-
-  /-let hCarry: BitVec.carry i a (~~~(a &&& b) + 1#w) false = false := by
-    sorry
-  simp[hCarry]-/
-
-
-
-  /-
-  simp[BitVec.getElem_and]
-  --simp[BitVec.sub_eq_add_neg]
-  --simp[BitVec.neg_eq_not_add]
-  --simp[BitVec.not_and]
-  --simp[BitVec.getElem_add]
-  simp[BitVec.getElem_sub, BitVec.getElem_add]
-  by_cases i = 0
-  {
-    rename_i hI
-    simp[hI]
-    grind
-  }
-  {
-    rename_i hI
-    simp[hI]
-    cases a[i]
-    {
-      cases b[i]
-      {
-        let hCarryPreq := by sorry
-        let hCarry := BitVec.carry_of_and_eq_zero hCarryPreq
-        simp[BitVec.carry]
-
-
-
-      }
-      {
-
-      }
-    }
-  }
-  -/
-
-theorem BitVec_le_lemma3 {w} (a b: BitVec w)
+theorem le_lemma_and_not {w} (a b: BitVec w)
   : (a &&& ~~~b) ≤ (~~~a &&& b) ↔ a ≤ b := by
   rw(occs := [2])[BitVec.and_comm]
-  repeat rw[BitVec_le_lemma2]
+  repeat rw[le_lemma_and_not_eq_sub]
   rw(occs := [2])[BitVec.and_comm]
-  exact BitVec_le_lemma a b
-
-  /-
-  let h: a &&& ~~~b = a - (a &&& b) := by
-    ext i hI
-    simp[BitVec.getElem_and]
-    --simp[BitVec.sub_eq_add_neg]
-    --simp[BitVec.neg_eq_not_add]
-    --simp[BitVec.not_and]
-    --simp[BitVec.getElem_add]
-    simp[BitVec.getElem_sub, BitVec.getElem_add]
-    by_cases i = 0
-    {
-      rename_i hI
-      simp[hI]
-      grind
-    }
-    {
-      rename_i hI
-      simp[hI]
-      cases a[i]
-      {
-        cases b[i]
-        {
-          let hCarryPreq := by sorry
-          let hCarry := BitVec.carry_of_and_eq_zero hCarryPreq
-          simp[BitVec.carry]
-
-
-
-        }
-        {
-
-        }
-      }
-    }
-    --simp[BitVec.getElem_neg]
-
-
-
-    --simp[← BitVec.add_assoc]
-
-
-    sorry
-  sorry
-  -/
-
-
-/-theorem BitVec_lt_lemma {w} (a b: BitVec w) (m: Fin w)
-  : (∀i, m < i → a[i] = b[i]) → (a < b ↔ a.setWidth m < b.setWidth m) := by
-  intro h
-  --simp[BitVec.getElem_eq_true_of_lt_of_le]
-
-  apply Iff.intro
-  {
-    simp[BitVec.lt_def]
-    intro h1
-    simp[BitVec.getElem_eq_testBit_toNat] at h
-    simp[Nat.testBit] at h
-
-
-    --rw[← BitVec.lt_def]
-
-    --simp[BitVec.toNat_setWidth]
-
-    --intro h1
-    grind
-    --let hElem := BitVec.getElem_setWidth m a
-
-  }
-  {
-    sorry
-  }
-
-theorem BitVec_lt_elem {w} (a b: BitVec w)
-  : a < b ↔ ∃ (k: Fin w), a[k] = false ∧ b[k] = true ∧ ∀ i > k, a[k] = b[k] := by
-  apply Iff.intro
-  {
-    intro h
-    grind
-
-    sorry
-  }
-  {
-    intro h
-    grind
-    sorry
-  }-/
-
+  exact le_lemma_sub a b
 
 public theorem umin_le_γ {w} (a: Bitvector3 w) (c: Bitvector w)
   : γ a c → a.umin.value ≤ c.value := by
@@ -389,7 +199,7 @@ public theorem umin_le_γ {w} (a: Bitvector3 w) (c: Bitvector w)
   simp[umin]
   intro h1 h2
 
-  rw[← BitVec_le_lemma3]
+  rw[← le_lemma_and_not]
   rw[BitVec.and_comm]
   rw[← BitVec.and_assoc]
   simp[h1]
@@ -399,7 +209,7 @@ public theorem γ_le_umax {w} (a: Bitvector3 w) (c: Bitvector w)
   : γ a c → c.value ≤ a.umax.value := by
   simp[umax, γ]
   intro h1 h2
-  rw[← BitVec_le_lemma3]
+  rw[← le_lemma_and_not]
   simp[h2]
   simp[BitVec.le_def]
 
