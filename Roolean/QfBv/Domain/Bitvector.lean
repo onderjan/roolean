@@ -104,10 +104,8 @@ public instance BitvectorDomain : Domain Bitvector where
   biReduction := Bitvector.biReduction
   fmt := Bitvector.fmt
 
-public theorem BitvectorDomain.ofBitvector_id {w} (b: Bitvector w) : BitvectorDomain.ofBitvector b = b :=
-    by simp[BitvectorDomain, Bitvector.ofBitvector]
-public theorem BitvectorDomain.toBitvector?_someSelf {w} (b: Bitvector w) : BitvectorDomain.toBitvector? b = some b
-  := by simp[BitvectorDomain, Bitvector.toBitvector?]
+public theorem BitvectorDomain.ofBitvector_id {w} (b: Bitvector w) : Domain.ofBitvector b = b := by trivial
+public theorem BitvectorDomain.toBitvector?_someSelf {w} (b: Bitvector w) : Domain.toBitvector? b = some b := by trivial
 
 public def Bitvector.enumerate (w: Nat) : Vector (Bitvector w) (2^w) :=
   Vector.ofFn λ (n: Fin (2^w)) => { value := BitVec.ofFin n }
