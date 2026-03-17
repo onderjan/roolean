@@ -113,3 +113,13 @@ public def Bitvector.enumerate (w: Nat) : Vector (Bitvector w) (2^w) :=
 public theorem Bitvector.enumerate_containsAll (w: Nat) (c: Bitvector w)
   : c ∈ Bitvector.enumerate w := by
   rw[Bitvector.enumerate]; rw[Vector.mem_ofFn]; exists c.value.toFin
+
+public def Bitvector.truncate {w m} (a: Bitvector w) (_h: m ≤ w): Bitvector m :=
+  { value := a.value.setWidth m }
+
+public theorem Bitvector.add_truncate {w m} (a b: Bitvector w) (h: m ≤ w) (k: Fin m)
+  :  ((a.truncate h).value + (b.truncate h).value)[k] = (a.value + b.value)[k] := by
+  simp[truncate]
+  let hSetWidth := BitVec.setWidth_add a.value b.value h
+  simp[← hSetWidth]
+  grind

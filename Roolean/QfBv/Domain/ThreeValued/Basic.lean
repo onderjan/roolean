@@ -90,6 +90,18 @@ public def choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c} :=
 
 public def fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
 
+public def truncate {w m} (a: Bitvector3 w) (h: m ≤ w): Bitvector3 m :=
+  let zeros := a.zeros.setWidth m
+  let ones := a.ones.setWidth m
+  let zeros_or_ones_set := by
+    simp[zeros, ones]
+    simp[← BitVec.setWidth_or]
+    simp[a.zeros_or_ones_set]
+    ext i hI
+    simp
+    grind
+  { zeros, ones, zeros_or_ones_set}
+
  --- THEOREMS ---
 
 public def γ_forall {w}
@@ -111,6 +123,18 @@ public def γ_forall {w}
     simp at h
     exact h
   }
+
+public def truncate_γ {w m} (a: Bitvector3 w) (c: Bitvector w) (h: m < w)
+  : γ a c → γ (a.truncate h) (c.truncate h) := by
+  simp[γ_forall, truncate, Bitvector.truncate]
+  intro hGamma i
+  let hI : i.toNat < w := by
+    let hI := i.isLt
+    rw[Nat.lt_add_one_iff] at hI
+    simp
+    grind
+  let hGamma := hGamma (Fin.mk i hI)
+  grind
 
 public theorem ofFn_zeros_elem {w} (fn: Fin w → Option Bool) (i: Nat) (hI: i < w)
   : (ofFn fn).zeros[i] = true ↔ fn (Fin.mk i hI) ≠ some true := by
