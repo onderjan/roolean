@@ -146,6 +146,16 @@ theorem modularExtreme_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
   simp[kM] at hTruncate
   simp[hTruncate]
 
+theorem add_mod {p q} (a b) (h: q ≤ p) : (a % 2^p + b % 2^p) % 2^q = (a + b) % 2^q := by
+  let hX : 2^p = (2^q)*(2^(p-q)) := by
+    let h1 := Nat.pow_add 2 (q) (p-q)
+    simp[← h1]
+    grind
+
+  simp[hX, Nat.add_mod]
+
+theorem test_bit_mod {p q} (h: q < p) (x) : (x).testBit q = (x % 2^p).testBit q := by grind
+
 public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
     : γ a ca → γ b cb
       → γ (biNormal a b op) (Bitvector.biNormal ca cb op) := by
@@ -168,7 +178,14 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
       simp[bi, Nat.add_le_add hPQ hRS]
     let hTruncate: ∀ {m}, ∀(a b: BitVec w), m ≤ w → ∀ (k: Fin m),
       (bi (a.setWidth m) (b.setWidth m)).testBit k = (bi a b).testBit k := by
-      sorry
+      intro m a b hM k
+      simp[bi]
+
+      let hTestBitMod := test_bit_mod k.isLt
+      rw[hTestBitMod]
+      rw[add_mod]
+      rw[← hTestBitMod]
+      simp
 
     intro k
 
