@@ -95,25 +95,6 @@ theorem extreme_soundNat {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
   simp[← hExtreme] at hMax
   simp[Nat.testBit, ← Nat.le_antisymm hMin hMax]
 
-/-
-theorem extreme_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
-  (bi: {n: Nat} → BitVec n → BitVec n → Nat)
-  (h: ∀ {n}, ∀ {p q r s: BitVec n}, p ≤ q → r ≤ s → bi p r ≤ bi q s) (k: Fin w) (r: Bool)
-  : γ a ca → γ b cb → extreme a b bi k = some r → r = (bi ca.value cb.value)[k] := by
-  intro ha hb hExtreme
-  /-let bi := (λ {n: Nat} (a: BitVec n) (b: BitVec n) => (a.toNat + b.toNat))
-  let h : ∀ {n}, ∀ {p q r s: BitVec n}, p ≤ q → r ≤ s → bi p r ≤ bi q s := by
-    simp[bi,BitVec.le_def]
-    intro n p q r s h1 h2
-    exact Nat.add_le_add h1 h2-/
-
-  let lam: {n: Nat} → BitVec n → BitVec n → Nat := (λ a b => (bi a b).toNat)
-
-  let hSound := extreme_soundNat a b ca cb lam h k r ha hb hExtreme
-  simp[BitVec.getElem_eq_testBit_toNat]
-  exact hSound
--/
-
 theorem modularExtreme_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
   (bi: {n: Nat} → BitVec n → BitVec n → Nat)
   (hMonotone: ∀ {n}, ∀ {p q r s: BitVec n}, p ≤ q → r ≤ s → bi p r ≤ bi q s)
@@ -166,12 +147,6 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
     -- Add
     simp[γ_forall, Bitvector.biNormal, Bitvector.standardBi]
 
-    let hUminA := umin_le_γ a ca ha
-    let hUminB := umin_le_γ b cb hb
-
-    let hUmaxA := γ_le_umax a ca ha
-    let hUmaxB := γ_le_umax b cb hb
-
     let bi := (λ {n: Nat} (a: BitVec n) (b: BitVec n) => (a.toNat + b.toNat))
     let hMonotone : ∀ {n}, ∀ {p q r s: BitVec n}, p ≤ q → r ≤ s → bi p r ≤ bi q s := by
       intro n p q r s hPQ hRS
@@ -179,13 +154,7 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
     let hTruncate: ∀ {m}, ∀(a b: BitVec w), m ≤ w → ∀ (k: Fin m),
       (bi (a.setWidth m) (b.setWidth m)).testBit k = (bi a b).testBit k := by
       intro m a b hM k
-      simp[bi]
-
-      let hTestBitMod := test_bit_mod k.isLt
-      rw[hTestBitMod]
-      rw[add_mod]
-      rw[← hTestBitMod]
-      simp
+      simp[bi, test_bit_mod k.isLt]
 
     intro k
 
