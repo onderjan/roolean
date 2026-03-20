@@ -28,6 +28,8 @@ public def Bitvector.fromBool (value: Bool) : Bitvector 1 :=
     | false => Bitvector.allZeros
     | true => Bitvector.allOnes
 
+public def Bitvector.toNat {w} (domain: Bitvector w) : Nat := domain.value.toNat
+
 public theorem Bitvector.toBool_fromBool (a: Bitvector 1) (b: Bool)
   : a.toBool = b ↔ a = Bitvector.fromBool b := by
   simp[toBool, fromBool, allZeros, allOnes]
@@ -116,10 +118,3 @@ public theorem Bitvector.enumerate_containsAll (w: Nat) (c: Bitvector w)
 
 public def Bitvector.truncate {w m} (a: Bitvector w) (_h: m ≤ w): Bitvector m :=
   { value := a.value.setWidth m }
-
-public theorem Bitvector.add_truncate {w m} (a b: Bitvector w) (h: m ≤ w) (k: Fin m)
-  :  ((a.truncate h).value + (b.truncate h).value)[k] = (a.value + b.value)[k] := by
-  simp[truncate]
-  let hSetWidth := BitVec.setWidth_add a.value b.value h
-  simp[← hSetWidth]
-  grind
