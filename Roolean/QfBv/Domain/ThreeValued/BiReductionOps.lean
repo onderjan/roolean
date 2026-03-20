@@ -2,11 +2,17 @@ module
 
 public import Roolean.QfBv.Domain.ThreeValued.Basic
 import Roolean.QfBv.Domain.Bitvector
+import Roolean.QfBv.Domain.ThreeValued.Basic
+import Roolean.QfBv.Domain.ThreeValued.Basic
 
 namespace Bitvector3
 
 
  --- DEFINITIONS ---
+
+ theorem bif_decide (a b: Bool) : ((bif a then 1#1 else 0#1) |||
+    bif b then 1#1 else 0#1) = 1#1 ↔ a || b := by grind
+
 
 public def biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiReductionOp)
   : Bitvector3 1 :=
@@ -32,15 +38,26 @@ public def biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiRed
       ext i hI
       simp
 
-      simp[BitVec.eq_of_getElem_eq_iff] at h1
-      simp[BitVec.eq_of_getElem_eq_iff] at h2
+      simp[BitVec.eq_of_getElem_eq_iff] at h1 h2
 
       let hLeft := left.zeros_or_ones_set
       let hRight := right.zeros_or_ones_set
-      simp[BitVec.eq_of_getElem_eq_iff] at hLeft
-      simp[BitVec.eq_of_getElem_eq_iff] at hRight
+      simp[BitVec.eq_of_getElem_eq_iff] at hLeft hRight
 
       grind
+
+    { zeros, ones, zeros_or_ones_set }
+
+  | BiReductionOp.Ult =>
+    let result_can_be_zero := right.umin.value ≤ left.umax.value;
+    let result_can_be_one := left.umin.value < right.umax.value;
+
+    let zeros := BitVec.ofBool result_can_be_zero
+    let ones := BitVec.ofBool result_can_be_one
+
+    let zeros_or_ones_set := by
+      simp[zeros, ones, result_can_be_zero, result_can_be_one, BitVec.ofBool, bif_decide]
+      exact umin_umax_double right left
 
     { zeros, ones, zeros_or_ones_set }
 
@@ -90,6 +107,20 @@ public theorem biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca
       grind
     }
 
+  }
+  {
+    -- Ult
+    let aMin := a.umin_le_γ ca ha
+    let aMax := a.γ_le_umax ca ha
+    let bMin := b.umin_le_γ cb hb
+    let bMax := b.γ_le_umax cb hb
+
+    simp[γ, Bitvector.biReduction, Bitvector.reductionBi]
+    ext i hI; simp at hI; simp[hI]
+    simp[BitVec.ult, ← BitVec.lt_def]
+    apply And.intro
+    { intro h; grind }
+    { intro h; grind }
   }
   {
     -- other

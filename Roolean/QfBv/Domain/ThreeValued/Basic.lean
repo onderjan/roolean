@@ -237,6 +237,19 @@ theorem le_lemma_and_not {w} (a b: BitVec w)
   rw(occs := [2])[BitVec.and_comm]
   exact le_lemma_sub a b
 
+
+public theorem umin_le_umax {w} (a: Bitvector3 w) : a.umin.value ≤ a.umax.value := by
+  simp[umin, umax, BitVec.le_def, Nat.and_le_right]
+
+public theorem umin_umax_double {w} (a b : Bitvector3 w)
+  : a.umin.value ≤ b.umax.value ∨ b.umin.value < a.umax.value := by
+  let hA := umin_le_umax a
+  let hB := umin_le_umax b
+  rw[Classical.or_iff_not_imp_right]
+  intro h
+  simp at h
+  exact Nat.le_trans hA (Nat.le_trans h hB)
+
 public theorem umin_le_γ {w} (a: Bitvector3 w) (c: Bitvector w)
   : γ a c → a.umin.value ≤ c.value := by
   simp[γ]
