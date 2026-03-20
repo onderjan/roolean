@@ -61,6 +61,19 @@ public def biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiRed
 
     { zeros, ones, zeros_or_ones_set }
 
+  | BiReductionOp.Ule =>
+    let result_can_be_zero := right.umin.value < left.umax.value;
+    let result_can_be_one := left.umin.value ≤ right.umax.value;
+
+    let zeros := BitVec.ofBool result_can_be_zero
+    let ones := BitVec.ofBool result_can_be_one
+
+    let zeros_or_ones_set := by
+      simp[zeros, ones, result_can_be_zero, result_can_be_one, BitVec.ofBool, bif_decide]
+      exact Iff.mp Or.comm (umin_umax_double left right)
+
+    { zeros, ones, zeros_or_ones_set }
+
   | _ => match left.toBitvector?, right.toBitvector? with
     | some left, some right =>
       let result := Bitvector.biReduction left right op
@@ -119,8 +132,22 @@ public theorem biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca
     ext i hI; simp at hI; simp[hI]
     simp[BitVec.ult, ← BitVec.lt_def]
     apply And.intro
-    { intro h; grind }
-    { intro h; grind }
+    { intro h; simp[Nat.le_trans (Nat.le_trans bMin h) aMax, BitVec.le_def] }
+    { intro h; exact Nat.lt_of_lt_of_le (Nat.lt_of_le_of_lt aMin h) bMax }
+  }
+  {
+    -- Ule
+    let aMin := a.umin_le_γ ca ha
+    let aMax := a.γ_le_umax ca ha
+    let bMin := b.umin_le_γ cb hb
+    let bMax := b.γ_le_umax cb hb
+
+    simp[γ, Bitvector.biReduction, Bitvector.reductionBi]
+    ext i hI; simp at hI; simp[hI]
+    simp[BitVec.ule, ← BitVec.le_def]
+    apply And.intro
+    { intro h; exact Nat.lt_of_lt_of_le (Nat.lt_of_le_of_lt bMin h) aMax }
+    { intro h; simp[Nat.le_trans (Nat.le_trans aMin h) bMax, BitVec.le_def] }
   }
   {
     -- other
