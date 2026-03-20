@@ -28,11 +28,21 @@ def modularExtreme {w} (left: Bitvector3 w) (right: Bitvector3 w)
   (bi: {n: Nat} → BitVec n → BitVec n → Nat) (k: Fin w) : Option Bool :=
   extreme (left.truncate k.isLt) (right.truncate k.isLt) (λ a b => (bi a b)) k
 
+def addFn {w} (a b: BitVec w) := (a.toNat + b.toNat)
+
+def subFn {w} (a b: BitVec w) := (a.toNat + (2^w - b.toNat)) % 2^w
+
+def mulFn {w} (a b: BitVec w) := a.toNat * b.toNat
+
 public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormalOp)
   : Bitvector3 w :=
   match op with
   | BiNormalOp.Add =>
-    Bitvector3.ofFn (λ k => modularExtreme left right (λ a b => (a.toNat + b.toNat)) k)
+    Bitvector3.ofFn (λ k => modularExtreme left right addFn k)
+  /-| BiNormalOp.Sub =>
+    Bitvector3.ofFn (λ k => modularExtreme left right subFn k)-/
+  | BiNormalOp.Mul =>
+    Bitvector3.ofFn (λ k => modularExtreme left right mulFn k)
   | BiNormalOp.BitAnd =>
     let zeros := left.zeros ||| right.zeros -- iff zeros of either are set
     let ones := left.ones &&& right.ones -- iff ones of both are set
@@ -136,22 +146,47 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
   split
   {
     -- Add
-    let bi := (λ {n: Nat} (a: BitVec n) (b: BitVec n) => (a.toNat + b.toNat))
-    let hMonotone {n} {p q r s: BitVec n} : p ≤ q → r ≤ s → bi p r ≤ bi q s := by
-      intro hPQ hRS; simp[bi, Nat.add_le_add hPQ hRS]
+    let hMonotone {n} {p q r s: BitVec n} : p ≤ q → r ≤ s → addFn p r ≤ addFn q s := by
+      intro hPQ hRS; simp[addFn, Nat.add_le_add hPQ hRS]
     let hTruncate {m} (a b: BitVec w) (h: m ≤ w) (k: Fin m)
-      : (bi (a.setWidth m) (b.setWidth m)).testBit k = (bi a b).testBit k := by
-      simp[bi, test_bit_mod k.isLt]
-    let hExtremeSound := modularExtreme_sound a b ca cb bi hMonotone hTruncate ha hb
+      : (addFn (a.setWidth m) (b.setWidth m)).testBit k = (addFn a b).testBit k := by
+      simp[addFn, test_bit_mod k.isLt]
+    let hExtremeSound := modularExtreme_sound a b ca cb addFn hMonotone hTruncate ha hb
 
     simp[γ_forall, Bitvector.biNormal, Bitvector.standardBi]
     simp[ofFn_zeros_elem, ofFn_ones_elem]
     simp[BitVec.getElem_eq_testBit_toNat]
     intro k
 
-    apply And.intro; repeat {
-      intro h1 h2; let h := hExtremeSound k _ h2; simp[bi,h1] at h
-    }
+    apply And.intro;
+    { intro h1 h2; let h := hExtremeSound k _ h2; simp[addFn,h1] at h }
+    { intro h1 h2; let h := hExtremeSound k _ h2; simp[addFn,h1] at h }
+  }
+  /-{
+    -- Sub
+    sorry
+  }-/
+  {
+    -- Mul
+    let hMonotone {n} {p q r s: BitVec n} : p ≤ q → r ≤ s → mulFn p r ≤ mulFn q s := by
+      intro hPQ hRS; simp[mulFn,Nat.mul_le_mul hPQ hRS]
+    let hTruncate {m} (a b: BitVec w) (h: m ≤ w) (k: Fin m)
+      : (mulFn (a.setWidth m) (b.setWidth m)).testBit k = (mulFn a b).testBit k := by
+      simp[mulFn, test_bit_mod k.isLt]
+
+    let hExtremeSound := modularExtreme_sound a b ca cb mulFn hMonotone hTruncate ha hb
+
+    simp[γ_forall, Bitvector.biNormal, Bitvector.standardBi]
+    simp[ofFn_zeros_elem, ofFn_ones_elem]
+    simp[BitVec.getElem_eq_testBit_toNat]
+    intro k
+
+    apply And.intro
+    { intro h1 h2; let h := hExtremeSound k _ h2; simp[mulFn,h1] at h }
+    { intro h1 h2; let h := hExtremeSound k _ h2; simp[mulFn,h1] at h }
+
+
+
   }
   -- BitAnd, BitOr, BitXor
   iterate 3 { simp[Bitvector.biNormal, Bitvector.standardBi]; grind[zeros_or_ones_set, γ] }
