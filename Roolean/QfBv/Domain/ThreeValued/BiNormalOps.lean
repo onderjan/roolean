@@ -31,8 +31,9 @@ def mulFn {w} (a b: Bitvector3 w) (k: Fin w): Option Bool :=
 def subFn {w} (a b: Bitvector3 w) (k: Fin w): Option Bool :=
   let a' := a.truncate k.isLt
   let b' := b.truncate k.isLt
-  -- arith-negate the minimum and maximum of the second operator before doing addition
-  extreme a'.umin.toNat a'.umax.toNat b'.umax.value.neg.toNat b'.umin.value.neg.toNat (λ a b => a+b) k
+  -- bit-negate the minimum and maximum of the second operator before doing addition
+  -- we will need to add 1 in the function
+  extreme a'.umin.toNat a'.umax.toNat (~~~b'.umax.value).toNat (~~~b'.umin.value).toNat (λ a b => a+b+1) k
 
 public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormalOp)
   : Bitvector3 w :=
@@ -87,7 +88,8 @@ theorem extreme_sound (aMin aMax bMin bMax: Nat) (ca cb: Nat)
 theorem test_bit_mod {p q} (h: q < p) (x) : (x).testBit q = (x % 2^p).testBit q := by grind
 theorem test_bit_add {p q} (h: q < p) (x y): (x % 2^p + y % 2^p).testBit q = (x + y).testBit q := by simp[test_bit_mod h]
 
-theorem trunc_sub_mod {w n} (h: n ≤ w) {y} (hY: y < 2^w) : (2 ^ n - y % (2^n)) % (2^n) = (2^w - y) % 2^n := by
+theorem trunc_sub_mod {w n} (h: n ≤ w) {y} (hY: y < 2^w)
+  : (2 ^ n - y % 2 ^ n) % 2^n = (2^w - y) % 2^n := by
   simp[Nat.mod_eq_mod_iff]
   simp[Nat.mod_eq_sub]
   exists (2^(w-n))
@@ -113,7 +115,10 @@ theorem trunc_sub_mod {w n} (h: n ≤ w) {y} (hY: y < 2^w) : (2 ^ n - y % (2^n))
   simp[← h2]
   grind
 
-
+theorem mod_le (y n) : (y % 2^n + 1) ≤ 2^n := by
+  let h : 0 < 2^n := by grind
+  simp[Nat.le_iff_lt_add_one]
+  exact Nat.mod_lt y h
 
 public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
     : γ a ca → γ b cb
@@ -174,82 +179,83 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
     let hA := Bitvector3.truncate_γ a ca k.isLt ha
     let hB := Bitvector3.truncate_γ b cb k.isLt hb
 
-    let minS := b'.umax.value.neg.toNat
-    let maxS := b'.umin.value.neg.toNat
-    let cS := cb'.value.neg.toNat
+    let minS := (~~~b'.umax.value).toNat
+    let maxS := (~~~b'.umin.value).toNat
+    let cS := (~~~cb'.value).toNat
 
     let hMinA: a'.umin.toNat ≤ ca'.toNat := by
       simp[Bitvector.toNat, ← BitVec.le_def, Bitvector3.umin_le_γ a' ca' hA]
     let hMaxA: ca'.toNat ≤ a'.umax.toNat := by
       simp[Bitvector.toNat, ← BitVec.le_def, Bitvector3.γ_le_umax a' ca' hA]
-    let hMinS: minS ≤ cS := by
-      let h := Bitvector3.γ_le_umax b' cb' hB
-      simp[BitVec.le_def] at h
-      simp[minS, cS]
-      sorry
+    let hMinB: b'.umin.toNat ≤ cb'.toNat := by
+      simp[Bitvector.toNat, ← BitVec.le_def, Bitvector3.umin_le_γ b' cb' hB]
+    let hMaxB: cb'.toNat ≤ b'.umax.toNat := by
+      simp[Bitvector.toNat, ← BitVec.le_def, Bitvector3.γ_le_umax b' cb' hB]
 
-    let hMaxS: cS ≤ maxS := by sorry
+    let hNotReverses {w} {x y: BitVec w} (h: x ≤ y): ~~~y ≤ ~~~x := by
+      simp only [BitVec.le_def]
+      simp only [BitVec.toNat_not]
+      let hX : x.toNat ≤ (2^w - 1) := by grind
+      let hY : y.toNat ≤ (2^w - 1) := by grind
+      let hSub := Nat.sub_le_sub_iff_left hX (m:=y.toNat)
+      rw[BitVec.le_def] at h
+      simp[hSub, h]
+
+    let hMinS: minS ≤ cS := by simp only [minS,cS,← BitVec.le_def,hNotReverses hMaxB]
+    let hMaxS: cS ≤ maxS := by simp only [maxS,cS,← BitVec.le_def,hNotReverses hMinB]
+
+    let bi (a b) := a + b + 1
+
+    let hMonotoneAdd: ∀ {p q r s: Nat}, p ≤ q → r ≤ s → bi p r ≤ bi q s := by
+      simp[bi]; intro p q r s hPQ hRS
+      exact Nat.add_le_add hPQ hRS
 
     let hExtremeSound := extreme_sound a'.umin.toNat a'.umax.toNat minS maxS
-      ca'.toNat cS hMinA hMaxA hMinS hMaxS (λ a b => a + b) Nat.add_le_add k
+      ca'.toNat cS hMinA hMaxA hMinS hMaxS bi hMonotoneAdd k
     simp[ca', cS, cb', minS, maxS, Bitvector.truncate] at hExtremeSound
-    simp [Bitvector.toNat] at hExtremeSound
+    simp [Bitvector.toNat, bi] at hExtremeSound
     simp [Bitvector.toNat]
 
     let hK : k.toNat < k.toNat + 1 := by simp
-    --let hBit := test_bit_mod hK
-    --simp only[Fin.toNat_eq_val] at hBit
-    --simp[hBit] at hExtremeSound
-
+    let hBit := test_bit_mod hK
 
     let hK2 : (k.toNat + 1) ≤ w := by simp[Nat.le_iff_lt_add_one]
-    /-let hY (n y): (y >>> n % 2 == 1).toNat = y >>> n % 2 := by
-      simp[Bool.toNat]; grind
-
-    let hInd (n y): y % (2 ^ (n + 1)) = (y % 2^n) + (2^n) * ((y.testBit n).toNat) := by
-      simp[Nat.testBit, hY]
-      sorry-/
-
-    --let hSubBV {w n} (h: n ≤ w) (x): ((BitVec.ofNat w x).neg.setWidth n) = ((BitVec.ofNat w x).setWidth n).neg := by
-    --  simp[BitVec.setWidth_neg_of_le h]
-    /-
-      let hTwo : 2 > 0 := by simp
-      let h0 := Nat.pow_le_pow_right hTwo h
-      simp[Nat.mod_eq_mod_iff]
-      simp[Nat.mod_eq_sub_mul_div]
-      exists x / 2 ^ n
-      exists 0
-
-      simp[← Nat.pow_add,h]
 
 
+    let hSubNew {w k} (h: k < w) (x y) (hY: y < 2^w) :
+      (x % 2 ^ (k+1) + (2 ^ (k+1) - 1 - y % 2 ^ (k + 1)) + 1).testBit k = (2^w - y + x).testBit k := by
+      simp[Nat.add_assoc]
+      rw(occs := [6])[Nat.add_comm]
 
-      let hN : 0 < 2^n := by grind
-      let h1 := Nat.le_of_lt (Nat.mod_lt x hN)
-      let hComm := Nat.sub_add_comm h1 (m:=2^w)
-      simp[← hComm]
-      simp[Nat.add_comm]
-    -/
+      let hOnes : 2 ^ (k + 1) - 1 - y % 2 ^ (k + 1) + 1 = 2 ^ (k + 1) - y % 2 ^ (k + 1) := by
+        rw[Nat.add_comm]
+        rw[Nat.sub_sub]
+        let hLe : (1 + y % 2 ^ (k + 1)) ≤ 2 ^ (k + 1) := by
+          rw[Nat.add_comm]
+          exact mod_le y (k+1)
+        let h := Nat.add_sub_assoc hLe
+        simp[← h]
+        rw[Nat.add_comm]
+        simp[← Nat.sub_sub]
 
-    let hSubNew {w k} (h: k < w) (x y) (hY: y < 2^w) : (x % 2^(k+1) + (2^(k+1) - y % 2^(k+1)) % 2^(k+1)).testBit k = (2^w - y + x).testBit k := by
+      simp[hOnes]
+
+      let hK : k < k + 1 := by simp
+      let hAddBit := test_bit_add hK
+      rw[← hAddBit]
+      simp
 
       let hTruncSubMod := trunc_sub_mod h hY
       simp at hTruncSubMod
-
       simp[hTruncSubMod]
-
-
-
-      let hKP : k < k+1 := by simp
-      let hTestBitAdd := test_bit_add hKP
-      rw[hTestBitAdd]
-      rw[Nat.add_comm]
+      simp[test_bit_add]
 
     simp at hSubNew
 
-    apply And.intro;
+    apply And.intro
     iterate 2 {
-      intro h1 h2;
+      intro h1 h2
+
       simp[h2] at hExtremeSound
       let hY: cb.value.toNat < 2^w := by grind
       let hSubNew := hSubNew hK2 ca.value.toNat cb.value.toNat hY
