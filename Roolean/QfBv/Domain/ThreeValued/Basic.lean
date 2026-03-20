@@ -28,10 +28,10 @@ public def allUnknown (w: Nat): Bitvector3 w :=
   { zeros, ones, zeros_or_ones_set }
 
 public def allZeros (w: Nat): Bitvector3 w :=
-  ofBitvector (Bitvector.allZeros)
+  ofBitvector (Bitvector.allZeros w)
 
 public def allOnes (w: Nat): Bitvector3 w :=
-  ofBitvector (Bitvector.allOnes)
+  ofBitvector (Bitvector.allOnes w)
 
 @[expose]
 public def umin {w} (b: Bitvector3 w): Bitvector w :=
@@ -104,7 +104,7 @@ public def truncate {w m} (a: Bitvector3 w) (h: m ≤ w): Bitvector3 m :=
 
  --- THEOREMS ---
 
-public def γ_forall {w}
+public theorem γ_forall {w}
   (a: Bitvector3 w) (c: Bitvector w)
   : γ a c ↔ ∀ (i: Fin w), (!c.value[i] → a.zeros[i]) ∧ (c.value[i] → a.ones[i]) := by
   simp[γ]
@@ -309,6 +309,12 @@ public theorem γ_ofBitvector {w} (c: Bitvector w) (d: Bitvector w)
 public theorem ofBitvector_sound {w} (c: Bitvector w)
   : γ (ofBitvector c) c := by
   simp[ofBitvector, γ]
+
+ public theorem allZeros_contains (w) : γ (Bitvector3.allZeros w) (Bitvector.allZeros w) := by
+  simp[allZeros, Bitvector.allZeros, ofBitvector_sound]
+
+ public theorem allOnes_contains (w) : γ (Bitvector3.allOnes w) (Bitvector.allOnes w) := by
+  simp[allOnes, Bitvector.allOnes, ofBitvector_sound]
 
 public theorem toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
     : some c = a.toBitvector? → (γ a d ↔ c = d) := by

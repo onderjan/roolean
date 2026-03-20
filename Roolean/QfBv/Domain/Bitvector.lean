@@ -6,10 +6,10 @@ public import Roolean.QfBv.Domain
 @[expose]
 public section
 
-public def Bitvector.allZeros {w: Nat}: Bitvector w :=
+public def Bitvector.allZeros (w: Nat): Bitvector w :=
   { value := BitVec.zero w }
 
-public def Bitvector.allOnes {w: Nat}: Bitvector w :=
+public def Bitvector.allOnes (w: Nat): Bitvector w :=
   { value := BitVec.allOnes w }
 
 public def Bitvector.ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w :=
@@ -25,8 +25,8 @@ public def Bitvector.toBool (domain: Bitvector 1) : Bool :=
 
 public def Bitvector.fromBool (value: Bool) : Bitvector 1 :=
   match value with
-    | false => Bitvector.allZeros
-    | true => Bitvector.allOnes
+    | false => Bitvector.allZeros 1
+    | true => Bitvector.allOnes 1
 
 public def Bitvector.toNat {w} (domain: Bitvector w) : Nat := domain.value.toNat
 
