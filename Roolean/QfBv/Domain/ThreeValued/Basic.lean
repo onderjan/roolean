@@ -45,21 +45,21 @@ public def umax {w} (b: Bitvector3 w): Bitvector w :=
 public def smin {w} (b: Bitvector3 w): Bitvector w :=
   -- the unsigned minimum has sign bit set to zero if possible
   -- take it and set the sign bit to one if possible
-  if b.umin.value.msb = b.umax.value.msb then
-    { value := b.umin.value }
-  else
+  if b.zeros.msb && b.ones.msb then
     -- unknown value, set the sign bit to one
     { value := b.umin.value ||| (BitVec.twoPow w (w-1)) }
+  else
+    { value := b.umin.value }
 
 @[expose]
 public def smax {w} (b: Bitvector3 w): Bitvector w :=
   -- the unsigned maximum has sign bit set to one if possible
   -- take it and set the sign bit to zero if possible
-  if b.umin.value.msb = b.umax.value.msb then
-    { value := b.umax.value }
-  else
+  if b.zeros.msb && b.ones.msb then
     -- unknown value, set the sign bit to zero
     { value := b.umax.value &&& ~~~(BitVec.twoPow w (w-1)) }
+  else
+    { value := b.umax.value }
 
 
 public def ofFn {w} (fn: Fin w → Option Bool): Bitvector3 w :=
@@ -258,6 +258,53 @@ theorem le_lemma_and_not {w} (a b: BitVec w)
   rw(occs := [2])[BitVec.and_comm]
   exact le_lemma_sub a b
 
+theorem le_bit_lemma {w} {a b: BitVec w} (h: ∀i, a.getLsbD i → b.getLsbD i) : a ≤ b := by
+  simp[BitVec.getLsbD] at h
+  simp[BitVec.le_def, Nat.le_of_testBit h]
+
+theorem sle_bit_lemma {w} {a b: BitVec w} (h1: ∀i, i ≠ (w-1) → a.getLsbD i → b.getLsbD i)
+  (h2: b.msb → a.msb) : a.sle b := by
+  rw[BitVec.sle_eq_not_slt]
+  rw[BitVec.slt_eq_ult]
+
+  by_cases a.msb = b.msb
+  {
+    -- known
+    rename_i h
+    simp[h]
+
+    let hU : ∀ (i : Nat), a.getLsbD i → b.getLsbD i := by
+      intro i
+      by_cases i = w-1
+      {
+        rename_i hI
+        simp[BitVec.msb_eq_getLsbD_last] at h
+        simp[h, hI]
+      }
+      {
+        rename_i hI
+        exact h1 i hI
+      }
+    simp[BitVec.ult_eq_decide_lt]
+    simp[le_bit_lemma hU]
+  }
+  {
+    -- unknown
+    rename_i h
+    simp [← Bool.not_eq] at h
+    simp[h]
+    let hA : a.msb = true := by
+      by_cases b.msb
+      { rename_i hB; simp[hB] at h2; exact h2 }
+      { rename_i hB; simp[hB] at h; exact h }
+    let hB : b.msb = false := by simp[hA] at h; simp[h]
+
+    simp[BitVec.msb_eq_toNat] at hA
+    simp[BitVec.msb_eq_toNat] at hB
+    simp[BitVec.ult]
+    exact Nat.lt_of_lt_of_le hB hA
+  }
+
 public theorem umin_le_umax {w} (a: Bitvector3 w) : a.umin.value ≤ a.umax.value := by
   simp[umin, umax, BitVec.le_def, Nat.and_le_right]
 
@@ -309,22 +356,33 @@ public theorem γ_msb_umin_umax {w} (a : Bitvector3 w) (c: Bitvector w)
   grind
 
 public theorem smin_sle_smax {w} (a: Bitvector3 w) : a.smin.value.sle a.smax.value := by
-  simp[smin, smax, BitVec.sle_eq_ule, BitVec.ule_eq_decide_le]
+  simp[smin, smax, umin, umax, BitVec.sle_eq_ule, BitVec.ule_eq_decide_le]
 
-  split
+  by_cases 0 < w
   {
-    -- msb is known
-    rename_i h; simp[h,umin_le_umax a]
+    rename_i h1
+    let h2 : w-1 < w := by grind
+    split
+    {
+      -- msb is known
+      rename_i h3
+      simp[h1, h2, h3]
+    }
+    {
+      -- msb is unknown
+      rename_i h3
+      simp at h3
+      simp[h1, BitVec.le_def, Nat.and_le_right]
+      by_cases a.zeros.msb
+      {
+        rename_i h4; simp[h4, h3]
+      }
+      {
+        rename_i h4; simp[h4]
+      }
+    }
   }
-  {
-    -- msb is unknown
-    let h1: 0 < w := by grind
-    let h2: w-1 < w := by grind
-    --let hOr (x: BitVec w) : (x ||| BitVec.twoPow w (w - 1)).msb = true := by grind
-    --let hAnd (x: BitVec w) : (x &&& ~~~BitVec.twoPow w (w - 1)).msb = false := by grind
-
-    simp[h1, h2]
-  }
+  { grind }
 
 public theorem smin_smax_double {w} (a b : Bitvector3 w)
   : a.smin.value.sle b.smax.value ∨ b.smin.value.slt a.smax.value := by
@@ -338,14 +396,66 @@ public theorem smin_smax_double {w} (a b : Bitvector3 w)
 
 public theorem smin_sle_γ {w} (a: Bitvector3 w) (c: Bitvector w)
   : γ a c → a.smin.value.sle c.value := by
-  simp[smin]
+  simp[γ]
+  intro hZeros hOnes
+  simp[smin, umin, BitVec.twoPow]
+  sorry
+  /-
+  by_cases 0 < w
+  {
+    rename_i hW
+    split
+    {
+      rename_i h1
+
+      /-simp[BitVec.sle_eq_ule, hW, h1]
+      by_cases c.value.msb
+      {
+        rename_i h2
+        simp[h2, BitVec.ule_eq_decide_le]
+        sorry
+      }
+      {
+        rename_i h2
+        simp[h2, BitVec.ule_eq_decide_le]
+        sorry
+      }-/
+
+    }
+    {
+      rename_i h1
+      simp at h1
+      /-simp[BitVec.sle_eq_ule, hW]
+
+      by_cases a.zeros.msb
+      {
+        rename_i h2
+        simp[h2] at h1
+        simp[h1, h2]
+
+      }-/
+    }
+  }
+  {
+    rename_i h; simp at h; simp[h]
+    let hZero := BitVec.eq_of_zero_length h (x:= (~~~a.zeros &&& a.ones)) (y:=c.value)
+    simp[hZero, BitVec.sle_eq_ule, BitVec.ule_eq_decide]
+  }-/
+
+
+/-
+public theorem γ_sle_smax {w} (a: Bitvector3 w) (c: Bitvector w)
+  : γ a c → c.value.sle a.smax.value := by
+  simp[smax]
   intro hGamma
-  let hUnsigned := umin_le_γ a c hGamma
+  let hUnsigned := γ_le_umax a c hGamma
   split
   {
     rename_i hMsb
     let hMsbC := γ_msb_umin_umax a c hGamma hMsb
-    rw[Eq.comm] at hMsbC
+    simp[hMsb] at hMsbC
+    --rw[Eq.comm] at hMsbC
+
     simp[BitVec.sle_eq_ule_of_msb_eq hMsbC]
     simp[hUnsigned, BitVec.ule_iff_le]
   }
@@ -360,42 +470,46 @@ public theorem smin_sle_γ {w} (a: Bitvector3 w) (c: Bitvector w)
 
     by_cases c.value.msb
     {
-      rename_i h
-      let hOr (x: BitVec w) : (x ||| BitVec.twoPow w (w - 1)).msb = true := by grind
-      let hMsbSame : (a.umin.value ||| BitVec.twoPow w (w - 1)).msb = c.value.msb := by simp[h, hOr]
-      simp[BitVec.sle_eq_ule_of_msb_eq hMsbSame]
-      simp[BitVec.ule_iff_le]
 
-      /-let hOrMsb (x: BitVec w) : x.msb = true → (x ||| BitVec.twoPow w (w - 1)) = x := by grind
-      let hOrMsb := hOrMsb c.value h
-      rw[← hOrMsb]-/
-
-      sorry
-
-    }
-    {
       rename_i h
       simp at h
 
-      let hOr (x: BitVec w) : (x ||| BitVec.twoPow w (w - 1)).msb = true := by grind
-      let hMsbDifferent : c.value.msb ≠ (a.umin.value ||| BitVec.twoPow w (w - 1)).msb := by simp[h, hOr]
+      let hAnd (x: BitVec w) : (x &&& ~~~BitVec.twoPow w (w - 1)).msb = false := by grind
+      let hMsbDifferent : c.value.msb ≠ (a.umax.value &&& ~~~BitVec.twoPow w (w - 1)).msb := by simp[h, hAnd]
       simp[BitVec.sle_eq_not_slt]
+
       simp[BitVec.slt_eq_not_ult_of_msb_neq hMsbDifferent]
       simp[BitVec.ult_eq_decide]
       grind
     }
+    {
+
+      rename_i h
+      let hAnd (x: BitVec w) : (x &&& ~~~BitVec.twoPow w (w - 1)).msb = false := by grind
+
+      let hMsbSame : (a.umax.value &&& ~~~BitVec.twoPow w (w - 1)).msb = c.value.msb := by simp[h, hAnd]
+      simp[BitVec.sle_eq_ule_of_msb_eq hMsbSame]
+      simp[BitVec.ule_iff_le]
+
+      /-
+      let hOrMsb (x: BitVec w) : x.msb = true → (x ||| BitVec.twoPow w (w - 1)) = x := by grind
+      let hOrMsb := hOrMsb c.value h
+      rw[← hOrMsb]
+
+
+      let hBothOr (x y z: BitVec w) : x ≤ y → (x ||| z) ≤ (y ||| z) := by
+        simp[BitVec.or]
+        simp[BitVec.le_def]
+        simp[Nat.or]
+        simp[← BitVec.toNat_or]
+        simp[BitVec.toNat_or]
+        sorry-/
+
+      sorry
+    }
   }
-
-
-/-
-public theorem γ_sle_smax {w} (a: Bitvector3 w) (c: Bitvector w)
-  : γ a c → c.value.sle a.smax.value := by
-  simp[umax, γ]
-  intro h1 h2
-  rw[← le_lemma_and_not]
-  simp[h2]
-  simp[BitVec.le_def]
 -/
+
 
 public theorem top_γ_all {w: Nat} (c: Bitvector w)
   : γ (allUnknown w) c := by rw[allUnknown, γ]; simp
