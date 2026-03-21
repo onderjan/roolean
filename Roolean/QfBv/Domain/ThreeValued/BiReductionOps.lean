@@ -166,7 +166,23 @@ public theorem biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca
   }
   {
     -- Slt
-    sorry
+    let aMin := a.smin_sle_γ ca ha
+    let aMax := a.γ_sle_smax ca ha
+    let bMin := b.smin_sle_γ cb hb
+    let bMax := b.γ_sle_smax cb hb
+
+    simp[γ, Bitvector.biReduction, Bitvector.reductionBi]
+    ext i hI; simp at hI; simp[hI]
+
+    let sltEqNotSle {w} (x y: BitVec w) : x.slt y = !y.sle x := by simp[BitVec.sle_eq_not_slt]
+
+    simp[sltEqNotSle]
+    simp[BitVec.sle]
+    simp[BitVec.sle] at aMin aMax bMin bMax
+
+    apply And.intro
+    { intro h; exact Int.le_trans (Int.le_trans bMin h) aMax }
+    { intro h; exact Int.lt_of_lt_of_le (Int.lt_of_le_of_lt aMin h) bMax }
   }
   {
     -- other
