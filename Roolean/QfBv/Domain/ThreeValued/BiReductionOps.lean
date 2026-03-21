@@ -84,17 +84,22 @@ public def biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiRed
 
     let zeros_or_ones_set := by
       simp[zeros, ones, result_can_be_zero, result_can_be_one, BitVec.ofBool, bif_decide]
-
       exact smin_smax_double right left
 
     { zeros, ones, zeros_or_ones_set }
 
-  | _ => match left.toBitvector?, right.toBitvector? with
-    | some left, some right =>
-      let result := Bitvector.biReduction left right op
-      ofBitvector result
-    | _, _ =>
-        allUnknown 1
+  | BiReductionOp.Sle =>
+    let result_can_be_zero := right.smin.value.slt left.smax.value;
+    let result_can_be_one := left.smin.value.sle right.smax.value;
+
+    let zeros := BitVec.ofBool result_can_be_zero
+    let ones := BitVec.ofBool result_can_be_one
+
+    let zeros_or_ones_set := by
+      simp[zeros, ones, result_can_be_zero, result_can_be_one, BitVec.ofBool, bif_decide]
+      exact Iff.mp Or.comm (smin_smax_double left right)
+
+    { zeros, ones, zeros_or_ones_set }
 
  --- THEOREMS ---
 
@@ -185,14 +190,22 @@ public theorem biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca
     { intro h; exact Int.lt_of_lt_of_le (Int.lt_of_le_of_lt aMin h) bMax }
   }
   {
-    -- other
-    split
-    {
-      rename_i hA hB hAto hBto
-      rw[Eq.comm] at hAto;rw[Eq.comm] at hBto
-      let h5 := Iff.mp (toBitvector?_sound (w:=w) a hA ca hAto) ha
-      let h6 := Iff.mp (toBitvector?_sound (w:=w) b hB cb hBto) hb
-      simp[γ_ofBitvector, h5,h6]
-    }
-    { apply γ_allUnknown }
+    -- Sle
+    let aMin := a.smin_sle_γ ca ha
+    let aMax := a.γ_sle_smax ca ha
+    let bMin := b.smin_sle_γ cb hb
+    let bMax := b.γ_sle_smax cb hb
+
+    simp[γ, Bitvector.biReduction, Bitvector.reductionBi]
+    ext i hI; simp at hI; simp[hI]
+
+    let sltEqNotSle {w} (x y: BitVec w) : x.slt y = !y.sle x := by simp[BitVec.sle_eq_not_slt]
+
+    simp[sltEqNotSle]
+    simp[BitVec.sle]
+    simp[BitVec.sle] at aMin aMax bMin bMax
+
+    apply And.intro
+    { intro h; exact Int.lt_of_lt_of_le (Int.lt_of_le_of_lt bMin h) aMax }
+    { intro h; exact Int.le_trans (Int.le_trans aMin h) bMax }
   }
