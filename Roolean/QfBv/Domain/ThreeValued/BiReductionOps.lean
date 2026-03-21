@@ -4,6 +4,7 @@ public import Roolean.QfBv.Domain.ThreeValued.Basic
 import Roolean.QfBv.Domain.Bitvector
 import Roolean.QfBv.Domain.ThreeValued.Basic
 import Roolean.QfBv.Domain.ThreeValued.Basic
+import Roolean.QfBv.Domain.ThreeValued.Basic
 
 namespace Bitvector3
 
@@ -71,6 +72,20 @@ public def biReduction {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiRed
     let zeros_or_ones_set := by
       simp[zeros, ones, result_can_be_zero, result_can_be_one, BitVec.ofBool, bif_decide]
       exact Iff.mp Or.comm (umin_umax_double left right)
+
+    { zeros, ones, zeros_or_ones_set }
+
+  | BiReductionOp.Slt =>
+    let result_can_be_zero := right.smin.value.sle left.smax.value;
+    let result_can_be_one := left.smin.value.slt right.smax.value;
+
+    let zeros := BitVec.ofBool result_can_be_zero
+    let ones := BitVec.ofBool result_can_be_one
+
+    let zeros_or_ones_set := by
+      simp[zeros, ones, result_can_be_zero, result_can_be_one, BitVec.ofBool, bif_decide]
+
+      exact smin_smax_double right left
 
     { zeros, ones, zeros_or_ones_set }
 
@@ -148,6 +163,10 @@ public theorem biReduction_sound {w} (a b: Bitvector3 w) (op: BiReductionOp) (ca
     apply And.intro
     { intro h; exact Nat.lt_of_lt_of_le (Nat.lt_of_le_of_lt bMin h) aMax }
     { intro h; simp[Nat.le_trans (Nat.le_trans aMin h) bMax, BitVec.le_def] }
+  }
+  {
+    -- Slt
+    sorry
   }
   {
     -- other

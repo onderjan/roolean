@@ -41,6 +41,27 @@ public def umin {w} (b: Bitvector3 w): Bitvector w :=
 public def umax {w} (b: Bitvector3 w): Bitvector w :=
   { value := b.ones }
 
+@[expose]
+public def smin {w} (b: Bitvector3 w): Bitvector w :=
+  -- the unsigned minimum has sign bit set to zero if possible
+  -- take it and set the sign bit to one if possible
+  if b.umax.value.msb = b.umin.value.msb then
+    { value := b.umin.value }
+  else
+    -- unknown value, set the sign bit to one
+    { value := b.umin.value ||| (BitVec.twoPow w (w-1)) }
+
+@[expose]
+public def smax {w} (b: Bitvector3 w): Bitvector w :=
+  -- the unsigned maximum has sign bit set to one if possible
+  -- take it and set the sign bit to zero if possible
+  if b.umax.value.msb = b.umin.value.msb then
+    { value := b.umax.value }
+  else
+    -- unknown value, set the sign bit to zero
+    { value := b.umax.value &&& ~~~(BitVec.twoPow w (w-1)) }
+
+
 public def ofFn {w} (fn: Fin w → Option Bool): Bitvector3 w :=
   let finRange := (List.finRange w)
   let zerosList: List Bool := (finRange.map λ i => (fn i) ≠ some true)
@@ -237,7 +258,6 @@ theorem le_lemma_and_not {w} (a b: BitVec w)
   rw(occs := [2])[BitVec.and_comm]
   exact le_lemma_sub a b
 
-
 public theorem umin_le_umax {w} (a: Bitvector3 w) : a.umin.value ≤ a.umax.value := by
   simp[umin, umax, BitVec.le_def, Nat.and_le_right]
 
@@ -246,8 +266,7 @@ public theorem umin_umax_double {w} (a b : Bitvector3 w)
   let hA := umin_le_umax a
   let hB := umin_le_umax b
   rw[Classical.or_iff_not_imp_right]
-  intro h
-  simp at h
+  intro h; simp at h
   exact Nat.le_trans hA (Nat.le_trans h hB)
 
 public theorem umin_le_γ {w} (a: Bitvector3 w) (c: Bitvector w)
@@ -269,6 +288,34 @@ public theorem γ_le_umax {w} (a: Bitvector3 w) (c: Bitvector w)
   rw[← le_lemma_and_not]
   simp[h2]
   simp[BitVec.le_def]
+
+public theorem smin_sle_smax {w} (a: Bitvector3 w) : a.smin.value.sle a.smax.value := by
+  simp[smin, smax, BitVec.sle_eq_ule, BitVec.ule_eq_decide_le]
+
+  split
+  {
+    -- msb is known
+    rename_i h; simp[h,umin_le_umax a]
+  }
+  {
+    -- msb is unknown
+    let h1: 0 < w := by grind
+    let h2: w-1 < w := by grind
+    let hOr (x: BitVec w) : (x ||| BitVec.twoPow w (w - 1)).msb = true := by grind
+    let hAnd (x: BitVec w) : (x &&& ~~~BitVec.twoPow w (w - 1)).msb = false := by grind
+
+    simp[h1, h2]
+  }
+
+public theorem smin_smax_double {w} (a b : Bitvector3 w)
+  : a.smin.value.sle b.smax.value ∨ b.smin.value.slt a.smax.value := by
+  let hA := smin_sle_smax a
+  let hB := smin_sle_smax b
+  rw[Classical.or_iff_not_imp_right]
+  intro h; simp at h; rw [← Bool.not_eq_true'] at h; rw[← BitVec.sle_eq_not_slt] at h
+  simp[BitVec.sle_eq_decide] at hA hB h
+  simp[BitVec.sle_eq_decide]
+  exact Int.le_trans hA (Int.le_trans h hB)
 
 public theorem top_γ_all {w: Nat} (c: Bitvector w)
   : γ (allUnknown w) c := by rw[allUnknown, γ]; simp
