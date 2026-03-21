@@ -412,18 +412,29 @@ public theorem smin_sle_γ {w} (a: Bitvector3 w) (c: Bitvector w)
   simp[γ]
   intro hZeros hOnes
   simp[BitVec.eq_of_getElem_eq_iff] at hZeros hOnes
-  simp[smin, umin, BitVec.twoPow]
+  simp[smin, umin]
   split
   {
-    rename_i h
-    simp
+    -- unknown
+    rename_i h; simp
 
-    sorry
+    let h1 : ∀ (i : Fin w), i ≠ w - 1 →
+      (~~~a.zeros &&& a.ones ||| BitVec.twoPow w (w - 1))[i] = true → c.value[i] = true := by
+      intro i hI hBit
+      let hZeros := hZeros i i.isLt
+      let hOnes := hOnes i i.isLt
+      grind
+    let h2 : c.value.msb = true → (~~~a.zeros &&& a.ones ||| BitVec.twoPow w (w - 1)).msb = true := by
+      intro hC
+      simp
+      grind
+
+    exact sle_bit_lemma h1 h2
   }
   {
-    rename_i h
-    simp at h
-    simp
+    -- known
+    rename_i h; simp at h; simp
+
 
     let h1 : ∀ (i : Fin w), i ≠ w - 1 →
       (~~~a.zeros &&& a.ones)[i] = true → c.value[i] = true := by
@@ -433,12 +444,54 @@ public theorem smin_sle_γ {w} (a: Bitvector3 w) (c: Bitvector w)
       grind
     let h2 : c.value.msb = true → (~~~a.zeros &&& a.ones).msb = true := by
       intro hC
-      simp
       grind
 
     exact sle_bit_lemma h1 h2
   }
 
+public theorem γ_sle_smax {w} (a: Bitvector3 w) (c: Bitvector w)
+  : γ a c → c.value.sle a.smax.value := by
+  simp[γ]
+  intro hZeros hOnes
+  let hSet := a.zeros_or_ones_set
+  simp[BitVec.eq_of_getElem_eq_iff] at hZeros hOnes hSet
+  simp[smax, umax]
+  split
+  {
+    -- unknown
+    rename_i h; simp
+
+    let h1 : ∀ (i : Fin w), i ≠ w - 1 →
+      c.value[i] = true → (a.ones &&& ~~~BitVec.twoPow w (w - 1))[i] = true := by
+      intro i hI hBit
+      let hZeros := hZeros i i.isLt
+      let hOnes := hOnes i i.isLt
+      grind
+    let h2 : (a.ones &&& ~~~BitVec.twoPow w (w - 1)).msb = true → c.value.msb = true := by
+      intro hA
+      let hPow : (BitVec.twoPow w (w - 1)).msb = true := by grind
+      let hA : (a.ones &&& ~~~BitVec.twoPow w (w - 1)).msb = true := by grind
+      grind
+
+    exact sle_bit_lemma h1 h2
+  }
+  {
+    -- known
+    rename_i h; simp at h; simp
+
+
+    let h1 : ∀ (i : Fin w), i ≠ w - 1 →
+      c.value[i] = true → a.ones[i] = true := by
+      intro i hI hBit
+      let hZeros := hZeros i i.isLt
+      let hOnes := hOnes i i.isLt
+      grind
+    let h2 : a.ones.msb = true → c.value.msb = true := by
+      intro hC
+      grind
+
+    exact sle_bit_lemma h1 h2
+  }
 
 
 public theorem top_γ_all {w: Nat} (c: Bitvector w)
