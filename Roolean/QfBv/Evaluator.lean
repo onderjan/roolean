@@ -56,7 +56,7 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
   induction f
   {
     -- constant
-    simp [eval.eq_def, BitvectorDomain.ofBitvector_id, AbstractDomain.ofBitvector_sound]
+    simp [eval, Bitvector.ofBitvector_id, AbstractDomain.ofBitvector_sound]
   }
   {
     -- variable
