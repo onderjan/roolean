@@ -5,7 +5,7 @@ public import Roolean.SmtLib2.Executor
 
 import Roolean.QfBv.BvTerm
 import Roolean.QfBv.Checker
-import Roolean.QfBv.Domain.ThreeValued
+import Roolean.QfBv.Domain.Bitvector3
 import Std.Data.HashMap.Basic
 
 

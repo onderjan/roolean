@@ -1,6 +1,6 @@
 module
 
-public import Roolean.QfBv.Domain.ThreeValued.Basic
+public import Roolean.QfBv.Domain.Bitvector3.Basic
 
 namespace Bitvector3
 
