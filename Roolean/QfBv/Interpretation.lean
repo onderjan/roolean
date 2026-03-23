@@ -252,13 +252,14 @@ partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
 
   pure { width := 1, value := eqResult }
 
-partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (newWidth: Nat) (terms: Array SmtTerm)
+partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (addWidth: Nat) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
    -- expecting exactly one term
   match terms with
     | #[inner] =>
       let inner ← interpretTerm context inner
-      pure { width := newWidth, value := BvTerm.Extension inner.value newWidth op }
+      let combinedWidth := inner.width + addWidth
+      pure { width := combinedWidth, value := BvTerm.Extension inner.value combinedWidth op }
     | #[] => Except.error EInterpretation.TooFewOpArgs
     | _ => Except.error EInterpretation.TooManyOpArgs
 
