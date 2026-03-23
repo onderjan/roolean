@@ -22,10 +22,8 @@ public inductive EInterpretation
   | InvalidIndexedQualifiedIdent
   | VariableNotFound (name: String8)
 
-  | TooFewUniOpArgs
-  | TooManyUniOpArgs
-  | TooFewBiOpArgs
-  | TooManyBiOpArgs
+  | TooFewOpArgs
+  | TooManyOpArgs
   | BinaryWidthMismatch
 
   | BadApplication (name: String8)
@@ -140,8 +138,8 @@ partial def interpretUniOp {v} (context: Context v) (op: UniOp) (terms: Array Sm
     | #[inner] =>
       let inner ← interpretTerm context inner
       pure { width := inner.width, value := BvTerm.Unary inner.value op }
-    | #[] => Except.error EInterpretation.TooFewUniOpArgs
-    | _ => Except.error EInterpretation.TooManyUniOpArgs
+    | #[] => Except.error EInterpretation.TooFewOpArgs
+    | _ => Except.error EInterpretation.TooManyOpArgs
 
 
 partial def interpretBiNormalPair {v} (left: BvTermW v) (right: BvTermW v) (op: BiNormalOp)
@@ -158,7 +156,7 @@ partial def interpretBiNormalOp {v} (context: Context v) (op: BiNormalOp) (terms
   : (Except EInterpretation) (BvTermW v) := do
 
   let (left, right) ← if h: terms.size < 2 then
-    Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
+    Except.error EInterpretation.TooFewOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- exactly two args, evaluate normally
       let left ← interpretTerm context terms[0]
@@ -182,7 +180,7 @@ partial def interpretBiNormalOp {v} (context: Context v) (op: BiNormalOp) (terms
         pure (left, right)
       | _ =>
         -- cannot process this operation with more than two terms
-        Except.error EInterpretation.TooManyBiOpArgs
+        Except.error EInterpretation.TooManyOpArgs
 
   interpretBiNormalPair left right op
 
@@ -199,7 +197,7 @@ partial def interpretBiReductionPair {v} (left: BvTermW v) (right: BvTermW v) (o
 partial def interpretBiReductionOp {v} (context: Context v) (op: BiReductionOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   if h: terms.size < 2 then
-    Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
+    Except.error EInterpretation.TooFewOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- exactly two args, evaluate normally
       let left ← interpretTerm context terms[0]
@@ -208,13 +206,13 @@ partial def interpretBiReductionOp {v} (context: Context v) (op: BiReductionOp) 
       pure { width := 1, value }
   else
     -- cannot process these operations with more than two terms
-    Except.error EInterpretation.TooManyBiOpArgs
+    Except.error EInterpretation.TooManyOpArgs
 
 
 partial def interpretNeOp {v} (context: Context v) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   if h: terms.size < 2 then
-    Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
+    Except.error EInterpretation.TooFewOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- evaluate as bit-not of the result of an equality
       let left ← interpretTerm context terms[0]
@@ -224,12 +222,12 @@ partial def interpretNeOp {v} (context: Context v) (terms: Array SmtTerm)
       pure { width := 1, value }
   else
     -- cannot process this operation with more than two terms
-    Except.error EInterpretation.TooManyBiOpArgs
+    Except.error EInterpretation.TooManyOpArgs
 
 partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   let ((left, right) : BvTermW v × BvTermW v) ← if h: terms.size < 2 then
-    Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
+    Except.error EInterpretation.TooFewOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- consider a => b to work bit-wise:
       -- if some bit in a is set, that bit must also be set in b
@@ -251,6 +249,16 @@ partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
 
   pure { width := 1, value := eqResult }
 
+partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (newWidth: Nat) (terms: Array SmtTerm)
+  : (Except EInterpretation) (BvTermW v) := do
+   -- expecting exactly one term
+  match terms with
+    | #[inner] =>
+      let inner ← interpretTerm context inner
+      pure { width := newWidth, value := BvTerm.Extension inner.value newWidth op }
+    | #[] => Except.error EInterpretation.TooFewOpArgs
+    | _ => Except.error EInterpretation.TooManyOpArgs
+
 
 partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
@@ -264,8 +272,7 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
     | none => Except.error (EInterpretation.BadApplication ident.name)
 
   match ident.indices with
-    | #[] =>
-    -- no indices
+    | #[] => -- no indices
       match nameString with
         | "not" | "bvnot" => interpretUniOp context UniOp.Not terms
         | "bvneg" => interpretUniOp context UniOp.Neg terms
@@ -305,12 +312,20 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
         -- TODO
         -- | "ite"
         -- | "concat"
-        -- | "rotate_left"
-        -- | "rotate_right"
-        -- | "zero_extend"
-        -- | "sign_extend"
         -- | "extract"
         | _ => Except.error (EInterpretation.BadApplication ident.name)
+
+      | #[index] => -- one index, should be a numeral
+          let index ← match index with
+            | SmtIndex.Numeral value _ => pure value
+            | _ => Except.error (EInterpretation.BadApplication ident.name)
+
+          match nameString with
+          | "zero_extend" => interpretExtOp context ExtOp.Uext index terms
+          | "sign_extend" => interpretExtOp context ExtOp.Sext index terms
+          -- | "rotate_left"
+          -- | "rotate_right"
+          | _ => Except.error (EInterpretation.BadApplication ident.name)
 
       | _ => Except.error (EInterpretation.BadApplication ident.name)
 

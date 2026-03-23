@@ -48,14 +48,11 @@ public theorem Bitvector.toBool_eq (a b: Bitvector 1) : a = b ↔ a.toBool = b.t
     }
   }
 
-@[expose]
 public def Bitvector.uniOp {w: Nat} (domain: Bitvector w) (op: UniOp)
   : Bitvector w :=
   match op with
-  | .Not =>
-    { value := ~~~domain.value }
-  | .Neg =>
-    { value := -domain.value }
+  | .Not => { value := ~~~domain.value }
+  | .Neg => { value := -domain.value }
 
 public def Bitvector.standardBi {w: Nat} (left: Bitvector w) (right: Bitvector w) (fn: {w: Nat} → BitVec w → BitVec w → BitVec w)
   : Bitvector w :=
@@ -95,6 +92,13 @@ public def Bitvector.biReduction {w: Nat} (left: Bitvector w) (right: Bitvector 
   | .Slt => reductionBi left right λ a b => (a.slt b)
   | .Sle => reductionBi left right λ a b => (a.sle b)
 
+public def Bitvector.extOp {w: Nat} (domain: Bitvector w) (newWidth: Nat) (op: ExtOp)
+  : Bitvector newWidth :=
+  match op with
+  | .Uext => { value := domain.value.zeroExtend newWidth }
+  | .Sext => { value := domain.value.signExtend newWidth }
+
+
 public def Bitvector.fmt {w} (domain: Bitvector w) : String := s!"{domain.value}"
 
 public instance BitvectorDomain : Domain Bitvector where
@@ -104,6 +108,7 @@ public instance BitvectorDomain : Domain Bitvector where
   uniOp := Bitvector.uniOp
   biNormal := Bitvector.biNormal
   biReduction := Bitvector.biReduction
+  extOp := Bitvector.extOp
   fmt := Bitvector.fmt
 
 public theorem BitvectorDomain.ofBitvector_id {w} (b: Bitvector w) : Domain.ofBitvector b = b := by trivial

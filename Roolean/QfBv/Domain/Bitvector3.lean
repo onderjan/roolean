@@ -4,6 +4,7 @@ public import Roolean.QfBv.Domain.Bitvector3.Split
 public import Roolean.QfBv.Domain.Bitvector3.UniOps
 public import Roolean.QfBv.Domain.Bitvector3.BiNormalOps
 public import Roolean.QfBv.Domain.Bitvector3.BiReductionOps
+public import Roolean.QfBv.Domain.Bitvector3.ExtOps
 
 public instance : Domain Bitvector3 where
   ofBitvector := Bitvector3.ofBitvector
@@ -12,6 +13,7 @@ public instance : Domain Bitvector3 where
   uniOp := Bitvector3.uniOp
   biNormal := Bitvector3.biNormal
   biReduction := Bitvector3.biReduction
+  extOp := Bitvector3.extOp
 
   fmt := Bitvector3.fmt
 
@@ -28,6 +30,7 @@ public instance : AbstractDomain Bitvector3 where
   uniOp_sound := Bitvector3.uniOp_sound
   biNormal_sound := Bitvector3.biNormal_sound
   biReduction_sound := Bitvector3.biReduction_sound
+  extOp_sound := Bitvector3.extOp_sound
 
   ofBitvector_sound := Bitvector3.ofBitvector_sound
   toBitvector?_sound := Bitvector3.toBitvector?_sound

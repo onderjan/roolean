@@ -19,6 +19,8 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
     : γ a ca → γ b cb → γ (Domain.biNormal a b op) (Domain.biNormal ca cb op)
   biReduction_sound {w} (a b: α w) (op: BiReductionOp) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (Domain.biReduction a b op) (Domain.biReduction ca cb op)
+  extOp_sound {w} (a: α w) (c: Bitvector w) (m: Nat) (op: ExtOp)
+    : γ a c → γ (Domain.extOp a m op) (Domain.extOp c m op)
 
   ofBitvector_sound {w} (c: Bitvector w) : γ (Domain.ofBitvector c) c
   toBitvector?_sound {w} (a: α w) (c d: Bitvector w)
