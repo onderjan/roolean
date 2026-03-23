@@ -32,16 +32,21 @@ public inductive EInterpretation
   | UnsupportedLogic (logic: String8)
   | RootWidthNotOne
 
-  | LetNotImplemented -- TODO implement
+  | CollidingLetBinders
 deriving Repr
-
-structure VariableMap (v: VarWidths) where
-  inner: Std.HashMap String8 (Fin v.size)
 
 structure FormulaW (v: VarWidths) where
   width: Nat
   value: Formula v width
 deriving Repr, Nonempty
+
+structure Scope (v: VarWidths) where
+  binders: Std.HashMap String8 (FormulaW v)
+
+structure Context (v: VarWidths) where
+  varNames: Std.HashMap String8 (Fin v.size)
+  scopes: List (Scope v)
+
 
 def interpretVariableSort (sort: SmtSort): Except EInterpretation Nat :=
   match sort with
@@ -76,7 +81,7 @@ def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
   let bv: Bitvector width := { value := (BitVec.ofNat width value) }
   pure { width, value := Formula.Constant bv}
 
-def interpretQualifiedIdent {v} (variables: VariableMap v) (qualified: SmtQualifiedIdent)
+def interpretQualifiedIdent {v} (context: Context v) (qualified: SmtQualifiedIdent)
   : (Except EInterpretation) (FormulaW v) := do
 
   let name ← match qualified with
@@ -101,24 +106,35 @@ def interpretQualifiedIdent {v} (variables: VariableMap v) (qualified: SmtQualif
       -- we do not support indexed idents other than bvX
       Except.error EInterpretation.InvalidIndexedQualifiedIdent
 
-  match variables.inner.get? name with
-  | some index =>
+  -- look at variable bindings
+  for scope in context.scopes do
+    if let some result := scope.binders.get? name then
+      return result
+
+  -- look at variable definitions
+  if let some index := context.varNames.get? name then
     -- construct a reference to the variable
     let width := v.varWidth index
     let value := Formula.Variable index
-    pure { width, value }
-  | none =>
-    -- variable with the given name not found
-    Except.error (EInterpretation.VariableNotFound name)
+    return { width, value }
 
--- TODO prove termination
+  -- try out special names
+  if let some name := name.toString? then
+    if name == "false" then
+      return ({ width := 1, value := Formula.Constant (Bitvector.fromBool false) })
+    if name == "true" then
+      return ({ width := 1, value := Formula.Constant (Bitvector.fromBool true) })
+
+  -- variable with the given name not found
+  Except.error (EInterpretation.VariableNotFound name)
+
 mutual
-partial def interpretUniOp {v} (variables: VariableMap v) (op: UniOp) (terms: Array SmtTerm)
+partial def interpretUniOp {v} (context: Context v) (op: UniOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
    -- expecting exactly one term
   match terms with
     | #[inner] =>
-      let inner ← interpretTerm variables inner
+      let inner ← interpretTerm context inner
       pure { width := inner.width, value := Formula.Unary inner.value op }
     | #[] => Except.error EInterpretation.TooFewUniOpArgs
     | _ => Except.error EInterpretation.TooManyUniOpArgs
@@ -134,15 +150,15 @@ partial def interpretBiNormalPair {v} (left: FormulaW v) (right: FormulaW v) (op
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiNormalOp {v} (variables: VariableMap v) (op: BiNormalOp) (terms: Array SmtTerm)
+partial def interpretBiNormalOp {v} (context: Context v) (op: BiNormalOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
 
   let (left, right) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- exactly two args, evaluate normally
-      let left ← interpretTerm variables terms[0]
-      let right ← interpretTerm variables terms[1]
+      let left ← interpretTerm context terms[0]
+      let right ← interpretTerm context terms[1]
       pure (left, right)
   else
     -- more than two args
@@ -157,8 +173,8 @@ partial def interpretBiNormalOp {v} (variables: VariableMap v) (op: BiNormalOp) 
         -- left-associative, transform (f s_1 s_2 .. s_n) as (f (f s_1 s_2 ...) s_n)
         -- still process left-to-right
         let rightTerm := terms.back
-        let left ← interpretBiNormalOp variables op (terms.pop)
-        let right ← interpretTerm variables rightTerm
+        let left ← interpretBiNormalOp context op (terms.pop)
+        let right ← interpretTerm context rightTerm
         pure (left, right)
       | _ =>
         -- cannot process this operation with more than two terms
@@ -176,14 +192,14 @@ partial def interpretBiReductionPair {v} (left: FormulaW v) (right: FormulaW v) 
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiReductionOp {v} (variables: VariableMap v) (op: BiReductionOp) (terms: Array SmtTerm)
+partial def interpretBiReductionOp {v} (context: Context v) (op: BiReductionOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- exactly two args, evaluate normally
-      let left ← interpretTerm variables terms[0]
-      let right ← interpretTerm variables terms[1]
+      let left ← interpretTerm context terms[0]
+      let right ← interpretTerm context terms[1]
       let value ← interpretBiReductionPair left right op
       pure { width := 1, value }
   else
@@ -191,14 +207,14 @@ partial def interpretBiReductionOp {v} (variables: VariableMap v) (op: BiReducti
     Except.error EInterpretation.TooManyBiOpArgs
 
 
-partial def interpretNeOp {v} (variables: VariableMap v) (terms: Array SmtTerm)
+partial def interpretNeOp {v} (context: Context v) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- evaluate as bit-not of the result of an equality
-      let left ← interpretTerm variables terms[0]
-      let right ← interpretTerm variables terms[1]
+      let left ← interpretTerm context terms[0]
+      let right ← interpretTerm context terms[1]
       let eqResult ← interpretBiReductionPair left right BiReductionOp.Eq
       let value := Formula.Unary eqResult UniOp.Not
       pure { width := 1, value }
@@ -206,7 +222,7 @@ partial def interpretNeOp {v} (variables: VariableMap v) (terms: Array SmtTerm)
     -- cannot process this operation with more than two terms
     Except.error EInterpretation.TooManyBiOpArgs
 
-partial def interpretImpliesOp {v} (variables: VariableMap v) (terms: Array SmtTerm)
+partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
   let ((left, right) : FormulaW v × FormulaW v) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewBiOpArgs -- must have at least two args
@@ -216,14 +232,14 @@ partial def interpretImpliesOp {v} (variables: VariableMap v) (terms: Array SmtT
       -- the result is whether this holds for all bits
       -- we can rewrite to (a or b) == b, which is true exactly
       -- when there is no bit that is set in a but not set in b
-      let left ← interpretTerm variables terms[0]
-      let right ← interpretTerm variables terms[1]
+      let left ← interpretTerm context terms[0]
+      let right ← interpretTerm context terms[1]
       pure (left, right)
   else
     -- Implies right-associative, transform (f s_1 s_2 .. s_n) as (f s_1 (f s_2 ... s_n))
     -- still process left-to-right
-    let left ← interpretTerm variables (terms[0])
-    let right ← interpretImpliesOp variables (terms.eraseIdx 0)
+    let left ← interpretTerm context (terms[0])
+    let right ← interpretImpliesOp context (terms.eraseIdx 0)
     pure (left, right)
 
   let orResult ← interpretBiNormalPair left right BiNormalOp.BitOr
@@ -232,7 +248,7 @@ partial def interpretImpliesOp {v} (variables: VariableMap v) (terms: Array SmtT
   pure { width := 1, value := eqResult }
 
 
-partial def intepretApplication {v} (variables: VariableMap v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
+partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (FormulaW v) := do
 
   -- all supported applications are just symbols
@@ -246,40 +262,40 @@ partial def intepretApplication {v} (variables: VariableMap v) (qualified: SmtQu
     | none => Except.error EInterpretation.UnsupportedApplication
 
   match name with
-    | "not" | "bvnot" => interpretUniOp variables UniOp.Not terms
-    | "bvneg" => interpretUniOp variables UniOp.Neg terms
+    | "not" | "bvnot" => interpretUniOp context UniOp.Not terms
+    | "bvneg" => interpretUniOp context UniOp.Neg terms
 
-    | "bvadd" => interpretBiNormalOp variables BiNormalOp.Add terms
-    | "bvsub" => interpretBiNormalOp variables BiNormalOp.Sub terms
-    | "bvmul" => interpretBiNormalOp variables BiNormalOp.Mul terms
-    | "bvudiv" => interpretBiNormalOp variables BiNormalOp.Udiv terms
-    | "bvurem" => interpretBiNormalOp variables BiNormalOp.Urem terms
-    | "bvsdiv" => interpretBiNormalOp variables BiNormalOp.Sdiv terms
-    | "bvsrem" => interpretBiNormalOp variables BiNormalOp.Srem terms
+    | "bvadd" => interpretBiNormalOp context BiNormalOp.Add terms
+    | "bvsub" => interpretBiNormalOp context BiNormalOp.Sub terms
+    | "bvmul" => interpretBiNormalOp context BiNormalOp.Mul terms
+    | "bvudiv" => interpretBiNormalOp context BiNormalOp.Udiv terms
+    | "bvurem" => interpretBiNormalOp context BiNormalOp.Urem terms
+    | "bvsdiv" => interpretBiNormalOp context BiNormalOp.Sdiv terms
+    | "bvsrem" => interpretBiNormalOp context BiNormalOp.Srem terms
 
-    | "and" | "bvand" => interpretBiNormalOp variables BiNormalOp.BitAnd terms
-    | "or" | "bvor" => interpretBiNormalOp variables BiNormalOp.BitOr terms
-    | "xor" | "bvxor" => interpretBiNormalOp variables BiNormalOp.BitXor terms
+    | "and" | "bvand" => interpretBiNormalOp context BiNormalOp.BitAnd terms
+    | "or" | "bvor" => interpretBiNormalOp context BiNormalOp.BitOr terms
+    | "xor" | "bvxor" => interpretBiNormalOp context BiNormalOp.BitXor terms
 
-    | "=" | "bvcomp" => interpretBiReductionOp variables BiReductionOp.Eq terms
-    | "distinct" => interpretNeOp variables terms
-    | "=>" => interpretImpliesOp variables terms
+    | "=" | "bvcomp" => interpretBiReductionOp context BiReductionOp.Eq terms
+    | "distinct" => interpretNeOp context terms
+    | "=>" => interpretImpliesOp context terms
 
-    | "bvult" => interpretBiReductionOp variables BiReductionOp.Ult terms
-    | "bvule" => interpretBiReductionOp variables BiReductionOp.Ule terms
-    | "bvslt" => interpretBiReductionOp variables BiReductionOp.Slt terms
-    | "bvsle" => interpretBiReductionOp variables BiReductionOp.Sle terms
+    | "bvult" => interpretBiReductionOp context BiReductionOp.Ult terms
+    | "bvule" => interpretBiReductionOp context BiReductionOp.Ule terms
+    | "bvslt" => interpretBiReductionOp context BiReductionOp.Slt terms
+    | "bvsle" => interpretBiReductionOp context BiReductionOp.Sle terms
 
     -- for greater-than/greater-or-equal, reverse terms of corresponding
     -- lesser-than/lesser-or-equal
-    | "bvugt" => interpretBiReductionOp variables BiReductionOp.Ult terms.reverse
-    | "bvuge" => interpretBiReductionOp variables BiReductionOp.Ule terms.reverse
-    | "bvsgt" => interpretBiReductionOp variables BiReductionOp.Slt terms.reverse
-    | "bvsge" => interpretBiReductionOp variables BiReductionOp.Sle terms.reverse
+    | "bvugt" => interpretBiReductionOp context BiReductionOp.Ult terms.reverse
+    | "bvuge" => interpretBiReductionOp context BiReductionOp.Ule terms.reverse
+    | "bvsgt" => interpretBiReductionOp context BiReductionOp.Slt terms.reverse
+    | "bvsge" => interpretBiReductionOp context BiReductionOp.Sle terms.reverse
 
-    | "bvshl" => interpretBiNormalOp variables BiNormalOp.Shl terms
-    | "bvlshr" => interpretBiNormalOp variables BiNormalOp.Lshr terms
-    | "bvashr" => interpretBiNormalOp variables BiNormalOp.Ashr terms
+    | "bvshl" => interpretBiNormalOp context BiNormalOp.Shl terms
+    | "bvlshr" => interpretBiNormalOp context BiNormalOp.Lshr terms
+    | "bvashr" => interpretBiNormalOp context BiNormalOp.Ashr terms
 
      -- TODO
      -- | "ite"
@@ -292,16 +308,25 @@ partial def intepretApplication {v} (variables: VariableMap v) (qualified: SmtQu
 
     | _ => Except.error EInterpretation.UnsupportedApplication
 
-partial def interpretLet {v} (variables: VariableMap v) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
+partial def interpretLet {v} (context: Context v) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
   : Except EInterpretation (FormulaW v) := do
-  Except.error EInterpretation.LetNotImplemented -- TODO implement
+  let mut binders := {}
+  for (name, term) in bindings do
+    let result ← interpretTerm context term
+    if binders.contains name then
+      Except.error EInterpretation.CollidingLetBinders
+    binders := binders.insert name result
 
-partial def interpretTerm {v} (variables: VariableMap v) (term: SmtTerm): Except EInterpretation (FormulaW v) :=
+  let scope: Scope v :=  { binders }
+  let innerContext := { context with scopes := scope :: context.scopes }
+  interpretTerm innerContext term
+
+partial def interpretTerm {v} (context: Context v) (term: SmtTerm): Except EInterpretation (FormulaW v) :=
   match term with
   | SmtTerm.SpecialConstant constant => interpretSpecialConstant constant
-  | SmtTerm.QualifiedIdent qualified => interpretQualifiedIdent variables qualified
-  | SmtTerm.Application qualified terms => intepretApplication variables qualified terms
-  | SmtTerm.Let bindings term => interpretLet variables bindings term
+  | SmtTerm.QualifiedIdent qualified => interpretQualifiedIdent context qualified
+  | SmtTerm.Application qualified terms => intepretApplication context qualified terms
+  | SmtTerm.Let bindings term => interpretLet context bindings term
 
 end
 
@@ -338,13 +363,13 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
   let numVariables := interpretation.variables.size
 
-  let variableArray: Array (String8 × (Fin varWidths.size)) := interpretation.variables.mapFinIdx λ index var h =>
+  let variableArray := interpretation.variables.mapFinIdx λ index var h =>
     let h: index < varWidths.size := by simp[varWidths, VarWidths.size, h]
     (var.fst, Fin.mk index h)
 
-  let variableMap: VariableMap varWidths := { inner := Std.HashMap.ofArray variableArray }
+  let context := { varNames := Std.HashMap.ofArray variableArray, scopes := {} }
 
-  match interpretTerm (v := varWidths) variableMap assertion with
+  match interpretTerm (v := varWidths) context assertion with
     | Except.ok formula =>
       if h: formula.width = 1 then
         have h : Formula varWidths (FormulaW.width formula) = Formula varWidths 1 := by simp[h]
