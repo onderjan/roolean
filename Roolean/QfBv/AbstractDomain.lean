@@ -1,7 +1,5 @@
 module
-
 public import Roolean.QfBv.Domain.Bitvector
-public import Roolean.QfBv.Domain
 
 public class AbstractDomain (α : Nat → Type) [Domain α] where
   top (w: Nat) : α w

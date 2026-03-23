@@ -1,6 +1,8 @@
 module
 
-public import Roolean.QfBv.Bitvector
+public structure Bitvector (width: Nat) where
+  value: BitVec width
+deriving Repr, Inhabited
 
 public inductive UniOp
   | Not
@@ -32,7 +34,6 @@ public inductive BiReductionOp
   | Slt
   | Sle
 deriving Repr, Inhabited
-
 
 public class Domain (α: Nat → Type) where
   ofBitvector {w}: Bitvector w → α w

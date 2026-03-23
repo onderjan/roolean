@@ -1,8 +1,6 @@
 module
 
 public import Roolean.QfBv.AbstractDomain
-public import Roolean.QfBv.Domain.Bitvector
-public import Roolean.QfBv.Domain
 
 public structure Bitvector3 (w: Nat) where
   zeros: BitVec w

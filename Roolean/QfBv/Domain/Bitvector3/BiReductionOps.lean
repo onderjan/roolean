@@ -1,10 +1,6 @@
 module
 
 public import Roolean.QfBv.Domain.Bitvector3.Basic
-import Roolean.QfBv.Domain.Bitvector
-import Roolean.QfBv.Domain.Bitvector3.Basic
-import Roolean.QfBv.Domain.Bitvector3.Basic
-import Roolean.QfBv.Domain.Bitvector3.Basic
 
 namespace Bitvector3
 

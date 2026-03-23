@@ -1,6 +1,5 @@
 module
 
-public import Roolean.QfBv.Bitvector
 public import Roolean.QfBv.Domain
 
 public inductive Primary (w: Nat) where

@@ -2,7 +2,6 @@ module
 
 public import Roolean.QfBv.AbstractDomain
 public import Roolean.QfBv.Assignment
-import Roolean.QfBv.Domain.Bitvector
 
 public def eval {v w} {α : Nat → Type} [Domain α]
   (term: BvTerm v w) (assignment: Assignment v α) : α w :=

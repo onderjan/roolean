@@ -1,10 +1,10 @@
 module
 
 public import Roolean.QfBv.Domain
-public import Roolean.QfBv.Domain
 
 @[expose]
 public section
+
 
 public def Bitvector.allZeros (w: Nat): Bitvector w :=
   { value := BitVec.zero w }
