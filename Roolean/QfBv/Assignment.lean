@@ -1,6 +1,6 @@
 module
 
-public import Roolean.QfBv.Formula
+public import Roolean.QfBv.BvTerm
 public import Roolean.QfBv.AbstractDomain
 public import Std.Data.DHashMap.Basic
 import Std.Data.ExtDHashMap.Lemmas

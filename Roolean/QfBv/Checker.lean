@@ -12,21 +12,21 @@ public inductive SplitNode (v: VarWidths)
 deriving Repr
 
 structure KnownResult {v α} [Domain α] [AbstractDomain α]
-  (f: Formula v 1)  (a: Assignment v α) where
+  (f: BvTerm v 1)  (a: Assignment v α) where
   value: Bool
   sound: value ↔ (∃ (c: Assignment v Bitvector), Assignment.γ a c ∧ (eval f c).toBool = true)
 
 def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
-  (formula: Formula v 1) (assignment: Assignment v α) (node: SplitNode v)
-    : Option (KnownResult formula assignment) :=
+  (term: BvTerm v 1) (assignment: Assignment v α) (node: SplitNode v)
+    : Option (KnownResult term assignment) :=
   match node with
     | SplitNode.Leaf =>
-      let result := eval3 formula assignment
+      let result := eval3 term assignment
       match h: result with
         | some value =>
           let sound := by
             simp[result] at h
-            let hEval3Sound := eval3_sound formula assignment
+            let hEval3Sound := eval3_sound term assignment
             cases value
             {
               -- UNSAT
@@ -48,8 +48,8 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
       let split := assignment.split varIndex bitIndex
       let hSplit := Assignment.split_comprises assignment varIndex bitIndex
 
-      let leftResult := checkNodeSat formula split.fst leftNode
-      let rightResult := checkNodeSat formula split.snd rightNode
+      let leftResult := checkNodeSat term split.fst leftNode
+      let rightResult := checkNodeSat term split.snd rightNode
 
       match leftResult, rightResult with
         | some left, some right =>
@@ -129,13 +129,13 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
           none
 
 public def checkSat {v} (α) [Domain α] [AbstractDomain α]
-  (formula: Formula v 1) (node: SplitNode v) : Option Bool :=
-  match checkNodeSat formula (Assignment.top α v) node with
+  (term: BvTerm v 1) (node: SplitNode v) : Option Bool :=
+  match checkNodeSat term (Assignment.top α v) node with
     | some known => known.value
     | none => none
 
 public theorem checkSat_sound {v} (α) [Domain α] [AbstractDomain α]
-  (f: Formula v 1) (n: SplitNode v) (r: Bool)
+  (f: BvTerm v 1) (n: SplitNode v) (r: Bool)
   : (checkSat α f n) = some r → r = (∃ (c: Assignment v Bitvector), (eval f c).toBool = true) := by
   intro h
   simp[checkSat] at h
@@ -152,10 +152,10 @@ public theorem checkSat_sound {v} (α) [Domain α] [AbstractDomain α]
 
 
 public def solve {v: VarWidths} (α) [Domain α] [AbstractDomain α]
-  (formula: Formula v 1) : Option Bool := do
+  (term: BvTerm v 1) : Option Bool := do
   let splitTree: SplitNode v := Fin.foldl v.size (λ (splitTree: SplitNode v) varIndex =>
     Fin.foldl (v.varWidth varIndex) (λ splitTree bitIndex =>
         SplitNode.Split splitTree splitTree varIndex bitIndex) splitTree
     ) SplitNode.Leaf
 
-  checkSat α formula splitTree
+  checkSat α term splitTree

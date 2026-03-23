@@ -36,10 +36,10 @@ public theorem VarWidths.widthFrom_ge_size (v: VarWidths) (index: Nat)
     intro hIndex h; rw[← Nat.not_lt] at hIndex
     contradiction
 
-public inductive Formula (v: VarWidths): Nat → Type where
-  | Constant: {w: Nat} → Bitvector w → Formula v w
-  | Variable: (i : Fin v.size) → Formula v (VarWidths.varWidth v i)
-  | Unary: {w: Nat} → Formula v w → UniOp → Formula v w
-  | BinaryNormal: {w: Nat} → Formula v w → Formula v w → BiNormalOp → Formula v w
-  | BinaryReduction: {w: Nat} → Formula v w → Formula v w → BiReductionOp → Formula v 1
+public inductive BvTerm (v: VarWidths): Nat → Type where
+  | Constant: {w: Nat} → Bitvector w → BvTerm v w
+  | Variable: (i : Fin v.size) → BvTerm v (VarWidths.varWidth v i)
+  | Unary: {w: Nat} → BvTerm v w → UniOp → BvTerm v w
+  | BinaryNormal: {w: Nat} → BvTerm v w → BvTerm v w → BiNormalOp → BvTerm v w
+  | BinaryReduction: {w: Nat} → BvTerm v w → BvTerm v w → BiReductionOp → BvTerm v 1
 deriving Repr, Nonempty
