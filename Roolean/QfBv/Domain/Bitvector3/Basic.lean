@@ -122,6 +122,23 @@ public def truncate {w m} (a: Bitvector3 w) (h: m ≤ w): Bitvector3 m :=
     grind
   { zeros, ones, zeros_or_ones_set}
 
+public def join {w} (a b: Bitvector3 w): Bitvector3 w :=
+    let zeros := a.zeros ||| b.zeros
+    let ones := a.ones ||| b.ones
+    let zeros_or_ones_set := by
+      ext i hI
+      let hA := a.zeros_or_ones_set
+      simp[BitVec.eq_of_getElem_eq_iff] at hA
+      simp[zeros, ones]
+      let hA := hA i hI
+      rw[Classical.or_iff_not_imp_left]
+      intro h
+      simp at h
+      simp[h] at hA
+      simp[hA]
+
+    { zeros, ones, zeros_or_ones_set }
+
  --- THEOREMS ---
 
 public theorem γ_forall {w}
@@ -576,3 +593,21 @@ public theorem toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
       grind -- TODO nicer proof
     }
   }
+
+public def join_sound_left {w} (a b: Bitvector3 w) (c: Bitvector w)
+  : γ a c → γ (join a b) c := by
+  simp[join,γ_forall]
+  intro h i
+  let h := h i
+  apply And.intro
+  { intro hC; left; exact h.left hC }
+  { intro hC; left; exact h.right hC }
+
+public def join_sound_right {w} (a b: Bitvector3 w) (c: Bitvector w)
+  : γ b c → γ (join a b) c := by
+  simp[join,γ_forall]
+  intro h i
+  let h := h i
+  apply And.intro
+  { intro hC; right; exact h.left hC }
+  { intro hC; right; exact h.right hC }
