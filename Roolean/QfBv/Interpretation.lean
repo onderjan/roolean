@@ -252,6 +252,16 @@ partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
 
   pure { width := 1, value := eqResult }
 
+partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (newWidth: Nat) (terms: Array SmtTerm)
+  : (Except EInterpretation) (BvTermW v) := do
+   -- expecting exactly one term
+  match terms with
+    | #[inner] =>
+      let inner ← interpretTerm context inner
+      pure { width := newWidth, value := BvTerm.Extension inner.value newWidth op }
+    | #[] => Except.error EInterpretation.TooFewOpArgs
+    | _ => Except.error EInterpretation.TooManyOpArgs
+
 partial def interpretIte {v} (context: Context v) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   -- expecting exactly three terms: condition, then branch, else branch
@@ -277,17 +287,16 @@ partial def interpretIte {v} (context: Context v) (terms: Array SmtTerm)
     | #[] => Except.error EInterpretation.TooFewOpArgs
     | _ => Except.error EInterpretation.TooManyOpArgs
 
-
-
-partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (newWidth: Nat) (terms: Array SmtTerm)
+partial def interpretConcat {v} (context: Context v) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
-   -- expecting exactly one term
   match terms with
-    | #[inner] =>
-      let inner ← interpretTerm context inner
-      pure { width := newWidth, value := BvTerm.Extension inner.value newWidth op }
-    | #[] => Except.error EInterpretation.TooFewOpArgs
-    | _ => Except.error EInterpretation.TooManyOpArgs
+  | #[left, right] =>
+      let left ← interpretTerm context left
+      let right ← interpretTerm context right
+      let value := BvTerm.Concat left.width right.width left.value right.value
+      pure { width := left.width + right.width, value }
+  | #[] => Except.error EInterpretation.TooFewOpArgs
+  | _ => Except.error EInterpretation.TooManyOpArgs
 
 
 partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
@@ -341,7 +350,7 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
 
         -- TODO
         | "ite" => interpretIte context terms
-        -- | "concat"
+        | "concat" => interpretConcat context terms
         -- | "extract"
         | _ => Except.error (EInterpretation.BadApplication ident.name)
 

@@ -43,4 +43,5 @@ public inductive BvTerm (v: VarWidths): Nat → Type where
   | BinaryReduction: {w: Nat} → BvTerm v w → BvTerm v w → BiReductionOp → BvTerm v 1
   | Extension: {w:Nat} → BvTerm v w → (m: Nat) → ExtOp → BvTerm v m
   | Ite: {w: Nat} → BvTerm v 1 → BvTerm v w → BvTerm v w → BvTerm v w
+  | Concat: (wl wr: Nat) → BvTerm v wl → BvTerm v wr → BvTerm v (wl+wr)
 deriving Repr, Nonempty

@@ -36,6 +36,19 @@ public def eval {v w} {α : Nat → Type} [Domain α]
       let elseBranch := eval elseBranch assignment
       Domain.iteOp condition thenBranch elseBranch
 
+    | BvTerm.Concat wl wr left right =>
+      let left := eval left assignment
+      let right := eval right assignment
+      let width := wl + wr
+      -- zero-extend both and shift left by right width
+      let left := Domain.extOp left width ExtOp.Uext
+      let right := Domain.extOp right width ExtOp.Uext
+      let shiftValue := Domain.ofBitvector {value := BitVec.ofNat width wr}
+      let shifted := Domain.biNormal left shiftValue BiNormalOp.Shl
+      -- combine by bit-or
+      Domain.biNormal shifted right BiNormalOp.BitOr
+
+
 
 public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (f: BvTerm v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
@@ -77,6 +90,13 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     rename_i i t e h1 h2 h3
     exact AbstractDomain.iteOp_sound (eval i a) (eval t a) (eval e a)
       (eval i c) (eval t c) (eval e c) h1 h2 h3
+  }
+  {
+    -- concat
+    rename_i wl wr left right h1 h2
+    simp[eval]
+    exact AbstractDomain.concat_sound wl wr (eval left a) (eval right a)
+      (eval left c) (eval right c) h1 h2
   }
 
 def eval3bv {v} {α : Nat → Type} [Domain α]

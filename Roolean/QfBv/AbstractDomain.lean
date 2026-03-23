@@ -1,5 +1,6 @@
 module
 public import Roolean.QfBv.Domain.Bitvector
+public import Roolean.QfBv.Domain.AdditionalOps
 
 public class AbstractDomain (α : Nat → Type) [Domain α] where
   top (w: Nat) : α w
@@ -30,3 +31,16 @@ public class AbstractDomain (α : Nat → Type) [Domain α] where
 
 public theorem AbstractDomain.choice_within {w} {α} [Domain α] [AbstractDomain α] (a: α w)
   : γ (a) (AbstractDomain.choice a).val = true := by simp[(AbstractDomain.choice a).property]
+
+public theorem AbstractDomain.concat_sound {α} [Domain α] [AbstractDomain α]
+  (wl wr: Nat) (al: α wl) (ar: α wr) (cl: Bitvector wl) (cr: Bitvector wr)
+  : γ al cl → γ ar cr → γ (Domain.concat wl wr al ar) (Domain.concat wl wr cl cr) := by
+  intro hL hR
+  simp(zeta:= false)[Domain.concat]
+  extract_lets width aLeft aRight shiftValue aShift aShifted
+    cLeft cRight cShift cShifted
+  let hLeft := AbstractDomain.extOp_sound al cl (wl+wr) ExtOp.Uext hL
+  let hRight := AbstractDomain.extOp_sound ar cr (wl+wr) ExtOp.Uext hR
+  let hShiftValue := AbstractDomain.ofBitvector_sound (α:=α) shiftValue
+  let hShifted := AbstractDomain.biNormal_sound aLeft aShift BiNormalOp.Shl cLeft cShift hLeft hShiftValue
+  exact AbstractDomain.biNormal_sound aShifted aRight BiNormalOp.BitOr cShifted cRight hShifted hRight
