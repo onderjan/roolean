@@ -41,6 +41,46 @@ public def shl {w} (a b: Bitvector3 w): Bitvector3 w :=
   -- construct the initial bitvector and call recursively
   shlRec a b (shlByConst a b.umax) (b.umax.toNat-1)
 
+def shlRec_monotone {w} (a b x y: Bitvector3 w) (k: Nat) (c: Bitvector w)
+  (h: ∀e, γ x e → γ y e) : γ (shlRec a b x k) c → γ (shlRec a b y k) c := by
+  rw[shlRec]
+  intro hX
+  simp at hX
+  rw[shlRec]
+  simp
+  split
+  {
+    rename_i hB
+    simp[hB] at hX
+    split
+    {
+      rename_i hB
+      simp[hB] at hX
+      sorry
+    }
+    {
+      rename_i hB
+      simp[hB] at hX
+      sorry
+    }
+  }
+  {
+    rename_i hK
+    simp[hK] at hX
+    split
+    {
+      rename_i hB
+      simp[hB] at hX
+
+      sorry
+    }
+    {
+      rename_i hB
+      simp[hB] at hX
+      exact h c hX
+    }
+  }
+
 /-
 def shlRec_join {w} (a b x: Bitvector3 w) (k: Nat) (c: Bitvector w)
   : γ x c → γ (shlRec a b x k) c ∧ ∀y, γ (shlRec a b (x.join y) k) c := by
