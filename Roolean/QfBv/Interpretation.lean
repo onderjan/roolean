@@ -24,7 +24,10 @@ public inductive EInterpretation
 
   | TooFewOpArgs
   | TooManyOpArgs
+
   | BinaryWidthMismatch
+  | IteConditionWidthNotOne
+  | IteBranchWidthMismatch
 
   | BadApplication (name: String8)
   | UnsupportedLogic (logic: String8)
@@ -249,6 +252,33 @@ partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
 
   pure { width := 1, value := eqResult }
 
+partial def interpretIte {v} (context: Context v) (terms: Array SmtTerm)
+  : (Except EInterpretation) (BvTermW v) := do
+  -- expecting exactly three terms: condition, then branch, else branch
+  match terms with
+    | #[condition, thenBranch, elseBranch] =>
+      let condition ← interpretTerm context condition
+      let thenBranch ← interpretTerm context thenBranch
+      let elseBranch ← interpretTerm context elseBranch
+
+      if hCond: 1 = condition.width then
+        have hCond : BvTerm v condition.width = BvTerm v 1 := by simp[hCond]
+        let condition: BvTerm v 1 := cast hCond condition.value
+        if hBranches: thenBranch.width = elseBranch.width then
+          have hBranches : BvTerm v elseBranch.width = BvTerm v thenBranch.width := by simp[hBranches]
+          let elseBranch: BvTerm v thenBranch.width := cast hBranches elseBranch.value
+          pure { width := thenBranch.width, value := BvTerm.Ite condition thenBranch.value elseBranch }
+        else
+          Except.error EInterpretation.IteBranchWidthMismatch
+
+      else
+        Except.error EInterpretation.IteConditionWidthNotOne
+
+    | #[] => Except.error EInterpretation.TooFewOpArgs
+    | _ => Except.error EInterpretation.TooManyOpArgs
+
+
+
 partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (newWidth: Nat) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
    -- expecting exactly one term
@@ -310,7 +340,7 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
         | "bvashr" => interpretBiNormalOp context BiNormalOp.Ashr terms
 
         -- TODO
-        -- | "ite"
+        | "ite" => interpretIte context terms
         -- | "concat"
         -- | "extract"
         | _ => Except.error (EInterpretation.BadApplication ident.name)

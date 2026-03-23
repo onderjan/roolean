@@ -98,6 +98,9 @@ public def Bitvector.extOp {w: Nat} (domain: Bitvector w) (newWidth: Nat) (op: E
   | .Uext => { value := domain.value.zeroExtend newWidth }
   | .Sext => { value := domain.value.signExtend newWidth }
 
+public def Bitvector.iteOp {w: Nat} (condition: Bitvector 1) (thenBranch elseBranch: Bitvector w)
+  : Bitvector w := if condition.toBool then thenBranch else elseBranch
+
 
 public def Bitvector.fmt {w} (domain: Bitvector w) : String := s!"{domain.value}"
 
@@ -109,6 +112,7 @@ public instance BitvectorDomain : Domain Bitvector where
   biNormal := Bitvector.biNormal
   biReduction := Bitvector.biReduction
   extOp := Bitvector.extOp
+  iteOp := Bitvector.iteOp
   fmt := Bitvector.fmt
 
 public theorem BitvectorDomain.ofBitvector_id {w} (b: Bitvector w) : Domain.ofBitvector b = b := by trivial

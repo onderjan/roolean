@@ -80,6 +80,7 @@ public def ofFn {w} (fn: Fin w → Option Bool): Bitvector3 w :=
   { zeros, ones, zeros_or_ones_set }
 
 
+@[expose]
 public def toBitvector? {w} (domain: Bitvector3 w) : Option (Bitvector w) :=
   if ~~~(domain.zeros ^^^ domain.ones) == 0 then
     some { value := domain.ones }

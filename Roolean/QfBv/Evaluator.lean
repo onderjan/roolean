@@ -30,6 +30,13 @@ public def eval {v w} {α : Nat → Type} [Domain α]
       let inner := eval inner assignment
       Domain.extOp inner newWidth op
 
+    | BvTerm.Ite condition thenBranch elseBranch =>
+      let condition := eval condition assignment
+      let thenBranch := eval thenBranch assignment
+      let elseBranch := eval elseBranch assignment
+      Domain.iteOp condition thenBranch elseBranch
+
+
 public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (f: BvTerm v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
   : AbstractDomain.γ (eval f a) (eval f c) := by
@@ -64,6 +71,12 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     -- extension
     rename_i inner m op h
     exact AbstractDomain.extOp_sound (eval inner a) (eval inner c) m op h
+  }
+  {
+    -- ite
+    rename_i i t e h1 h2 h3
+    exact AbstractDomain.iteOp_sound (eval i a) (eval t a) (eval e a)
+      (eval i c) (eval t c) (eval e c) h1 h2 h3
   }
 
 def eval3bv {v} {α : Nat → Type} [Domain α]

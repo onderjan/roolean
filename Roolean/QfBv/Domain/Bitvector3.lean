@@ -5,6 +5,7 @@ public import Roolean.QfBv.Domain.Bitvector3.UniOps
 public import Roolean.QfBv.Domain.Bitvector3.BiNormalOps
 public import Roolean.QfBv.Domain.Bitvector3.BiReductionOps
 public import Roolean.QfBv.Domain.Bitvector3.ExtOps
+public import Roolean.QfBv.Domain.Bitvector3.IteOp
 
 public instance : Domain Bitvector3 where
   ofBitvector := Bitvector3.ofBitvector
@@ -14,6 +15,7 @@ public instance : Domain Bitvector3 where
   biNormal := Bitvector3.biNormal
   biReduction := Bitvector3.biReduction
   extOp := Bitvector3.extOp
+  iteOp := Bitvector3.iteOp
 
   fmt := Bitvector3.fmt
 
@@ -31,6 +33,7 @@ public instance : AbstractDomain Bitvector3 where
   biNormal_sound := Bitvector3.biNormal_sound
   biReduction_sound := Bitvector3.biReduction_sound
   extOp_sound := Bitvector3.extOp_sound
+  iteOp_sound := Bitvector3.iteOp_sound
 
   ofBitvector_sound := Bitvector3.ofBitvector_sound
   toBitvector?_sound := Bitvector3.toBitvector?_sound
