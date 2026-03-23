@@ -50,7 +50,7 @@ structure Context (v: VarWidths) where
 
 def interpretVariableSort (sort: SmtSort): Except EInterpretation Nat :=
   match sort with
-    | SmtSort.Ident (SmtIdent.Indexed typename #[width]) =>
+    | SmtSort.Ident { name := typename, indices := #[width] } =>
       if let some "BitVec" := typename.toString? then
         match width with
           | SmtIndex.Numeral width _width_num_length =>
@@ -84,21 +84,25 @@ def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
 def interpretQualifiedIdent {v} (context: Context v) (qualified: SmtQualifiedIdent)
   : (Except EInterpretation) (BvTermW v) := do
 
-  let name ← match qualified with
-  | SmtQualifiedIdent.Ident (SmtIdent.Symbol name) => pure name
-  | SmtQualifiedIdent.Ident (SmtIdent.Indexed name indexed) =>
+  let ident := match qualified with
+    | SmtQualifiedIdent.Ident ident => ident
+
+  let name ← if ident.indices.isEmpty then
+    pure ident.name
+  else
     -- try to process the form (_ bvX n)
-    if let some value := (name.dropPrefix? (String8.fromUTF8 "bv")) >>= (λ (a) => a.toString?) then
+    let withoutPrefix := ident.name.dropPrefix? (String8.fromUTF8 "bv")
+    if let some value := withoutPrefix >>= (λ (a) => a.toString?) then
       -- the number should be decimal
       if let some value := String.toNat? value then
-        match indexed with
+        match ident.indices with
           | #[SmtIndex.Numeral width _] =>
             -- construct bitvector
             let bv := { value := BitVec.ofNat width value }
             return { width, value := BvTerm.Constant bv}
           | _ =>
             -- bvX should have a single index, width
-            Except.error (EInterpretation.InvalidDecimalBitvec name)
+            Except.error (EInterpretation.InvalidDecimalBitvec ident.name)
       else
         -- we do not support indexed idents other than bvX where X is a decimal
         Except.error EInterpretation.InvalidIndexedQualifiedIdent
@@ -251,62 +255,65 @@ partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
 partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
 
-  -- all supported applications are just symbols
-  let name ← match qualified with
-    | SmtQualifiedIdent.Ident (SmtIdent.Symbol symbol) => pure symbol
-    | _ => Except.error EInterpretation.UnsupportedApplication
+  let ident := match qualified with
+    | SmtQualifiedIdent.Ident ident => ident
 
   -- all supported application symbols are ASCII
-  let name ← match name.toString? with
+  let nameString ← match ident.name.toString? with
     | some name => pure name
     | none => Except.error EInterpretation.UnsupportedApplication
 
-  match name with
-    | "not" | "bvnot" => interpretUniOp context UniOp.Not terms
-    | "bvneg" => interpretUniOp context UniOp.Neg terms
+  -- all currently supported applications have no indices
+  match ident.indices with
+    | #[] =>
+    -- no indices
+      match nameString with
+        | "not" | "bvnot" => interpretUniOp context UniOp.Not terms
+        | "bvneg" => interpretUniOp context UniOp.Neg terms
 
-    | "bvadd" => interpretBiNormalOp context BiNormalOp.Add terms
-    | "bvsub" => interpretBiNormalOp context BiNormalOp.Sub terms
-    | "bvmul" => interpretBiNormalOp context BiNormalOp.Mul terms
-    | "bvudiv" => interpretBiNormalOp context BiNormalOp.Udiv terms
-    | "bvurem" => interpretBiNormalOp context BiNormalOp.Urem terms
-    | "bvsdiv" => interpretBiNormalOp context BiNormalOp.Sdiv terms
-    | "bvsrem" => interpretBiNormalOp context BiNormalOp.Srem terms
+        | "bvadd" => interpretBiNormalOp context BiNormalOp.Add terms
+        | "bvsub" => interpretBiNormalOp context BiNormalOp.Sub terms
+        | "bvmul" => interpretBiNormalOp context BiNormalOp.Mul terms
+        | "bvudiv" => interpretBiNormalOp context BiNormalOp.Udiv terms
+        | "bvurem" => interpretBiNormalOp context BiNormalOp.Urem terms
+        | "bvsdiv" => interpretBiNormalOp context BiNormalOp.Sdiv terms
+        | "bvsrem" => interpretBiNormalOp context BiNormalOp.Srem terms
 
-    | "and" | "bvand" => interpretBiNormalOp context BiNormalOp.BitAnd terms
-    | "or" | "bvor" => interpretBiNormalOp context BiNormalOp.BitOr terms
-    | "xor" | "bvxor" => interpretBiNormalOp context BiNormalOp.BitXor terms
+        | "and" | "bvand" => interpretBiNormalOp context BiNormalOp.BitAnd terms
+        | "or" | "bvor" => interpretBiNormalOp context BiNormalOp.BitOr terms
+        | "xor" | "bvxor" => interpretBiNormalOp context BiNormalOp.BitXor terms
 
-    | "=" | "bvcomp" => interpretBiReductionOp context BiReductionOp.Eq terms
-    | "distinct" => interpretNeOp context terms
-    | "=>" => interpretImpliesOp context terms
+        | "=" | "bvcomp" => interpretBiReductionOp context BiReductionOp.Eq terms
+        | "distinct" => interpretNeOp context terms
+        | "=>" => interpretImpliesOp context terms
 
-    | "bvult" => interpretBiReductionOp context BiReductionOp.Ult terms
-    | "bvule" => interpretBiReductionOp context BiReductionOp.Ule terms
-    | "bvslt" => interpretBiReductionOp context BiReductionOp.Slt terms
-    | "bvsle" => interpretBiReductionOp context BiReductionOp.Sle terms
+        | "bvult" => interpretBiReductionOp context BiReductionOp.Ult terms
+        | "bvule" => interpretBiReductionOp context BiReductionOp.Ule terms
+        | "bvslt" => interpretBiReductionOp context BiReductionOp.Slt terms
+        | "bvsle" => interpretBiReductionOp context BiReductionOp.Sle terms
 
-    -- for greater-than/greater-or-equal, reverse terms of corresponding
-    -- lesser-than/lesser-or-equal
-    | "bvugt" => interpretBiReductionOp context BiReductionOp.Ult terms.reverse
-    | "bvuge" => interpretBiReductionOp context BiReductionOp.Ule terms.reverse
-    | "bvsgt" => interpretBiReductionOp context BiReductionOp.Slt terms.reverse
-    | "bvsge" => interpretBiReductionOp context BiReductionOp.Sle terms.reverse
+        -- for greater-than/greater-or-equal, reverse terms of corresponding
+        -- lesser-than/lesser-or-equal
+        | "bvugt" => interpretBiReductionOp context BiReductionOp.Ult terms.reverse
+        | "bvuge" => interpretBiReductionOp context BiReductionOp.Ule terms.reverse
+        | "bvsgt" => interpretBiReductionOp context BiReductionOp.Slt terms.reverse
+        | "bvsge" => interpretBiReductionOp context BiReductionOp.Sle terms.reverse
 
-    | "bvshl" => interpretBiNormalOp context BiNormalOp.Shl terms
-    | "bvlshr" => interpretBiNormalOp context BiNormalOp.Lshr terms
-    | "bvashr" => interpretBiNormalOp context BiNormalOp.Ashr terms
+        | "bvshl" => interpretBiNormalOp context BiNormalOp.Shl terms
+        | "bvlshr" => interpretBiNormalOp context BiNormalOp.Lshr terms
+        | "bvashr" => interpretBiNormalOp context BiNormalOp.Ashr terms
 
-     -- TODO
-     -- | "ite"
-     -- | "concat"
-     -- | "rotate_left"
-     -- | "rotate_right"
-     -- | "zero_extend"
-     -- | "sign_extend"
-     -- | "extract"
+        -- TODO
+        -- | "ite"
+        -- | "concat"
+        -- | "rotate_left"
+        -- | "rotate_right"
+        -- | "zero_extend"
+        -- | "sign_extend"
+        -- | "extract"
+        | _ => Except.error EInterpretation.UnsupportedApplication
 
-    | _ => Except.error EInterpretation.UnsupportedApplication
+      | _ => Except.error EInterpretation.UnsupportedApplication
 
 partial def interpretLet {v} (context: Context v) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
   : Except EInterpretation (BvTermW v) := do
@@ -357,7 +364,7 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
         interpretation.assertions[0]
       | _ =>
         -- combine the assertions in a conjunction, which is left-associative
-        SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.Symbol (String8.fromUTF8 "and"))) interpretation.assertions
+        SmtTerm.Application (SmtQualifiedIdent.Ident (SmtIdent.simple (String8.fromUTF8 "and"))) interpretation.assertions
 
   let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd) }
 

@@ -12,11 +12,14 @@ public inductive SmtIndex
   | Symbol (name: String8)
 deriving Repr
 
-public inductive SmtIdent
-  | Symbol (name: String8)
-  -- there must be at least one index
-  | Indexed (name: String8) (indices: Array SmtIndex)
+-- a simple ident has no indices
+-- an indexed ident has at least one index
+public structure SmtIdent where
+  name: String8
+  indices: Array SmtIndex
 deriving Repr
+
+public def SmtIdent.simple (name: String8) : SmtIdent := { name, indices := #[]}
 
 public inductive SmtSpecialConstant
   | Numeral (value: Nat) (numDigits: Nat)
@@ -135,7 +138,7 @@ def parseIndices (parser: Parser) (indices: Array SmtIndex) : (Parser × Array S
 
 def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
   match parser.tokens with
-  | Token.Symbol name :: tokens => pure ((parser.with tokens), (SmtIdent.Symbol name))
+  | Token.Symbol name :: tokens => pure ((parser.with tokens), (SmtIdent.simple name))
   | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: Token.Symbol name :: tokens => do
     -- indexed identifier, one or more indices
     let (tokens, indices) := parseIndices (parser.with tokens) #[]
@@ -143,7 +146,7 @@ def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
       Except.error (parser.error ParserError.EmptyIdentIndices)
     else
       let tokens ← consumeParenClose tokens
-      pure (tokens, SmtIdent.Indexed name indices)
+      pure (tokens, SmtIdent.mk name indices)
   | _ => Except.error (parser.error ParserError.InvalidIdent)
 
 def specialConstant? (token: Token) : Option SmtSpecialConstant :=
