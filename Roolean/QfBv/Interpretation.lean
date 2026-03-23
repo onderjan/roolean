@@ -28,7 +28,7 @@ public inductive EInterpretation
   | TooManyBiOpArgs
   | BinaryWidthMismatch
 
-  | UnsupportedApplication
+  | BadApplication (name: String8)
   | UnsupportedLogic (logic: String8)
   | RootWidthNotOne
 
@@ -261,9 +261,8 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
   -- all supported application symbols are ASCII
   let nameString ← match ident.name.toString? with
     | some name => pure name
-    | none => Except.error EInterpretation.UnsupportedApplication
+    | none => Except.error (EInterpretation.BadApplication ident.name)
 
-  -- all currently supported applications have no indices
   match ident.indices with
     | #[] =>
     -- no indices
@@ -311,9 +310,9 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
         -- | "zero_extend"
         -- | "sign_extend"
         -- | "extract"
-        | _ => Except.error EInterpretation.UnsupportedApplication
+        | _ => Except.error (EInterpretation.BadApplication ident.name)
 
-      | _ => Except.error EInterpretation.UnsupportedApplication
+      | _ => Except.error (EInterpretation.BadApplication ident.name)
 
 partial def interpretLet {v} (context: Context v) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
   : Except EInterpretation (BvTermW v) := do
