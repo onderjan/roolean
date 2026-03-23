@@ -1,10 +1,10 @@
 module
 public import Roolean.QfBv.Domain.Bitvector3.Basic
 public import Roolean.QfBv.Domain.Bitvector3.Split
-public import Roolean.QfBv.Domain.Bitvector3.UniOps
-public import Roolean.QfBv.Domain.Bitvector3.BiNormalOps
-public import Roolean.QfBv.Domain.Bitvector3.BiReductionOps
-public import Roolean.QfBv.Domain.Bitvector3.ExtOps
+public import Roolean.QfBv.Domain.Bitvector3.UniOp
+public import Roolean.QfBv.Domain.Bitvector3.BiNormalOp
+public import Roolean.QfBv.Domain.Bitvector3.BiReductionOp
+public import Roolean.QfBv.Domain.Bitvector3.ExtOp
 public import Roolean.QfBv.Domain.Bitvector3.IteOp
 
 public instance : Domain Bitvector3 where
