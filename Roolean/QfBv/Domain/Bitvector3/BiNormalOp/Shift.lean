@@ -158,17 +158,15 @@ def shiftRec_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w)
     }
   }
 
-def shift_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w)
-  (hF: (a: Bitvector3 w) → (s: Nat) → (c: Bitvector w) → γ a c → γ (f a s) { value := (c.value <<< s) })
+def shift_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w) (fc: Bitvector w → Nat → Bitvector w)
   (a b: Bitvector3 w) (ca cb: Bitvector w)
-    : γ a ca → γ b cb → γ (shift f a b) (Bitvector.biNormal ca cb BiNormalOp.Shl) := by
+  (hF: (a: Bitvector3 w) → (s: Nat) → (c: Bitvector w) → γ a c → γ (f a s) (fc c s))
+    : γ a ca → γ b cb → γ (shift f a b) (fc ca cb.toNat) := by
   intro ha hb
-  simp[Bitvector.biNormal, Bitvector.standardBi]
   simp[shift]
   let hUminLe := umin_le_γ b cb hb
   let hLeUmax := γ_le_umax b cb hb
   let hUminLeUmax := umin_le_umax b
-  --let hByConst := shlByConst_sound a cb.value.toNat ca ha
 
   let hRec := shiftRec_sound f a b (b.umin.toNat) (b.umax.toNat-b.umin.toNat) (cb.toNat-b.umin.toNat)
   simp[BitVec.le_def] at hLeUmax
@@ -187,12 +185,13 @@ def shift_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w)
 
   simp[hCancelBitVec, hCancelNat] at hRec
 
-  let hByConst := hF a cb.value.toNat { value := ca.value } ha
+  let hByConst := hF a cb.value.toNat ca ha
+  simp at hByConst
 
-  exact hRec hb { value := ca.value <<< cb.toNat } hByConst (f a b.umax.toNat)
-
+  exact hRec hb (fc ca cb.toNat) hByConst (f a b.umax.toNat)
 
 public def shl_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (shl a b) (Bitvector.biNormal ca cb BiNormalOp.Shl) := by
-  intro ha hb; simp[shl]
-  exact shift_sound shlByConst shlByConst_sound a b ca cb ha hb
+  intro ha hb; simp[shl, Bitvector.biNormal, Bitvector.standardBi]
+  let h := shift_sound shlByConst (λ a b => { value := a.value <<< b }) a b ca cb shlByConst_sound ha hb
+  exact h
