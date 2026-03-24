@@ -5,6 +5,7 @@ public import Roolean.QfBv.Domain.Bitvector3.Basic
 import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Arith
 import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Shift
 import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Shift
+import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Shift
 
 namespace Bitvector3
 
@@ -16,6 +17,7 @@ public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormal
   | BiNormalOp.Add => add left right
   | BiNormalOp.Sub => sub left right
   | BiNormalOp.Mul => mul left right
+
   | BiNormalOp.BitAnd =>
     let zeros := left.zeros ||| right.zeros -- iff zeros of either are set
     let ones := left.ones &&& right.ones -- iff ones of both are set
@@ -30,9 +32,13 @@ public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormal
     -- ones iff exactly one can be set (lhs zero set and rhs one set or rhs zero set and lhs one set)
     let ones := (left.zeros &&& right.ones) ||| (left.ones &&& right.zeros);
     { zeros, ones, zeros_or_ones_set := by grind[zeros_or_ones_set] }
-  | BiNormalOp.Shl =>
-    shl left right
+
+  | BiNormalOp.Shl => shl left right
+  | BiNormalOp.Lshr => lshr left right
+  | BiNormalOp.Ashr => ashr left right
+
   | _ =>
+    -- TODO: division operations as in Roole
     match left.toBitvector?, right.toBitvector? with
     | some left, some right =>
       let result := Bitvector.biNormal left right op
@@ -57,9 +63,11 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
   iterate 3 { simp[Bitvector.biNormal, Bitvector.standardBi]; grind[zeros_or_ones_set, γ] }
 
   { exact shl_sound a b ca cb ha hb } -- Shl
+  { exact lshr_sound a b ca cb ha hb } -- Lshr
+  { exact ashr_sound a b ca cb ha hb } -- Ashr
 
   {
-    -- other
+    -- division/remainder placeholders
     split
     {
       rename_i hA hB hAto hBto
