@@ -594,7 +594,7 @@ public theorem toBitvector?_sound {w} (a: Bitvector3 w) (c d: Bitvector w)
     }
   }
 
-public def join_sound_left {w} (a b: Bitvector3 w) (c: Bitvector w)
+public def γ_join_left {w} (a b: Bitvector3 w) (c: Bitvector w)
   : γ a c → γ (join a b) c := by
   simp[join,γ_forall]
   intro h i
@@ -603,7 +603,7 @@ public def join_sound_left {w} (a b: Bitvector3 w) (c: Bitvector w)
   { intro hC; left; exact h.left hC }
   { intro hC; left; exact h.right hC }
 
-public def join_sound_right {w} (a b: Bitvector3 w) (c: Bitvector w)
+public def γ_join_right {w} (a b: Bitvector3 w) (c: Bitvector w)
   : γ b c → γ (join a b) c := by
   simp[join,γ_forall]
   intro h i

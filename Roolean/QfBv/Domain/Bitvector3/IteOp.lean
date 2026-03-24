@@ -34,6 +34,6 @@ public def iteOp_sound {w} (i: Bitvector3 1) (t e: Bitvector3 w) (ci: Bitvector 
     -- unknown
     simp[Bitvector.iteOp]
     split
-    { exact join_sound_left t e ct hThen }
-    { exact join_sound_right t e ce hElse }
+    { exact γ_join_left t e ct hThen }
+    { exact γ_join_right t e ce hElse }
   }

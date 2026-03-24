@@ -48,15 +48,16 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
   intro ha hb
   simp[biNormal]
   split
+
   { exact add_sound a b ca cb ha hb } -- Add
   { exact sub_sound a b ca cb ha hb } -- Sub
   { exact mul_sound a b ca cb ha hb } -- Mul
+
   -- BitAnd, BitOr, BitXor
   iterate 3 { simp[Bitvector.biNormal, Bitvector.standardBi]; grind[zeros_or_ones_set, γ] }
-  {
-    -- Shl
-    sorry
-  }
+
+  { exact shl_sound a b ca cb ha hb } -- Shl
+
   {
     -- other
     split
