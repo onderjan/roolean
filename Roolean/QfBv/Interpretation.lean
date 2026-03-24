@@ -28,6 +28,7 @@ public inductive EInterpretation
   | BinaryWidthMismatch
   | IteConditionWidthNotOne
   | IteBranchWidthMismatch
+  | BadExtraction
 
   | BadApplication (name: String8)
   | UnsupportedLogic (logic: String8)
@@ -299,6 +300,23 @@ partial def interpretConcat {v} (context: Context v) (terms: Array SmtTerm)
   | #[] => Except.error EInterpretation.TooFewOpArgs
   | _ => Except.error EInterpretation.TooManyOpArgs
 
+partial def interpretExtract {v} (context: Context v) (hi lo: Nat) (terms: Array SmtTerm)
+  : (Except EInterpretation) (BvTermW v) := do
+
+  match terms with
+  | #[inner] =>
+    let inner ← interpretTerm context inner
+
+    if h: hi < inner.width ∧ lo < inner.width ∧ lo ≤ hi then
+      let lsb := Fin.mk lo h.right.left
+      let newWidth := hi - lo + 1
+      let value := BvTerm.Extract inner.value lsb newWidth
+      pure { width := newWidth, value }
+    else
+      Except.error EInterpretation.BadExtraction
+
+  | #[] => Except.error EInterpretation.TooFewOpArgs
+  | _ => Except.error EInterpretation.TooManyOpArgs
 
 partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
@@ -352,7 +370,6 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
         -- TODO
         | "ite" => interpretIte context terms
         | "concat" => interpretConcat context terms
-        -- | "extract"
         | _ => Except.error (EInterpretation.BadApplication ident.name)
 
       | #[index] => -- one index, should be a numeral
@@ -366,6 +383,19 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
           -- | "rotate_left"
           -- | "rotate_right"
           | _ => Except.error (EInterpretation.BadApplication ident.name)
+
+      | #[index1, index2] => -- two indices, should be numerals
+        let index1 ← match index1 with
+          | SmtIndex.Numeral value _ => pure value
+          | _ => Except.error (EInterpretation.BadApplication ident.name)
+        let index2 ← match index2 with
+          | SmtIndex.Numeral value _ => pure value
+          | _ => Except.error (EInterpretation.BadApplication ident.name)
+
+        match nameString with
+        | "extract" => interpretExtract context index1 index2 terms
+        | _ => Except.error (EInterpretation.BadApplication ident.name)
+
 
       | _ => Except.error (EInterpretation.BadApplication ident.name)
 

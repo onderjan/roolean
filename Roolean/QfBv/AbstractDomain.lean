@@ -44,3 +44,13 @@ public theorem AbstractDomain.concat_sound {α} [Domain α] [AbstractDomain α]
   let hShiftValue := AbstractDomain.ofBitvector_sound (α:=α) shiftValue
   let hShifted := AbstractDomain.biNormal_sound aLeft aShift BiNormalOp.Shl cLeft cShift hLeft hShiftValue
   exact AbstractDomain.biNormal_sound aShifted aRight BiNormalOp.BitOr cShifted cRight hShifted hRight
+
+public theorem AbstractDomain.extract_sound {w} {α} [Domain α] [AbstractDomain α]
+  (a: α w) (c: Bitvector w) (lsb: Fin w) (m: Nat)
+  : γ a c → γ (Domain.extract a lsb m) (Domain.extract c lsb m) := by
+  intro h
+  simp(zeta:= false)[Domain.extract]
+  extract_lets shiftValue aShift aShifted cShift cShifted
+  let hShiftValue := AbstractDomain.ofBitvector_sound (α:=α) shiftValue
+  let hShifted := AbstractDomain.biNormal_sound a aShift BiNormalOp.Lshr c cShift h hShiftValue
+  exact AbstractDomain.extOp_sound aShifted cShifted m ExtOp.Uext hShifted

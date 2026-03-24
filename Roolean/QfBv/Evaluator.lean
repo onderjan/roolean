@@ -39,14 +39,11 @@ public def eval {v w} {α : Nat → Type} [Domain α]
     | BvTerm.Concat wl wr left right =>
       let left := eval left assignment
       let right := eval right assignment
-      let width := wl + wr
-      -- zero-extend both and shift left by right width
-      let left := Domain.extOp left width ExtOp.Uext
-      let right := Domain.extOp right width ExtOp.Uext
-      let shiftValue := Domain.ofBitvector {value := BitVec.ofNat width wr}
-      let shifted := Domain.biNormal left shiftValue BiNormalOp.Shl
-      -- combine by bit-or
-      Domain.biNormal shifted right BiNormalOp.BitOr
+      Domain.concat wl wr left right
+
+    | BvTerm.Extract inner lsb newWidth =>
+      let inner := eval inner assignment
+      Domain.extract inner lsb newWidth
 
 
 
@@ -97,6 +94,12 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     simp[eval]
     exact AbstractDomain.concat_sound wl wr (eval left a) (eval right a)
       (eval left c) (eval right c) h1 h2
+  }
+  {
+    --extract
+    rename_i w inner lsb width h1
+    simp[eval]
+    exact AbstractDomain.extract_sound (eval inner a) (eval inner c) lsb width h1
   }
 
 def eval3bv {v} {α : Nat → Type} [Domain α]
