@@ -480,13 +480,13 @@ public def Interpretation.checkSat (interpretation: Interpretation) (proof: SmtP
 
     let variables := interpretation.variables.map (λ (var) => var.snd)
 
-    IO.println s!"Check satisfiability\nVar widths: {reprStr varWidths}\nTerm: {reprStr term}"
+    IO.eprintln s!"Checking satisfiability"
 
     let () ← match checkProof Bitvector3 term proof with
       | Except.ok () => pure ()
       | Except.error err => return (Except.error (EInterpretation.WrongProofCheck err))
 
-    IO.println s!"Checked satisfiable: {proof.result}"
+    IO.eprintln s!"Checked satisfiable: {proof.result}"
 
     /-
       let satisfiable := solve Bitvector3 term
