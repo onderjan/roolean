@@ -21,9 +21,9 @@ def computeNodeSat {v} {α} [Domain α] [AbstractDomain α]
       let rightResult := computeNodeSat term split.snd rightNode
 
       match leftResult, rightResult with
-        | some left, some right => some (left || right)
-        | _,_ =>
-          none
+        | some true, _ | _, some true => true
+        | some false, some false => false
+        | _, _ => none
 
 
 
@@ -82,56 +82,50 @@ theorem computeNodeSat_sound {v: VarWidths} (α) [Domain α] [AbstractDomain α]
     -- Split
     simp[computeNodeSat]
     intro a
+
+    rename_i varIndex bitIndex leftNode rightNode left_ih right_ih
+
     split
     {
-      -- both left and right are known
-      rename_i varIndex bitIndex leftNode rightNode left_ih right_ih
-        leftResult rightResult left right hLeft hRight
-      apply And.intro
-      {
-        intro hUnsat c hC
-        simp at hUnsat
-        simp[hUnsat] at hLeft hRight
-
-        let left_ih := left_ih (a.split varIndex bitIndex).fst false hLeft
-        let right_ih := right_ih (a.split varIndex bitIndex).snd false hRight
-        simp at left_ih right_ih
-        let left_ih := left_ih c
-        let right_ih := right_ih c
-
-        let hSplit := Assignment.split_comprises a varIndex bitIndex c hC
-        cases hSplit with
-        | inl hSplit => {
-          simp[hSplit,left_ih]
-        }
-        | inr hSplit => {
-          simp[hSplit,right_ih]
-        }
-      }
-      {
-        intro hSat
-        simp at hSat
-        cases hSat with
-        | inl hSat => {
-          simp[hSat] at hLeft
-          let left_ih := left_ih (a.split varIndex bitIndex).fst true hLeft
-          simp at left_ih
-          let hLeftSplit := Assignment.split_left a varIndex bitIndex (Classical.choose left_ih)
-          exists (Classical.choose left_ih)
-          simp[(Classical.choose_spec left_ih), hLeftSplit]
-        }
-        | inr hSat => {
-          simp[hSat] at hRight
-          let right_ih := right_ih (a.split varIndex bitIndex).snd true hRight
-          simp at right_ih
-          let hRightSplit := Assignment.split_right a varIndex bitIndex (Classical.choose right_ih)
-          exists (Classical.choose right_ih)
-          simp[(Classical.choose_spec right_ih), hRightSplit]
-        }
-      }
+      -- left is true
+      rename_i leftResult rightResult hLeft
+      simp
+      let left_ih := left_ih (a.split varIndex bitIndex).fst true hLeft
+      simp at left_ih
+      let hLeftSplit := Assignment.split_left a varIndex bitIndex (Classical.choose left_ih)
+      exists (Classical.choose left_ih)
+      simp[(Classical.choose_spec left_ih), hLeftSplit]
     }
     {
-      -- neither are known
+      -- right is true
+      rename_i leftResult rightResult hRight _
+      simp
+      let right_ih := right_ih (a.split varIndex bitIndex).snd true hRight
+      simp at right_ih
+      let hRightSplit := Assignment.split_right a varIndex bitIndex (Classical.choose right_ih)
+      exists (Classical.choose right_ih)
+      simp[(Classical.choose_spec right_ih), hRightSplit]
+
+    }
+    {
+      -- both left and right are false
+      rename_i leftResult rightResult left right hLeft hRight
+      simp
+      intro c hC
+
+      let left_ih := left_ih (a.split varIndex bitIndex).fst false hLeft
+      let right_ih := right_ih (a.split varIndex bitIndex).snd false hRight
+      simp at left_ih right_ih
+      let left_ih := left_ih c
+      let right_ih := right_ih c
+
+      let hSplit := Assignment.split_comprises a varIndex bitIndex c hC
+      cases hSplit with
+      | inl hSplit => simp[hSplit,left_ih]
+      | inr hSplit => simp[hSplit,right_ih]
+    }
+    {
+      -- we do not have enough information
       simp
     }
   }
