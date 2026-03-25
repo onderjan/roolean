@@ -129,11 +129,10 @@ def consumeKeyword(parser: Parser): Except EParser (Parser × String8) :=
   | Token.Keyword name :: tokens => pure (parser.with tokens, name)
   | _ => Except.error (parser.error ParserError.ExpectedKeyword)
 
-
-def parseIndices (parser: Parser) (indices: Array SmtIndex) : (Parser × Array SmtIndex) :=
+partial def parseIndices (parser: Parser) (indices: Array SmtIndex) : (Parser × Array SmtIndex) :=
   match parser.tokens with
-    | Token.Numeral value length :: tokens => ((parser.with tokens), indices.push (SmtIndex.Numeral value length))
-    | Token.Symbol name :: tokens => ((parser.with tokens), indices.push (SmtIndex.Symbol name))
+    | Token.Numeral value length :: tokens => parseIndices (parser.with tokens) (indices.push (SmtIndex.Numeral value length))
+    | Token.Symbol name :: tokens => parseIndices (parser.with tokens) (indices.push (SmtIndex.Symbol name))
     | _ => (parser, indices)
 
 def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
