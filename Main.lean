@@ -1,15 +1,14 @@
 import Roolean.SmtLib2.Executor
 import Roolean.QfBv.Interpretation
 
-def main : IO Unit := do
-  let problem ← IO.FS.readBinFile "benchmarks/lean.smt2"
-  let proof ← IO.FS.readBinFile "benchmarks/lean.proof"
+def work (problem proof: String): IO Unit := do
+  let problem ← IO.FS.readBinFile problem
+  let proof ← IO.FS.readBinFile proof
 
   let proof ← match Proof.parse proof.toList with
   | Except.ok proof => pure proof
   | Except.error err =>
-    IO.println s!"Proof parsing error: {reprStr err}"
-    return
+    throw (IO.userError s!"Proof parsing error: {reprStr err}")
 
   let commands := parse problem.toList
   match commands with
@@ -18,12 +17,23 @@ def main : IO Unit := do
       let executed ← execute Interpretation commands proof
       match executed with
         | Except.ok () =>
-          IO.println s!"Execution successful"
+          IO.eprintln s!"Execution successful"
           pure ()
         | Except.error err =>
-          IO.println s!"Execution error: {reprStr err}"
+          throw (IO.userError s!"Execution error: {reprStr err}")
 
     | Except.error err =>
-      IO.println s!"Problem parsing error: {reprStr err}"
+      throw (IO.userError s!"Problem parsing error: {reprStr err}")
 
-#eval main
+def main (args: List String) : IO UInt32 := do
+  let (problem, proof) ← match args with
+    | [problem, proof] => pure (problem, proof)
+    | _ =>
+      IO.eprintln "Usage: roolean [problem] [proof]"
+      return 101
+
+  try
+    work problem proof; pure 0
+  catch
+    | .userError string => IO.eprintln string; pure 101
+    | other => throw other
