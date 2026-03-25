@@ -2,9 +2,10 @@ module
 
 public import Roolean.SmtLib2.Parser
 public import Roolean.SmtLib2.Executor
+public import Roolean.QfBv.Checker
 
 import Roolean.QfBv.BvTerm
-import Roolean.QfBv.Checker
+import Roolean.QfBv.Solver
 import Roolean.QfBv.Domain.Bitvector3
 import Std.Data.HashMap.Basic
 
@@ -35,6 +36,9 @@ public inductive EInterpretation
   | RootWidthNotOne
 
   | CollidingLetBinders
+
+  | InvalidProof (err: Proof.EOfSmt)
+  | WrongProofCheck (err: ECheckResult)
 deriving Repr
 
 structure BvTermW (v: VarWidths) where
@@ -436,7 +440,9 @@ public def Interpretation.assert (interpretation: Interpretation)
   (term: SmtTerm) : Interpretation :=
   { interpretation with assertions := interpretation.assertions.push term}
 
-public def Interpretation.checkSat (interpretation: Interpretation): IO (Except EInterpretation Unit) := do
+public def Interpretation.checkSat (interpretation: Interpretation) (proof: SmtProof)
+  : IO (Except EInterpretation Unit) := do
+
   -- combine assertions
   let assertion :=
     match h: interpretation.assertions.size with
@@ -460,22 +466,37 @@ public def Interpretation.checkSat (interpretation: Interpretation): IO (Except 
 
   let context := { varNames := Std.HashMap.ofArray variableArray, scopes := {} }
 
-  match interpretTerm (v := varWidths) context assertion with
-    | Except.ok term =>
-      if h: term.width = 1 then
-        have h : BvTerm varWidths term.width = BvTerm varWidths 1 := by simp[h]
-        let term: BvTerm varWidths 1 := cast h term.value
-
-        let variables := interpretation.variables.map (λ (var) => var.snd)
-
-        IO.println s!"Check satisfiability\nVar widths: {reprStr varWidths}\nTerm: {reprStr term}"
-
-        let satisfiable := solve Bitvector3 term
-        IO.println s!"Satisfiable: {reprStr satisfiable}"
-        pure (Except.ok ())
-      else
-        pure (Except.error EInterpretation.RootWidthNotOne)
+  let term ← match interpretTerm (v := varWidths) context assertion with
+    | Except.ok term => pure term
     | Except.error err => return (Except.error err)
+
+  let proof ← match Proof.ofSmt proof varWidths with
+    | Except.ok proof => pure proof
+    | Except.error err => return (Except.error (EInterpretation.InvalidProof err))
+
+  if h: term.width = 1 then
+    have h : BvTerm varWidths term.width = BvTerm varWidths 1 := by simp[h]
+    let term: BvTerm varWidths 1 := cast h term.value
+
+    let variables := interpretation.variables.map (λ (var) => var.snd)
+
+    IO.println s!"Check satisfiability\nVar widths: {reprStr varWidths}\nTerm: {reprStr term}"
+
+    let () ← match checkProof Bitvector3 term proof with
+      | Except.ok () => pure ()
+      | Except.error err => return (Except.error (EInterpretation.WrongProofCheck err))
+
+    IO.println s!"Checked satisfiable: {proof.result}"
+
+    /-
+      let satisfiable := solve Bitvector3 term
+      IO.println s!"Satisfiable: {reprStr satisfiable}"
+    -/
+
+    pure (Except.ok ())
+  else
+    pure (Except.error EInterpretation.RootWidthNotOne)
+
 
 
 instance : Interpret Interpretation EInterpretation where

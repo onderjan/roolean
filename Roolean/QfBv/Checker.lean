@@ -1,27 +1,23 @@
 module
 public import Roolean.QfBv.Evaluator
+public import Roolean.QfBv.Proof
 
 import Std.Data.DHashMap.Lemmas
 import Roolean.QfBv.Assignment
 import Roolean.QfBv.Evaluator
-
-public inductive SplitNode (v: VarWidths)
-  | Leaf
-  | Split (left: SplitNode v) (right: SplitNode v)
-    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex))
-deriving Repr
 
 structure KnownResult {v α} [Domain α] [AbstractDomain α]
   (f: BvTerm v 1)  (a: Assignment v α) where
   value: Bool
   sound: value ↔ (∃ (c: Assignment v Bitvector), Assignment.γ a c ∧ (eval f c).toBool = true)
 
-def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
-  (term: BvTerm v 1) (assignment: Assignment v α) (node: SplitNode v)
+def computeNodeSat {v} {α} [Domain α] [AbstractDomain α]
+  (term: BvTerm v 1) (assignment: Assignment v α) (node: Proof.Node v)
     : Option (KnownResult term assignment) :=
   match node with
-    | SplitNode.Leaf =>
+    | .Relevant =>
       let result := eval3 term assignment
+
       match h: result with
         | some value =>
           let sound := by
@@ -44,12 +40,14 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
           some { value, sound }
         | none => none
 
-    | SplitNode.Split leftNode rightNode varIndex bitIndex =>
+    | .Irrelevant => none
+
+    | .Split varIndex bitIndex leftNode rightNode =>
       let split := assignment.split varIndex bitIndex
       let hSplit := Assignment.split_comprises assignment varIndex bitIndex
 
-      let leftResult := checkNodeSat term split.fst leftNode
-      let rightResult := checkNodeSat term split.snd rightNode
+      let leftResult := computeNodeSat term split.fst leftNode
+      let rightResult := computeNodeSat term split.snd rightNode
 
       match leftResult, rightResult with
         | some left, some right =>
@@ -128,17 +126,17 @@ def checkNodeSat {v} {α} [Domain α] [AbstractDomain α]
         | _,_ =>
           none
 
-public def checkSat {v} (α) [Domain α] [AbstractDomain α]
-  (term: BvTerm v 1) (node: SplitNode v) : Option Bool :=
-  match checkNodeSat term (Assignment.top α v) node with
+public def computeSat {v} (α) [Domain α] [AbstractDomain α]
+  (term: BvTerm v 1) (node: Proof.Node v) : Option Bool :=
+  match computeNodeSat term (Assignment.top α v) node with
     | some known => known.value
     | none => none
 
-public theorem checkSat_sound {v} (α) [Domain α] [AbstractDomain α]
-  (f: BvTerm v 1) (n: SplitNode v) (r: Bool)
-  : (checkSat α f n) = some r → r = (∃ (c: Assignment v Bitvector), (eval f c).toBool = true) := by
+public theorem computeSat_sound {v} (α) [Domain α] [AbstractDomain α]
+  (f: BvTerm v 1) (n: Proof.Node v) (r: Bool)
+  : (computeSat α f n) = some r → r = (∃ (c: Assignment v Bitvector), (eval f c).toBool = true) := by
   intro h
-  simp[checkSat] at h
+  simp[computeSat] at h
   split at h
   {
     rename_i x known hCheck
@@ -150,12 +148,34 @@ public theorem checkSat_sound {v} (α) [Domain α] [AbstractDomain α]
   }
   { contradiction }
 
+public inductive ECheckResult
+  | Different
+  | Unknown
+deriving Repr
 
-public def solve {v: VarWidths} (α) [Domain α] [AbstractDomain α]
-  (term: BvTerm v 1) : Option Bool := do
-  let splitTree: SplitNode v := Fin.foldl v.size (λ (splitTree: SplitNode v) varIndex =>
-    Fin.foldl (v.varWidth varIndex) (λ splitTree bitIndex =>
-        SplitNode.Split splitTree splitTree varIndex bitIndex) splitTree
-    ) SplitNode.Leaf
+public def checkProof {v} (α) [Domain α] [AbstractDomain α]
+  (term: BvTerm v 1) (proof: Proof v) : Except ECheckResult Unit :=
+  match computeSat α term proof.root with
+  | some result =>
+    if result = proof.result then
+      Except.ok ()
+    else
+      Except.error ECheckResult.Different
+  | none =>
+    Except.error ECheckResult.Unknown
 
-  checkSat α term splitTree
+public theorem checkProof_sound {v} (α) [Domain α] [AbstractDomain α]
+  (term: BvTerm v 1) (proof: Proof v)
+  : (checkProof α term proof) = Except.ok ()
+    → proof.result = (∃ (c: Assignment v Bitvector), (eval term c).toBool = true) := by
+  simp[checkProof]
+  intro h
+  split at h
+  {
+    rename_i x result hEq
+    simp at h
+    let hSound := computeSat_sound α term proof.root result hEq
+    simp[h] at hSound
+    exact hSound
+  }
+  { simp at h }
