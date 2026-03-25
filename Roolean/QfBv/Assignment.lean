@@ -196,7 +196,7 @@ public theorem Assignment.split_comprises {v} {α} [Domain α] [AbstractDomain �
     }
   }
 
-public theorem Assignment.split_within {v} {α} [Domain α] [AbstractDomain α]
+theorem Assignment.split_within {v} {α} [Domain α] [AbstractDomain α]
   (a : Assignment v α)
     (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
     : γ (split a varIndex bitIndex).fst c ∨ γ (split a varIndex bitIndex).snd c → γ a c := by
@@ -223,6 +223,21 @@ public theorem Assignment.split_within {v} {α} [Domain α] [AbstractDomain α]
       | inl h => simp[Assignment.split_left_other a varIndex bitIndex i hI, h]
       | inr h => simp[Assignment.split_right_other a varIndex bitIndex i hI, h]
   }
+
+public theorem Assignment.split_left {v} {α} [Domain α] [AbstractDomain α]
+  (a : Assignment v α)
+    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
+    : γ (split a varIndex bitIndex).fst c → γ a c := by
+  let hWithin := split_within a varIndex bitIndex c
+  intro h; simp[h] at hWithin; exact hWithin
+
+public theorem Assignment.split_right {v} {α} [Domain α] [AbstractDomain α]
+  (a : Assignment v α)
+    (varIndex: Fin v.size) (bitIndex: Fin (v.varWidth varIndex)) (c: Assignment v Bitvector)
+    : γ (split a varIndex bitIndex).snd c → γ a c := by
+  let hWithin := split_within a varIndex bitIndex c
+  intro h; simp[h] at hWithin; exact hWithin
+
 
 -- functions to make assignments
 
