@@ -6,6 +6,7 @@ public import Std.Data.DHashMap.Basic
 import Std.Data.ExtDHashMap.Lemmas
 import Roolean.QfBv.Domain
 public import Std.Data.ExtDHashMap.Basic
+import Roolean.QfBv.BvTerm
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
   inner: Vector (Σ i: Nat, (α (v.varWidth i))) v.size
@@ -28,8 +29,47 @@ instance (v: VarWidths) (α : Nat → Type) [Domain α] : ToString (Assignment v
     string ++ ")"
 
 public def Assignment.push {v w} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (new: α w) : Assignment (v.push w) α := sorry
+  (a: Assignment v α) (new: α w) : Assignment (v.push w) α :=
+  let hSize (v: VarWidths) : v.size = v.inner.size := by simp[VarWidths.size]
 
+  let inner: Vector ((i : Nat) × α ((v.push w).varWidth i)) (v.push w).size := Vector.ofFn (λ (i: Fin (v.push w).size) =>
+    if h: i < v.inner.size then
+
+      let hCast : α (v.varWidth a.inner[i].fst) = α ((v.push w).varWidth a.inner[i].fst) := by
+        simp[VarWidths.push, VarWidths.varWidth]
+        let hMember := a.membership (Fin.mk i h)
+        simp at hMember
+        grind
+
+      let snd := a.inner[i].snd
+
+      Sigma.mk  a.inner[i].fst (cast hCast snd)
+    else
+      let hCast : α w = α ((v.push w).varWidth ↑i) := by
+        let hSize := v.size_push w
+        simp at h
+        let hI := i.isLt
+        simp[hSize] at hI
+        let hI := Nat.le_of_lt_add_one hI
+        let h := Nat.le_antisymm h hI
+        simp[VarWidths.size] at h
+        simp[VarWidths.varWidth, VarWidths.push, ← h]
+
+      Sigma.mk i.val (cast hCast new)
+    )
+
+  let membership := by
+    intro i
+    simp[inner]
+    split
+    {
+      rename_i h
+      let hMember := a.membership (Fin.mk i h)
+      simp at hMember; simp[hMember]
+    }
+    { simp }
+
+  { inner, membership }
 
 @[expose]
 public def Assignment.setElem {v} {α : Nat → Type} [Domain α]
@@ -330,3 +370,7 @@ public theorem Assignment.top_γ_all (α)[Domain α] [AbstractDomain α] (v: Var
   intro i
   simp[fn]
   exact AbstractDomain.top_γ_all (α:=α) (c.getElem i)
+
+public theorem Assignment.push_sound {α} [Domain α] [AbstractDomain α] {v w}
+  (a: Assignment v α) (c: Assignment v Bitvector) (ea: α w) (ec: Bitvector w)
+      : a.γ c → AbstractDomain.γ ea ec → (a.push ea).γ (c.push ec) := by sorry

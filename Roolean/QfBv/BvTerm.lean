@@ -15,6 +15,7 @@ deriving Repr
 public def VarWidths.size (v: VarWidths) : Nat :=
   v.inner.size
 
+@[expose]
 public def VarWidths.varWidth (v: VarWidths) (index: Nat) : Nat :=
   if h: index < v.inner.size then
     v.inner[index]'h
@@ -37,8 +38,13 @@ public theorem VarWidths.widthFrom_ge_size (v: VarWidths) (index: Nat)
     intro hIndex h; rw[← Nat.not_lt] at hIndex
     contradiction
 
+@[expose]
 public def VarWidths.push (v: VarWidths) (new: Nat): VarWidths :=
   { inner := v.inner.push new }
+
+public theorem VarWidths.size_push (v: VarWidths) (x: Nat)
+  : (v.push x).size = v.size + 1  := by
+    simp[VarWidths.size, VarWidths.push]
 
 
 public inductive BvTerm: VarWidths → Nat → Type where

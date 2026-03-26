@@ -68,8 +68,10 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
   {
     -- let
     simp[eval]
-
-    sorry
+    rename_i v w bindW bind bound bind_ih bound_ih
+    let bind_ih := bind_ih a c h
+    let bound_ih := bound_ih (a.push (eval bind a)) (c.push (eval bind c))
+    exact bound_ih (Assignment.push_sound a c (eval bind a) (eval bind c) h bind_ih)
   }
   {
     -- unary
