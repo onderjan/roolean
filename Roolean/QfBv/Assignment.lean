@@ -8,7 +8,7 @@ import Roolean.QfBv.Domain
 public import Std.Data.ExtDHashMap.Basic
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
-  inner: Std.ExtDHashMap (Fin v.size) (λ i => α (v.varWidth i))
+  inner: Std.ExtDHashMap (Fin v.size) (λ i => α (v.varWidth i.val))
   membership (i: (Fin v.size)) : i ∈ inner
 
 public def Assignment.push {v w} {α : Nat → Type} [Domain α]
@@ -16,7 +16,7 @@ public def Assignment.push {v w} {α : Nat → Type} [Domain α]
 
 @[expose]
 public def Assignment.getElem {v} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (index: (Fin v.size)) : (α ∘ v.varWidth) index :=
+  (a: Assignment v α) (index: (Fin v.size)) : α (v.varWidth index) :=
   a.inner.get index (a.membership index)
 
 instance (v: VarWidths) (α : Nat → Type) [Domain α] : ToString (Assignment v α) where
@@ -31,7 +31,7 @@ instance (v: VarWidths) (α : Nat → Type) [Domain α] : ToString (Assignment v
 
 @[expose]
 public def Assignment.setElem {v} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (index: (Fin v.size)) (value: (α ∘ v.varWidth) index) : Assignment v α :=
+  (a: Assignment v α) (index: (Fin v.size)) (value: α (v.varWidth index)) : Assignment v α :=
   let map := a.inner.insert index value
   { inner := map, membership := by simp[map, a.membership] }
 
@@ -51,19 +51,19 @@ public theorem Assignment.eq_getElem {v} {α : Nat → Type} [Domain α]
   }
 
 public theorem Assignment.setElem_getElem_exact {v} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (e: (Fin v.size)) (val: (α ∘ v.varWidth) e)
+  (a: Assignment v α) (e: (Fin v.size)) (val: (λ i => α (v.varWidth i.val)) e)
   : (a.setElem e val).getElem e = val := by
   simp[getElem, setElem, Std.ExtDHashMap.get_insert_self]
 
 public theorem Assignment.setElem_getElem_other {v} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (s p: (Fin v.size)) (val: (α ∘ v.varWidth) s)
+  (a: Assignment v α) (s p: (Fin v.size)) (val: (λ i => α (v.varWidth i.val)) s)
   : s ≠ p → (a.setElem s val).getElem p = a.getElem p := by
   intro h;
   simp[getElem, setElem,Std.ExtDHashMap.get_insert, h]
 
 
 public theorem Assignment.setElem_getElem_previous {v} {α : Nat → Type} [Domain α]
-  (a: Assignment v α) (s p: (Fin v.size)) (val: (α ∘ v.varWidth) s)
+  (a: Assignment v α) (s p: (Fin v.size)) (val: (λ i => α (v.varWidth i.val)) s)
   : p < s → (a.setElem s val).getElem p = a.getElem p := by
   intro h; let h2 := Ne.symm (Fin.ne_of_lt h)
   simp[getElem, setElem,Std.ExtDHashMap.get_insert, h2]
@@ -246,7 +246,7 @@ public theorem Assignment.split_right {v} {α} [Domain α] [AbstractDomain α]
 
 public def Assignment.choice {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) : { c: Assignment v Bitvector // a.γ c} :=
-  let map: Std.ExtDHashMap (Fin v.size) (Bitvector ∘ VarWidths.varWidth v) :=
+  let map: Std.ExtDHashMap (Fin v.size) (λ i => Bitvector (v.varWidth i.val)) :=
     a.inner.map λ k v => (AbstractDomain.choice v).val
 
   let membership := by simp[a.membership]
@@ -267,11 +267,11 @@ public def Assignment.createFromFn (α) [Domain α] (v: VarWidths)
 
   let insertFn (index: Fin v.size) := Sigma.mk index (fn index)
 
-  let list: List ((a : Fin v.size) × (α ∘ v.varWidth) a) := List.ofFn (insertFn)
+  let list: List ((a : Fin v.size) × (λ i => α (v.varWidth i.val)) a) := List.ofFn (insertFn)
   let hListMembership (i : Fin v.size): ∃ a, (a ∈ list ∧ a.fst = i) := by
     exists insertFn i; simp[insertFn, list]
 
-  let map: Std.ExtDHashMap (Fin v.size) (α ∘ VarWidths.varWidth v) := Std.ExtDHashMap.ofList list
+  let map: Std.ExtDHashMap (Fin v.size) (λ i => α (v.varWidth i.val)) := Std.ExtDHashMap.ofList list
   let hMapMembership: ∀ (i : Fin v.size), i ∈ map := by
     intro ix; simp[map]; exact hListMembership ix
 
@@ -319,7 +319,7 @@ theorem Assignment.createFromFn_contains {α} [Domain α] [AbstractDomain α] {v
   }
 
 public def Assignment.top (α) [Domain α] [AbstractDomain α] (v: VarWidths) : Assignment v α :=
-  let fn := (λ n => AbstractDomain.top (v.varWidth n))
+  let fn := (λ (n: Fin v.size) => AbstractDomain.top (v.varWidth n.val))
   Assignment.createFromFn α v fn
 
 public theorem Assignment.top_γ_all (α)[Domain α] [AbstractDomain α] (v: VarWidths)

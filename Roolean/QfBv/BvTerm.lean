@@ -15,9 +15,11 @@ deriving Repr
 public def VarWidths.size (v: VarWidths) : Nat :=
   v.inner.size
 
-public def VarWidths.varWidth (v: VarWidths) (index: Fin v.size) :=
-  let h: index.val < v.inner.size := by simp[size]
-  v.inner[index.val]'h
+public def VarWidths.varWidth (v: VarWidths) (index: Nat) : Nat :=
+  if h: index < v.inner.size then
+    v.inner[index]'h
+  else
+    0
 
 @[expose]
 public def VarWidths.widthFrom (v: VarWidths) (index: Nat): Nat :=
