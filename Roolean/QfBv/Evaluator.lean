@@ -2,6 +2,7 @@ module
 
 public import Roolean.QfBv.AbstractDomain
 public import Roolean.QfBv.Assignment
+import Roolean.QfBv.Assignment
 
 public def eval {v w} {α : Nat → Type} [Domain α]
   (term: BvTerm v w) (assignment: Assignment v α) : α w :=
@@ -11,6 +12,10 @@ public def eval {v w} {α : Nat → Type} [Domain α]
 
     | BvTerm.Variable index =>
       assignment.getElem index
+
+    | BvTerm.Let bind bound =>
+      let bind := eval bind assignment
+      eval bound (assignment.push bind)
 
     | BvTerm.Unary inner op =>
       let inner := eval inner assignment
@@ -61,30 +66,46 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     exact (Assignment.γ_elem a c i) h
   }
   {
+    -- let
+    simp[eval]
+
+    sorry
+  }
+  {
     -- unary
-    rename_i w pf op h
-    exact AbstractDomain.uniOp_sound (eval pf a) (eval pf c) op h
+    rename_i v w pf op h1
+    let h1 := h1 a c h
+    exact AbstractDomain.uniOp_sound (eval pf a) (eval pf c) op h1
   }
   {
     -- binary normal
     rename_i left right op h1 h2
+
+    let h1 := h1 a c h
+    let h2 := h2 a c h
     exact AbstractDomain.biNormal_sound (eval left a) (eval right a)
       op (eval left c) (eval right c) h1 h2
   }
   {
     -- binary reduction
     rename_i left right op h1 h2
+    let h1 := h1 a c h
+    let h2 := h2 a c h
     exact AbstractDomain.biReduction_sound (eval left a) (eval right a)
       op (eval left c) (eval right c) h1 h2
   }
   {
     -- extension
-    rename_i inner m op h
-    exact AbstractDomain.extOp_sound (eval inner a) (eval inner c) m op h
+    rename_i inner m op h1
+    let h1 := h1 a c h
+    exact AbstractDomain.extOp_sound (eval inner a) (eval inner c) m op h1
   }
   {
     -- ite
     rename_i i t e h1 h2 h3
+    let h1 := h1 a c h
+    let h2 := h2 a c h
+    let h3 := h3 a c h
     exact AbstractDomain.iteOp_sound (eval i a) (eval t a) (eval e a)
       (eval i c) (eval t c) (eval e c) h1 h2 h3
   }
@@ -92,6 +113,8 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     -- concat
     rename_i wl wr left right h1 h2
     simp[eval]
+    let h1 := h1 a c h
+    let h2 := h2 a c h
     exact AbstractDomain.concat_sound wl wr (eval left a) (eval right a)
       (eval left c) (eval right c) h1 h2
   }
@@ -99,6 +122,7 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     --extract
     rename_i w inner lsb width h1
     simp[eval]
+    let h1 := h1 a c h
     exact AbstractDomain.extract_sound (eval inner a) (eval inner c) lsb width h1
   }
 

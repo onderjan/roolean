@@ -8,8 +8,11 @@ import Roolean.QfBv.Domain
 public import Std.Data.ExtDHashMap.Basic
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
-  inner: Std.ExtDHashMap (Fin v.size) (α ∘ VarWidths.varWidth v)
+  inner: Std.ExtDHashMap (Fin v.size) (λ i => α (v.varWidth i))
   membership (i: (Fin v.size)) : i ∈ inner
+
+public def Assignment.push {v w} {α : Nat → Type} [Domain α]
+  (a: Assignment v α) (new: α w) : Assignment (v.push w) α := sorry
 
 @[expose]
 public def Assignment.getElem {v} {α : Nat → Type} [Domain α]
