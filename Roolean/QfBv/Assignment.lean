@@ -8,8 +8,8 @@ import Roolean.QfBv.Domain
 public import Std.Data.ExtDHashMap.Basic
 
 public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
-  inner: Std.ExtDHashMap (Fin v.size) (λ i => α (v.varWidth i.val))
-  membership (i: (Fin v.size)) : i ∈ inner
+  inner: Std.ExtDHashMap Nat (λ i => α (v.varWidth i))
+  membership (i) : i < v.size ↔ i ∈ inner
 
 public def Assignment.push {v w} {α : Nat → Type} [Domain α]
   (a: Assignment v α) (new: α w) : Assignment (v.push w) α := sorry
@@ -17,7 +17,7 @@ public def Assignment.push {v w} {α : Nat → Type} [Domain α]
 @[expose]
 public def Assignment.getElem {v} {α : Nat → Type} [Domain α]
   (a: Assignment v α) (index: (Fin v.size)) : α (v.varWidth index) :=
-  a.inner.get index (a.membership index)
+  a.inner.get index (Iff.mp (a.membership index) index.isLt)
 
 instance (v: VarWidths) (α : Nat → Type) [Domain α] : ToString (Assignment v α) where
   toString (a: Assignment v α) := Id.run do
@@ -32,8 +32,13 @@ instance (v: VarWidths) (α : Nat → Type) [Domain α] : ToString (Assignment v
 @[expose]
 public def Assignment.setElem {v} {α : Nat → Type} [Domain α]
   (a: Assignment v α) (index: (Fin v.size)) (value: α (v.varWidth index)) : Assignment v α :=
-  let map := a.inner.insert index value
-  { inner := map, membership := by simp[map, a.membership] }
+  let inner := a.inner.insert index value
+  let membership (i) : i < v.size ↔ i ∈ inner := by
+    simp[a.membership, inner]
+    intro h; rw[← h]
+    exact Iff.mp (a.membership index) index.isLt
+
+  { inner, membership }
 
 public theorem Assignment.eq_getElem {v} {α : Nat → Type} [Domain α]
   (a b: Assignment v α) : a = b ↔ ∀ i : Fin v.size, a.getElem i = b.getElem i := by
@@ -44,10 +49,21 @@ public theorem Assignment.eq_getElem {v} {α : Nat → Type} [Domain α]
     intro h
     ext i hI
     simp[getElem] at h
-    let h := h i
-    rw (occs := .pos [1,2])[← Option.some.injEq] at h
-    repeat rw [← Std.ExtDHashMap.get?_eq_some_get] at h
-    simp[h]
+    by_cases i < v.size
+    {
+      rename_i h1
+      let hA := (Iff.mp (a.membership i)) h1
+      let hB := (Iff.mp (b.membership i)) h1
+      let h := h (Fin.mk i h1)
+      simp[Std.ExtDHashMap.get?_eq_some_get, hA, hB, h]
+    }
+    {
+      rename_i h1
+      let hA := (Iff.mpr (a.membership i))
+      let hB := (Iff.mpr (b.membership i))
+      simp[h1] at hA hB
+      simp[Std.ExtDHashMap.get?_eq_none, hA, hB]
+    }
   }
 
 public theorem Assignment.setElem_getElem_exact {v} {α : Nat → Type} [Domain α]
@@ -59,6 +75,7 @@ public theorem Assignment.setElem_getElem_other {v} {α : Nat → Type} [Domain 
   (a: Assignment v α) (s p: (Fin v.size)) (val: (λ i => α (v.varWidth i.val)) s)
   : s ≠ p → (a.setElem s val).getElem p = a.getElem p := by
   intro h;
+  simp[← Fin.val_inj] at h
   simp[getElem, setElem,Std.ExtDHashMap.get_insert, h]
 
 
@@ -66,12 +83,17 @@ public theorem Assignment.setElem_getElem_previous {v} {α : Nat → Type} [Doma
   (a: Assignment v α) (s p: (Fin v.size)) (val: (λ i => α (v.varWidth i.val)) s)
   : p < s → (a.setElem s val).getElem p = a.getElem p := by
   intro h; let h2 := Ne.symm (Fin.ne_of_lt h)
+  simp[← Fin.val_inj] at h2
   simp[getElem, setElem,Std.ExtDHashMap.get_insert, h2]
 
 
 public theorem Assignment.emptyVars_single {v} {α : Nat → Type} [Domain α]
   (h: v.size = 0) (a b: Assignment v α) : a = b := by
-  rw[Assignment.mk.injEq]; ext k v; simp[h] at k; exact Fin.elim0 k
+  rw[Assignment.mk.injEq]; ext k val
+  let hA := a.membership k
+  let hB := b.membership k
+  simp[h] at hA hB
+  simp[Std.ExtDHashMap.get?_eq_none, hA, hB]
 
 public def Assignment.γ {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) (c: Assignment v Bitvector) : Bool :=
@@ -246,8 +268,8 @@ public theorem Assignment.split_right {v} {α} [Domain α] [AbstractDomain α]
 
 public def Assignment.choice {v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (a: Assignment v α) : { c: Assignment v Bitvector // a.γ c} :=
-  let map: Std.ExtDHashMap (Fin v.size) (λ i => Bitvector (v.varWidth i.val)) :=
-    a.inner.map λ k v => (AbstractDomain.choice v).val
+  let map: Std.ExtDHashMap Nat (λ i => Bitvector (v.varWidth i)) :=
+    a.inner.map (λ k (value: α (v.varWidth k)) => (AbstractDomain.choice value).val)
 
   let membership := by simp[a.membership]
 
@@ -265,15 +287,27 @@ public theorem Assignment.choice_within {v} {α} [Domain α] [AbstractDomain α]
 public def Assignment.createFromFn (α) [Domain α] (v: VarWidths)
   (fn : (n: Fin v.size) → α (v.varWidth n)) : Assignment v α :=
 
-  let insertFn (index: Fin v.size) := Sigma.mk index (fn index)
+  let insertFn (index: Fin v.size) := Sigma.mk index.val (fn index)
 
-  let list: List ((a : Fin v.size) × (λ i => α (v.varWidth i.val)) a) := List.ofFn (insertFn)
-  let hListMembership (i : Fin v.size): ∃ a, (a ∈ list ∧ a.fst = i) := by
-    exists insertFn i; simp[insertFn, list]
+  let list: List ((a : Nat) × (λ i => α (v.varWidth i)) a) := List.ofFn (insertFn)
+  let hListMembership (i): i < v.size ↔ ∃ a, (a ∈ list ∧ a.fst = i) := by
+    apply Iff.intro
+    {
+      intro h
+      exists insertFn (Fin.mk i h)
+      simp[insertFn, list]
+      exists (Fin.mk i h)
+    }
+    {
+      intro h
+      simp[insertFn, list] at h
+      grind
+    }
 
-  let map: Std.ExtDHashMap (Fin v.size) (λ i => α (v.varWidth i.val)) := Std.ExtDHashMap.ofList list
-  let hMapMembership: ∀ (i : Fin v.size), i ∈ map := by
-    intro ix; simp[map]; exact hListMembership ix
+  let map: Std.ExtDHashMap Nat (λ i => α (v.varWidth i)) := Std.ExtDHashMap.ofList list
+  let hMapMembership: ∀i, i < v.size ↔ i ∈ map := by
+    intro ix; simp[map]
+    simp[hListMembership]
 
   { inner := map, membership := hMapMembership }
 
@@ -292,9 +326,11 @@ theorem Assignment.createFromFn_elem  {α} [Domain α] [AbstractDomain α] {v: V
     simp[insertFn]
     intro h
     simp[Nat.ne_of_lt h]
-  let kBeq : i == i := by simp
+  let kBeq : i.val == i.val := by simp
   let assignment := (Assignment.createFromFn α v fn)
-  let hOfList := Std.ExtDHashMap.get_ofList_of_mem (l := list) kBeq (mem:=hMem) (h:=hMapMembership i) hPairwise
+
+  let hMapMem := Iff.mp (hMapMembership i) i.isLt
+  let hOfList := Std.ExtDHashMap.get_ofList_of_mem (l := list) kBeq (mem:=hMem) (h:=hMapMem) hPairwise
   simp at hOfList
   simp[map, hOfList]
 
