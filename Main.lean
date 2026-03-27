@@ -26,6 +26,7 @@ def work (problem proof: String): IO Unit := do
       throw (IO.userError s!"Problem parsing error: {reprStr err}")
 
 def main (args: List String) : IO UInt32 := do
+  let startTime ← IO.monoMsNow
   let (problem, proof) ← match args with
     | [problem, proof] => pure (problem, proof)
     | _ =>
@@ -33,7 +34,13 @@ def main (args: List String) : IO UInt32 := do
       return 101
 
   try
-    work problem proof; pure 0
+    work problem proof
+    let endTime ← IO.monoMsNow
+    IO.eprintln s!"Roolean finished in {endTime-startTime} ms"
+    pure 0
   catch
-    | .userError string => IO.eprintln string; pure 101
+    | .userError string =>
+      let endTime ← IO.monoMsNow
+      IO.eprintln s!"Roolean error in {endTime-startTime} ms"
+      IO.eprintln string; pure 101
     | other => throw other
