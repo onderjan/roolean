@@ -51,7 +51,7 @@ public inductive BvTerm: VarWidths → Nat → Type where
   | Constant: {v: VarWidths} → {w: Nat} → Bitvector w → BvTerm v w
   | Variable: {v: VarWidths} → (i : Fin v.size) → BvTerm v (VarWidths.varWidth v i)
   | Let: {v: VarWidths} → {w: Nat} → {bindWidth: Nat} → (bind: BvTerm v bindWidth) →
-    (bound: BvTerm (v.push bindWidth) w) → BvTerm v w
+    (inner: BvTerm (v.push bindWidth) w) → BvTerm v w
   | Unary: {v: VarWidths} → {w: Nat} → BvTerm v w → UniOp → BvTerm v w
   | BinaryNormal: {v: VarWidths} → {w: Nat} → BvTerm v w → BvTerm v w → BiNormalOp → BvTerm v w
   | BinaryReduction: {v: VarWidths} → {w: Nat} → BvTerm v w → BvTerm v w → BiReductionOp → BvTerm v 1

@@ -13,9 +13,9 @@ public def eval {v w} {α : Nat → Type} [Domain α]
     | BvTerm.Variable index =>
       assignment.getElem index
 
-    | BvTerm.Let bind bound =>
+    | BvTerm.Let bind inner =>
       let bind := eval bind assignment
-      eval bound (assignment.push bind)
+      eval inner (assignment.push bind)
 
     | BvTerm.Unary inner op =>
       let inner := eval inner assignment
@@ -68,10 +68,10 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
   {
     -- let
     simp[eval]
-    rename_i v w bindW bind bound bind_ih bound_ih
+    rename_i v w bindW bind inner bind_ih inner_ih
     let bind_ih := bind_ih a c h
-    let bound_ih := bound_ih (a.push (eval bind a)) (c.push (eval bind c))
-    exact bound_ih (Assignment.push_sound a c (eval bind a) (eval bind c) h bind_ih)
+    let inner_ih := inner_ih (a.push (eval bind a)) (c.push (eval bind c))
+    exact inner_ih (Assignment.push_sound a c (eval bind a) (eval bind c) h bind_ih)
   }
   {
     -- unary

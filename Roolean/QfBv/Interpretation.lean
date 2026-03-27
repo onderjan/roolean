@@ -7,7 +7,7 @@ public import Roolean.QfBv.Checker
 import Roolean.QfBv.BvTerm
 import Roolean.QfBv.Solver
 import Roolean.QfBv.Domain.Bitvector3
-import Std.Data.HashMap.Basic
+public import Std.Data.HashMap.Basic
 
 
 public structure Interpretation where
@@ -21,7 +21,7 @@ public inductive EInterpretation
   | InvalidDecimalBitvec (name: String8)
 
   | InvalidIndexedQualifiedIdent
-  | VariableNotFound (name: String8)
+  | VariableNotFound (name: String8) (scopes: List (Std.HashMap String8 Nat))
 
   | TooFewOpArgs
   | TooManyOpArgs
@@ -36,6 +36,7 @@ public inductive EInterpretation
   | RootWidthNotOne
 
   | CollidingLetBinders
+  | BadVariable
 
   | InvalidProof (err: Proof.EOfSmt)
   | WrongProofCheck (err: ECheckResult)
@@ -46,13 +47,8 @@ structure BvTermW (v: VarWidths) where
   value: BvTerm v width
 deriving Repr, Nonempty
 
-structure Scope (v: VarWidths) where
-  binders: Std.HashMap String8 (BvTermW v)
-
-structure Context (v: VarWidths) where
-  varNames: Std.HashMap String8 (Fin v.size)
-  scopes: List (Scope v)
-
+structure Context where
+  scopes: List (Std.HashMap String8 Nat)
 
 def interpretVariableSort (sort: SmtSort): Except EInterpretation Nat :=
   match sort with
@@ -87,7 +83,7 @@ def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
   let bv: Bitvector width := { value := (BitVec.ofNat width value) }
   pure { width, value := BvTerm.Constant bv}
 
-def interpretQualifiedIdent {v} (context: Context v) (qualified: SmtQualifiedIdent)
+def interpretQualifiedIdent {v} (context: Context) (qualified: SmtQualifiedIdent)
   : (Except EInterpretation) (BvTermW v) := do
 
   let ident := match qualified with
@@ -118,15 +114,14 @@ def interpretQualifiedIdent {v} (context: Context v) (qualified: SmtQualifiedIde
 
   -- look at variable bindings
   for scope in context.scopes do
-    if let some result := scope.binders.get? name then
-      return result
-
-  -- look at variable definitions
-  if let some index := context.varNames.get? name then
-    -- construct a reference to the variable
-    let width := v.varWidth index
-    let value := BvTerm.Variable index
-    return { width, value }
+    if let some index := scope.get? name then
+      -- construct a reference to the variable
+      let width := v.varWidth index
+      if h: index < v.size then
+        let value := BvTerm.Variable (Fin.mk index h)
+        return { width, value }
+      else
+        Except.error (EInterpretation.BadVariable)
 
   -- try out special names
   if let some name := name.toString? then
@@ -136,10 +131,10 @@ def interpretQualifiedIdent {v} (context: Context v) (qualified: SmtQualifiedIde
       return ({ width := 1, value := BvTerm.Constant (Bitvector.fromBool true) })
 
   -- variable with the given name not found
-  Except.error (EInterpretation.VariableNotFound name)
+  Except.error (EInterpretation.VariableNotFound name context.scopes)
 
 mutual
-partial def interpretUniOp {v} (context: Context v) (op: UniOp) (terms: Array SmtTerm)
+partial def interpretUniOp {v} (context: Context) (op: UniOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
    -- expecting exactly one term
   match terms with
@@ -160,7 +155,7 @@ partial def interpretBiNormalPair {v} (left: BvTermW v) (right: BvTermW v) (op: 
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiNormalOp {v} (context: Context v) (op: BiNormalOp) (terms: Array SmtTerm)
+partial def interpretBiNormalOp {v} (context: Context) (op: BiNormalOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
 
   let (left, right) ← if h: terms.size < 2 then
@@ -202,7 +197,7 @@ partial def interpretBiReductionPair {v} (left: BvTermW v) (right: BvTermW v) (o
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiReductionOp {v} (context: Context v) (op: BiReductionOp) (terms: Array SmtTerm)
+partial def interpretBiReductionOp {v} (context: Context) (op: BiReductionOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewOpArgs -- must have at least two args
@@ -217,7 +212,7 @@ partial def interpretBiReductionOp {v} (context: Context v) (op: BiReductionOp) 
     Except.error EInterpretation.TooManyOpArgs
 
 
-partial def interpretNeOp {v} (context: Context v) (terms: Array SmtTerm)
+partial def interpretNeOp {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewOpArgs -- must have at least two args
@@ -232,7 +227,7 @@ partial def interpretNeOp {v} (context: Context v) (terms: Array SmtTerm)
     -- cannot process this operation with more than two terms
     Except.error EInterpretation.TooManyOpArgs
 
-partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
+partial def interpretImpliesOp {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   let ((left, right) : BvTermW v × BvTermW v) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewOpArgs -- must have at least two args
@@ -257,7 +252,7 @@ partial def interpretImpliesOp {v} (context: Context v) (terms: Array SmtTerm)
 
   pure { width := 1, value := eqResult }
 
-partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (addWidth: Nat) (terms: Array SmtTerm)
+partial def interpretExtOp {v} (context: Context) (op: ExtOp) (addWidth: Nat) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
    -- expecting exactly one term
   match terms with
@@ -268,7 +263,7 @@ partial def interpretExtOp {v} (context: Context v) (op: ExtOp) (addWidth: Nat) 
     | #[] => Except.error EInterpretation.TooFewOpArgs
     | _ => Except.error EInterpretation.TooManyOpArgs
 
-partial def interpretIte {v} (context: Context v) (terms: Array SmtTerm)
+partial def interpretIte {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   -- expecting exactly three terms: condition, then branch, else branch
   match terms with
@@ -293,7 +288,7 @@ partial def interpretIte {v} (context: Context v) (terms: Array SmtTerm)
     | #[] => Except.error EInterpretation.TooFewOpArgs
     | _ => Except.error EInterpretation.TooManyOpArgs
 
-partial def interpretConcat {v} (context: Context v) (terms: Array SmtTerm)
+partial def interpretConcat {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   match terms with
   | #[left, right] =>
@@ -304,7 +299,7 @@ partial def interpretConcat {v} (context: Context v) (terms: Array SmtTerm)
   | #[] => Except.error EInterpretation.TooFewOpArgs
   | _ => Except.error EInterpretation.TooManyOpArgs
 
-partial def interpretExtract {v} (context: Context v) (hi lo: Nat) (terms: Array SmtTerm)
+partial def interpretExtract {v} (context: Context) (hi lo: Nat) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
 
   match terms with
@@ -322,7 +317,7 @@ partial def interpretExtract {v} (context: Context v) (hi lo: Nat) (terms: Array
   | #[] => Except.error EInterpretation.TooFewOpArgs
   | _ => Except.error EInterpretation.TooManyOpArgs
 
-partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
+partial def intepretApplication {v} (context: Context) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
 
   let ident := match qualified with
@@ -403,20 +398,33 @@ partial def intepretApplication {v} (context: Context v) (qualified: SmtQualifie
 
       | _ => Except.error (EInterpretation.BadApplication ident.name)
 
-partial def interpretLet {v} (context: Context v) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
+partial def interpretLetRec {v} (context: Context) (scope: Std.HashMap String8 Nat)
+  (bindings: List (String8 × SmtTerm)) (term: SmtTerm)
   : Except EInterpretation (BvTermW v) := do
-  let mut binders := {}
-  for (name, term) in bindings do
-    let result ← interpretTerm context term
-    if binders.contains name then
+
+  match bindings with
+  | binding :: bindings =>
+    if scope.contains binding.fst then
       Except.error EInterpretation.CollidingLetBinders
-    binders := binders.insert name result
+    -- compute the bind term
+    let bind: BvTermW v ← interpretTerm context binding.snd
+    -- insert bind to scope and push to variables
+    let scope := scope.insert binding.fst v.size
+    let vPush := v.push bind.width
+    -- recurse
+    let innerTerm ← interpretLetRec (v := vPush) context scope bindings term
+    -- construct let term
+    pure { width := innerTerm.width, value := BvTerm.Let bind.value innerTerm.value }
+  | [] =>
+    -- push the scope and interpret the term
+    interpretTerm { scopes := scope :: context.scopes } term
 
-  let scope: Scope v :=  { binders }
-  let innerContext := { context with scopes := scope :: context.scopes }
-  interpretTerm innerContext term
 
-partial def interpretTerm {v} (context: Context v) (term: SmtTerm): Except EInterpretation (BvTermW v) :=
+partial def interpretLet {v} (context: Context) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
+  : Except EInterpretation (BvTermW v) := do
+  interpretLetRec context {} bindings.toList term
+
+partial def interpretTerm {v} (context: Context) (term: SmtTerm): Except EInterpretation (BvTermW v) :=
   match term with
   | SmtTerm.SpecialConstant constant => interpretSpecialConstant constant
   | SmtTerm.QualifiedIdent qualified => interpretQualifiedIdent context qualified
@@ -462,9 +470,12 @@ public def Interpretation.checkSat (interpretation: Interpretation) (proof: SmtP
 
   let variableArray := interpretation.variables.mapFinIdx λ index var h =>
     let h: index < varWidths.size := by simp[varWidths, VarWidths.size, h]
-    (var.fst, Fin.mk index h)
+    (var.fst, index)
 
-  let context := { varNames := Std.HashMap.ofArray variableArray, scopes := {} }
+
+  let globalScope := Std.HashMap.ofArray variableArray
+
+  let context := { scopes := [globalScope] }
 
   let term ← match interpretTerm (v := varWidths) context assertion with
     | Except.ok term => pure term
