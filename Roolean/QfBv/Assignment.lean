@@ -82,14 +82,30 @@ public def setElem {v} {α : Nat → Type} [Domain α]
   let result := { inner, membership }
   result
 
+theorem cast_lemma {v} {α : Nat → Type} [Domain α]
+  (i: Fin v.size)
+  (a b: Assignment v α)
+  (h: a.inner[i] = b.inner[i])
+  (ha: α a.inner[i].width = α (v.varWidth i)) (hb: α b.inner[i].width = α (v.varWidth i))
+  :  cast ha a.inner[i].domain = cast hb b.inner[i].domain := by
+  grind
+
 public theorem eq_getElem {v} {α : Nat → Type} [Domain α]
-  (a b: Assignment v α) : a = b ↔ ∀ i : Fin v.size, a.getElem i = b.getElem i := by
+  (a b: Assignment v α) : a = b ↔ ∀ i : Fin v.size, a.getElem i ≍ b.getElem i := by
   rw[mk.injEq]
   simp[getElem]
   apply Iff.intro
   {
     intro h i
-    grind
+
+    let h := congrArg (λ x => x[i]) h
+    simp at h
+
+    let ha: α a.inner[i].width = α (v.varWidth i) := by rw[a.membership i]
+    let hb: α b.inner[i].width = α (v.varWidth i) := by rw[b.membership i]
+
+    let hLemma := cast_lemma i a b h ha hb
+    exact hLemma
   }
   {
     intro h
@@ -371,18 +387,12 @@ public theorem top_γ_all (α)[Domain α] [AbstractDomain α] (v: VarWidths)
   simp[fn]
   exact AbstractDomain.top_γ_all (α:=α) (c.getElem i)
 
+
+
 public theorem push_sound {α} [Domain α] [AbstractDomain α] {v w}
   (a: Assignment v α) (c: Assignment v Bitvector) (ea: α w) (ec: Bitvector w)
       : a.γ c → AbstractDomain.γ ea ec → (a.push ea).γ (c.push ec) := by
-    simp(zeta := false) [push]
-
-    extract_lets aPushed hCast aInner aMembership cPushed cInner cMembership
-
-    let cResult: Assignment (v.push w) Bitvector := { inner := cInner, membership := cMembership }
-    let aResult: Assignment (v.push w) α := { inner := aInner, membership := aMembership }
-
-    simp[γ_forall, getElem]
-
+    simp[γ_forall]
     intro h hE i
 
     by_cases i < v.size
@@ -390,117 +400,81 @@ public theorem push_sound {α} [Domain α] [AbstractDomain α] {v w}
       rename_i hI
       let h := h (Fin.mk i hI)
       simp at h
-      sorry
 
-      /-
-      let hACast1 : α a.inner[i].width = α (v.varWidth i) := by sorry
-      let hACast2 : α aInner[i].width = α (v.varWidth i) := by sorry
-
-      let hCast : α (v.varWidth ↑i) = α ((v.push w).varWidth i) := by sorry
-
-      let hA : cast hACast1 a.inner[i].domain = cast hACast2 aInner[i].domain := by sorry
-      simp at hA
-
-      simp[h] at h
-      -/
-
-
-
-      /-
-      let hA1Cast  (i : Fin v.size): α a.inner[↑i].width = α a.inner[↑i].width := by sorry
-      let hA2Cast  (i : Fin v.size): α aResult.inner[↑i].width = α a.inner[↑i].width := by sorry
-      let hA (i : Fin v.size): cast (hA1Cast i) a.inner[i.val].domain = cast (hA2Cast i) aResult.inner[i.val].domain := by sorry
-
-      let hC1Cast  (i : Fin v.size): Bitvector c.inner[↑i].width = Bitvector c.inner[↑i].width := by sorry
-      let hC2Cast  (i : Fin v.size): Bitvector cResult.inner[↑i].width = Bitvector c.inner[↑i].width := by sorry
-      let hC (i : Fin v.size): c.inner[i.val].domain = cast (hC2Cast i) cResult.inner[i.val].domain := by sorry
-
-      simp[cResult] at hC
-
-      let hCast : α aInner[i].width = α ((v.push w).varWidth ↑i) := by sorry
-
-      let hCastEq := cast_ (α:= α aInner[i].width) (hCast) (Element.domain aInner[i])
-      -/
-
-      --simp at hA hC
-
-      /-let hA := hA (Fin.mk i hI)
-      let hC := hC (Fin.mk i hI)
-
-      simp[hA, hC] at h
-      simp[aInner, cInner, h]
-
-      -/
-
-      /-
-
-      let hAFst := aCastLt (Fin.mk i hI)
-
-      let hA: α ((v.push w).varWidth (Vector.ofFn aF)[↑i].fst) = α ((v.push w).varWidth (aF i).fst) := by
-        simp
-
-      let hAResult: Assignment (v.push w) α := { inner := aInner, membership := aMembership }
-      let hCResult: Assignment (v.push w) Bitvector := { inner := cInner, membership := cMembership }
-
-
-      let hC: Bitvector ((v.push w).varWidth (Vector.ofFn cF)[↑i].fst) = Bitvector ((v.push w).varWidth (cF i).fst) := by
-        simp
-
-      let hAOfFn : (Vector.ofFn aF)[i.val] = aF i := by simp[Vector.getElem_ofFn]
-      let hAOfFnSnd : cast hA (Vector.ofFn aF)[i.val].snd = (aF i).snd := by grind
-
-      let hCOfFn : (Vector.ofFn cF)[i.val] = cF i := by simp[Vector.getElem_ofFn]
-      let hCOfFnSnd : cast hC (Vector.ofFn cF)[i.val].snd = (cF i).snd := by grind
-
-
-      let hA2 : α ((v.push w).varWidth hAResult.inner[i].fst) = α ((v.push w).varWidth ↑i) := by sorry
-
-
-      let hA2 (h1: α ((v.push w).varWidth hAResult.inner[i].fst) = α ((v.push w).varWidth i.val))
-      (h2: α ((v.push w).varWidth (aF i).fst) = α ((v.push w).varWidth ↑i))
-        : (cast h1 aInner[i.val].snd) = cast h2 (aF i).snd
-      := by sorry
-
-      let hA2 := hA2 (by sorry) (by sorry)
-
-      let hC2 (h1: Bitvector ((v.push w).varWidth hCResult.inner[i].fst) = Bitvector ((v.push w).varWidth i.val))
-      (h2: Bitvector ((v.push w).varWidth (cF i).fst) = Bitvector ((v.push w).varWidth ↑i))
-        : (cast h1 cInner[i.val].snd) = cast h2 (cF i).snd
-      := by sorry
-
-      let hC2 := hC2 (by sorry) (by sorry)
-
-      simp[aInner, cInner, hA2, hC2]
-      simp[aF, cF]
       simp[VarWidths.size] at hI
-      simp[cast]
-      -/
+      let hWidth : ((v.push w).varWidth i) = (v.varWidth (Fin.mk i hI)) := by
+        simp[VarWidths.push, VarWidths.varWidth, hI]; grind
+
+      let hPush {α} [Domain α] (a: Assignment v α) (new: α w)
+        : let hWidth := by simp[hWidth]
+          a.getElem (Fin.mk i hI) = cast hWidth ((a.push new).getElem (Fin.mk i i.isLt)) := by
+        simp[push, getElem]
+        let hV : v.size + 1 = (v.push w).size := by simp[VarWidths.push, VarWidths.size]
+        let hVec := Vector.getElem_cast (xs:=(a.inner.push { width := w, domain := new })) (h:=hV) i.isLt
+        grind
+
+      let hAPush := hPush a ea
+      let hCPush := hPush c ec
+      simp at hAPush hCPush
+      simp[hAPush, hCPush] at h
+
+      let hW: (v.push w).varWidth ↑i = (v.varWidth ↑i) := by
+        simp[VarWidths.push, VarWidths.varWidth, hI]
+        grind
+
+      let hCast := AbstractDomain.γ_cast ((a.push ea).getElem i) ((c.push ec).getElem i) (m := (v.varWidth ↑i)) hW
+      rw[← hCast]
+      exact h
     }
     {
-      sorry
+      rename_i hI
+      simp at hI
+      let hI2 := i.isLt
+      simp[VarWidths.size_push] at hI2
+      let hI3 := Nat.le_of_lt_succ hI2
+      let hI4 := Nat.le_antisymm hI hI3
+
+      let h1 : v.size < (v.push w).size := by grind
+      let h: i = Fin.mk v.size h1 := by grind
+
+      rw[h]
+
+      let hX: w = ((v.push w).varWidth v.size) := by
+        simp[VarWidths.push, VarWidths.varWidth, VarWidths.size]
+
+      let hAX: α ((v.push w).varWidth v.size) = α w := by grind
+      let hAPush : ea = cast hAX ((a.push ea).getElem ⟨v.size, h1⟩) := by
+        simp[getElem, push, VarWidths.size]
+        let hLemma (x) (hVec): (Vector.cast hVec (a.inner.push x))[v.inner.size] = x := by
+          simp[Vector.getElem_cast, VarWidths.size]
+
+        let hVec : v.size + 1 = (v.push w).size := by
+          simp[VarWidths.push, VarWidths.size]
+        let hLemma := hLemma { width := w, domain := ea } hVec
+        grind
+
+      let hCX : Bitvector ((v.push w).varWidth v.size) = Bitvector w := by grind
+      let hCPush : ec = cast hCX ((c.push ec).getElem ⟨v.size, h1⟩) := by
+        simp[getElem, push, VarWidths.size]
+        let hLemma (x) (hVec): (Vector.cast hVec (c.inner.push x))[v.inner.size] = x := by
+          simp[Vector.getElem_cast, VarWidths.size]
+
+        let hVec : v.size + 1 = (v.push w).size := by
+          simp[VarWidths.push, VarWidths.size]
+        let hLemma := hLemma { width := w, domain := ec } hVec
+        grind
+
+      simp at hAPush hCPush
+
+      let hW: (v.push w).varWidth v.size = w := by
+        simp[VarWidths.push, VarWidths.varWidth, VarWidths.size]
+
+      rw[hAPush, hCPush] at hE
+
+      let hCast := AbstractDomain.γ_cast ((a.push ea).getElem ⟨v.size, h1⟩) ((c.push ec).getElem ⟨v.size, h1⟩) (m := w) hW
+
+      simp at hCast
+      simp[← hCast]
+
+      exact hE
     }
-
-    /-
-    simp[aInner, cInner]
-    let hA := Vector.getElem_ofFn ix.isLt (f:=aF)
-
-
-
-
-    let hACast (h1: α ((v.push w).varWidth ainner[ix].fst) = α ((v.push w).varWidth ↑ix))
-      (h2: α ((v.push w).varWidth (aF ix).fst) = α ((v.push w).varWidth ↑ix)) :
-      (cast h1 (Vector.ofFn aF)[↑ix].snd) = cast h2 (aF ix).snd := by
-      grind
-
-    rw[hACast]
-
-    let hACast : α ((v.push w).varWidth ainner[ix].fst) = α ((v.push w).varWidth ↑ix) := by sorry
-    let hA : (cast hACast (Vector.ofFn aF)[↑ix].snd) = (cast hACast (aF ix).snd) := by sorry
-
-
-    simp[Vector.cast_of]
-
-    let hCast : α (v.varWidth a.inner[ix].fst) = α ((v.push w).varWidth a.inner[ix].fst) := by sorry
-
-      simp[hA, hFst]
-    -/

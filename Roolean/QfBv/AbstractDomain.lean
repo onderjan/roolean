@@ -54,3 +54,9 @@ public theorem AbstractDomain.extract_sound {w} {α} [Domain α] [AbstractDomain
   let hShiftValue := AbstractDomain.ofBitvector_sound (α:=α) shiftValue
   let hShifted := AbstractDomain.biNormal_sound a aShift BiNormalOp.Lshr c cShift h hShiftValue
   exact AbstractDomain.extOp_sound aShifted cShifted m ExtOp.Uext hShifted
+
+public theorem AbstractDomain.γ_cast {w m} {α} [Domain α] [AbstractDomain α]
+  (a: α w) (c: Bitvector w) (h: w = m)
+  : let ha: α w = α m := by grind
+  let hc: Bitvector w = Bitvector m := by grind
+  AbstractDomain.γ (cast ha a) (cast hc c) = AbstractDomain.γ a c := by grind
