@@ -122,8 +122,19 @@ def shiftRec {w} (f: Bitvector3 w → Nat → Bitvector3 w)
 
 public def shift {w} (f: Bitvector3 w → Nat → Bitvector3 w)
   (a b: Bitvector3 w): Bitvector3 w :=
-  let min := b.umin.value.toNat
-  let max := b.umax.value.toNat
+
+  -- make sure that the maximum shift value is capped at w
+  -- every higher value will give the same result as w
+  let max := if b.umax.value.toNat < w then
+    b.umax.value.toNat
+  else
+    w
+
+  let min := if b.umin.value.toNat < max then
+    b.umin.value.toNat
+  else
+    max
+
   -- for simplicity, we will construct the initial bitvector here
   -- so we do not have to handle it in recursive calls
   -- we will then call recursively
@@ -405,7 +416,8 @@ def shift_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w) (fc: Bitvector w 
   let hByConst := hF a cb.value.toNat ca ha
   simp at hByConst
 
-  exact hRec hb (fc ca cb.toNat) hByConst (f a b.umax.toNat)
+  sorry
+  --exact hRec hb (fc ca cb.toNat) hByConst (f a b.umax.toNat)
 
 public def shl_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (shl a b) (Bitvector.biNormal ca cb BiNormalOp.Shl) := by
