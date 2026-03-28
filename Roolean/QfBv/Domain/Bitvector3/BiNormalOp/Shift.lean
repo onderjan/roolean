@@ -125,15 +125,8 @@ public def shift {w} (f: Bitvector3 w → Nat → Bitvector3 w)
 
   -- make sure that the maximum shift value is capped at w
   -- every higher value will give the same result as w
-  let max := if b.umax.value.toNat < w then
-    b.umax.value.toNat
-  else
-    w
-
-  let min := if b.umin.value.toNat < max then
-    b.umin.value.toNat
-  else
-    max
+  let max := w.min b.umax.value.toNat
+  let min := max.min b.umin.value.toNat
 
   -- for simplicity, we will construct the initial bitvector here
   -- so we do not have to handle it in recursive calls
@@ -389,50 +382,151 @@ def shiftRec_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w)
 def shift_sound {w} (f: Bitvector3 w → Nat → Bitvector3 w) (fc: Bitvector w → Nat → Bitvector w)
   (a b: Bitvector3 w) (ca cb: Bitvector w)
   (hF: (a: Bitvector3 w) → (s: Nat) → (c: Bitvector w) → γ a c → γ (f a s) (fc c s))
+  (hFA: ∀ a, ∀n, w < n → (f a n) = (f a w))
     : γ a ca → γ b cb → γ (shift f a b) (fc ca cb.toNat) := by
   intro ha hb
-  simp[shift]
+  simp(zeta := false)[shift]
+  extract_lets max min
   let hUminLe := umin_le_γ b cb hb
   let hLeUmax := γ_le_umax b cb hb
   let hUminLeUmax := umin_le_umax b
 
-  let hRec := shiftRec_sound f a b (b.umin.toNat) (b.umax.toNat-b.umin.toNat) (cb.toNat-b.umin.toNat)
-  simp[BitVec.le_def] at hLeUmax
-  simp[Bitvector.toNat] at hRec
-  simp[Nat.sub_add_cancel hUminLeUmax, hLeUmax] at hRec
-  let hCancelBitVec
-    : b.umin.value + BitVec.ofNat w (cb.value.toNat - b.umin.value.toNat) = cb.value.toNat := by
-    simp[BitVec.ofNat_toNat]
-    simp[BitVec.add_def]
-    let hCbMinusB : cb.value.toNat - b.umin.value.toNat < 2^w := by grind
-    simp[Nat.mod_eq_of_lt hCbMinusB]
-    simp[Nat.add_sub_cancel' (Iff.mp BitVec.le_def hUminLe)]
+  let hMinMax : min ≤ max := by grind
 
-  let hCancelNat : b.umin.value.toNat + (cb.value.toNat - b.umin.value.toNat) = cb.value.toNat := by
-    simp[Nat.add_sub_cancel' (Iff.mp BitVec.le_def hUminLe)]
 
-  simp[hCancelBitVec, hCancelNat] at hRec
+  by_cases cb.toNat ≤ w
+  {
+    rename_i hW
+    -- since min and max are only limited by w,
+    -- must be limited by max
 
-  let hByConst := hF a cb.value.toNat ca ha
-  simp at hByConst
+    let hRec := shiftRec_sound f a b min (max-min) (cb.toNat-min)
+    let hCbMax : cb.toNat ≤ max := by
+      simp[max]
+      simp[Bitvector.toNat] at hW
+      simp[Nat.le_min, Bitvector.toNat, Iff.mp BitVec.le_def hLeUmax, hW]
+    let hCbMaxMinus : cb.toNat - min ≤ max - min := by grind
+    simp[hCbMaxMinus] at hRec
 
-  sorry
-  --exact hRec hb (fc ca cb.toNat) hByConst (f a b.umax.toNat)
+    let hCbMin : min ≤ cb.toNat := by
+      simp[min]
+      simp[Bitvector.toNat] at hW
+      simp[Nat.min_def]
+      split
+      {
+        rename_i hMax
+        simp[BitVec.le_def] at hUminLe
+        simp[Bitvector.toNat]
+        exact Nat.le_trans hMax hUminLe
+      }
+      {
+        simp[Bitvector.toNat, ← BitVec.le_def, hUminLe]
+      }
+
+    let hAddSub: BitVec.ofNat w min + BitVec.ofNat w (cb.toNat - min) = BitVec.ofNat w cb.toNat := by
+      simp[Bitvector.toNat, BitVec.add_def]
+      let hMinW : min < 2^w := by grind
+      let hCbMinW : cb.value.toNat - min < 2^w := by grind
+      simp[Nat.mod_eq_of_lt hMinW, Nat.mod_eq_of_lt hCbMinW]
+      simp[Bitvector.toNat] at hCbMin
+      simp[Nat.add_sub_cancel' hCbMin]
+
+    let hMinCancel : (min + (cb.value.toNat - min)) = cb.value.toNat := by
+      simp[Bitvector.toNat] at hCbMin
+      simp[Nat.add_sub_cancel' hCbMin]
+
+    simp[hAddSub] at hRec
+    simp[Bitvector.toNat] at hRec
+    simp[hMinCancel] at hRec
+
+    let hByConst := hF a cb.value.toNat ca ha
+
+    exact hRec hb (fc ca cb.toNat) hByConst (f a max)
+  }
+  {
+    -- above, the value will be as with w
+    rename_i hCb
+    simp at hCb
+    let hMax : max = w := by
+      simp[max, Nat.min_def]
+      intro hUmax
+      simp[BitVec.le_def] at hLeUmax
+      let hUmax := Nat.lt_of_le_of_lt hLeUmax hUmax
+      simp[Bitvector.toNat] at hCb
+      let hContra := Nat.lt_trans hCb hUmax
+      simp at hContra
+
+    simp[hMax]
+
+    let hMinLeW : min ≤ w := by grind
+    let hWMinusMinLtPowW : w - min < 2^w := by grind
+    let hMinLtPowW : min < 2^w := by grind
+    let hBitvecCancel : BitVec.ofNat w min + BitVec.ofNat w (w - min) = BitVec.ofNat w w := by
+      simp[BitVec.add_def, Nat.mod_eq_of_lt hMinLtPowW, Nat.mod_eq_of_lt hWMinusMinLtPowW]
+      simp[Nat.add_sub_cancel' hMinLeW]
+
+    let hMinCancel : (min + (w - min)) = w := by
+      simp[Nat.add_sub_cancel' hMinLeW]
+
+    let hMono := shiftRec_start_monotone f a b min (w-min) (f a w) (fc ca cb.toNat)
+    let hAbove : (f a w).γ (fc ca cb.toNat) := by
+      let hFC := hF a cb.toNat ca ha
+      let hFA := hFA a cb.toNat hCb
+      simp[hFA] at hFC
+      exact hFC
+
+    exact hMono hAbove
+  }
+
+def shlByConst_above {w} (a: Bitvector3 w) (n: Nat) (h: w < n) : (shlByConst a n) = (shlByConst a w) := by
+  simp[shlByConst]
+  apply And.intro
+  iterate 2 {
+    ext i hI
+    let hT := Nat.lt_trans hI h
+    simp[hT]
+  }
+
+
+def lshrByConst_above {w} (a: Bitvector3 w) (n: Nat) (h: w < n) : (lshrByConst a n) = (lshrByConst a w) := by
+  simp[lshrByConst]
+  apply And.intro
+  {
+    ext i hI
+    simp[Nat.le_of_lt (Nat.lt_add_left i h)]
+  }
+  {
+    ext i hI
+    let h := Nat.le_of_lt (Nat.lt_add_right i h)
+    simp[BitVec.getLsbD_of_ge a.ones (n+i) h]
+  }
+
+def ashrByConst_above {w} (a: Bitvector3 w) (n: Nat) (h: w < n) : (ashrByConst a n) = (ashrByConst a w) := by
+  simp[ashrByConst]
+  simp[sshiftRight_eq_msb]
+  apply And.intro
+  iterate 2 {
+    ext i hI
+    split
+    iterate 2 {
+      simp[Nat.le_of_lt (Nat.lt_add_right i h)]
+    }
+  }
 
 public def shl_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (shl a b) (Bitvector.biNormal ca cb BiNormalOp.Shl) := by
   intro ha hb; simp[shl, Bitvector.biNormal, Bitvector.standardBi]
-  let h := shift_sound shlByConst (λ a b => { value := a.value <<< b }) a b ca cb shlByConst_sound ha hb
+  let h := shift_sound shlByConst (λ a b => { value := a.value <<< b }) a b ca cb shlByConst_sound shlByConst_above ha hb
   exact h
 
 public def lshr_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (lshr a b) (Bitvector.biNormal ca cb BiNormalOp.Lshr) := by
   intro ha hb; simp[lshr, Bitvector.biNormal, Bitvector.standardBi]
-  let h := shift_sound lshrByConst (λ a b => { value := a.value >>> b }) a b ca cb lshrByConst_sound ha hb
+  let h := shift_sound lshrByConst (λ a b => { value := a.value >>> b }) a b ca cb lshrByConst_sound lshrByConst_above ha hb
   exact h
 
 public def ashr_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (ashr a b) (Bitvector.biNormal ca cb BiNormalOp.Ashr) := by
   intro ha hb; simp[ashr, Bitvector.biNormal, Bitvector.standardBi]
-  let h := shift_sound ashrByConst (λ a b => { value := a.value.sshiftRight b }) a b ca cb ashrByConst_sound ha hb
+  let h := shift_sound ashrByConst (λ a b => { value := a.value.sshiftRight b }) a b ca cb ashrByConst_sound ashrByConst_above ha hb
   exact h
