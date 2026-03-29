@@ -31,6 +31,11 @@ public def eval {v w} {α : Nat → Type} [Domain α]
       let right := eval right assignment
       Domain.biReduction left right op
 
+    | BvTerm.Implies antecedent consequent =>
+      let antecedent := eval antecedent assignment
+      let consequent := eval consequent assignment
+      Domain.implies antecedent consequent
+
     | BvTerm.Extension inner newWidth op =>
       let inner := eval inner assignment
       Domain.extOp inner newWidth op
@@ -97,6 +102,13 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
       op (eval left c) (eval right c) h1 h2
   }
   {
+    -- implies
+    rename_i ante conse h1 h2
+    let h1 := h1 a c h
+    let h2 := h2 a c h
+    exact AbstractDomain.implies_sound (eval ante a) (eval conse a) (eval ante c) (eval conse c) h1 h2
+  }
+  {
     -- extension
     rename_i inner m op h1
     let h1 := h1 a c h
@@ -127,6 +139,7 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     let h1 := h1 a c h
     exact AbstractDomain.extract_sound (eval inner a) (eval inner c) lsb width h1
   }
+
 
 def eval3bv {v} {α : Nat → Type} [Domain α]
   (term: BvTerm v 1) (assignment: Assignment v α) : Option (Bitvector 1) :=

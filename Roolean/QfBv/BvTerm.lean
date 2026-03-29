@@ -55,6 +55,7 @@ public inductive BvTerm: VarWidths → Nat → Type where
   | Unary: {v: VarWidths} → {w: Nat} → BvTerm v w → UniOp → BvTerm v w
   | BinaryNormal: {v: VarWidths} → {w: Nat} → BvTerm v w → BvTerm v w → BiNormalOp → BvTerm v w
   | BinaryReduction: {v: VarWidths} → {w: Nat} → BvTerm v w → BvTerm v w → BiReductionOp → BvTerm v 1
+  | Implies: {v: VarWidths} → BvTerm v 1 → BvTerm v 1 → BvTerm v 1
   | Extension: {v: VarWidths} → {w:Nat} → BvTerm v w → (m: Nat) → ExtOp → BvTerm v m
   | Ite: {v: VarWidths} → {w: Nat} → BvTerm v 1 → BvTerm v w → BvTerm v w → BvTerm v w
   | Concat: {v: VarWidths} → (wl wr: Nat) → BvTerm v wl → BvTerm v wr → BvTerm v (wl+wr)

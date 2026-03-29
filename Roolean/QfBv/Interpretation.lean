@@ -8,6 +8,7 @@ import Roolean.QfBv.BvTerm
 import Roolean.QfBv.Solver
 import Roolean.QfBv.Domain.Bitvector3
 public import Std.Data.HashMap.Basic
+import Roolean.QfBv.BvTerm
 
 
 public structure Interpretation where
@@ -27,6 +28,7 @@ public inductive EInterpretation
   | TooManyOpArgs
 
   | BinaryWidthMismatch
+  | ImpliesWidthNotOne
   | IteConditionWidthNotOne
   | IteBranchWidthMismatch
   | BadExtraction
@@ -229,7 +231,7 @@ partial def interpretNeOp {v} (context: Context) (terms: Array SmtTerm)
 
 partial def interpretImpliesOp {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
-  let ((left, right) : BvTermW v × BvTermW v) ← if h: terms.size < 2 then
+  let ((ante, conse) : BvTermW v × BvTermW v) ← if h: terms.size < 2 then
     Except.error EInterpretation.TooFewOpArgs -- must have at least two args
   else if terms.size == 2 then
       -- consider a => b to work bit-wise:
@@ -237,20 +239,31 @@ partial def interpretImpliesOp {v} (context: Context) (terms: Array SmtTerm)
       -- the result is whether this holds for all bits
       -- we can rewrite to (a or b) == b, which is true exactly
       -- when there is no bit that is set in a but not set in b
-      let left ← interpretTerm context terms[0]
-      let right ← interpretTerm context terms[1]
-      pure (left, right)
+      let ante ← interpretTerm context terms[0]
+      let conse ← interpretTerm context terms[1]
+      pure (ante, conse)
   else
     -- Implies right-associative, transform (f s_1 s_2 .. s_n) as (f s_1 (f s_2 ... s_n))
     -- still process left-to-right
-    let left ← interpretTerm context (terms[0])
-    let right ← interpretImpliesOp context (terms.eraseIdx 0)
-    pure (left, right)
+    let ante ← interpretTerm context (terms[0])
+    let conse ← interpretImpliesOp context (terms.eraseIdx 0)
+    pure (ante, conse)
 
-  let orResult ← interpretBiNormalPair left right BiNormalOp.BitOr
-  let eqResult ← interpretBiReductionPair orResult right BiReductionOp.Eq
+  if h1: ante.width = 1 then
+    if h2: conse.width = 1 then
+      let hAnte := by simp[h1]
+      let hConse := by simp[h2]
 
-  pure { width := 1, value := eqResult }
+      let ante: BvTerm v 1 := cast hAnte ante.value
+      let conse: BvTerm v 1 := cast hConse conse.value
+
+      let value := BvTerm.Implies ante conse
+      pure { width := 1, value }
+    else
+      Except.error EInterpretation.ImpliesWidthNotOne
+  else
+    Except.error EInterpretation.ImpliesWidthNotOne
+
 
 partial def interpretExtOp {v} (context: Context) (op: ExtOp) (addWidth: Nat) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do

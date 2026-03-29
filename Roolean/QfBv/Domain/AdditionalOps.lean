@@ -3,6 +3,14 @@ module
 public import Roolean.QfBv.Domain.Bitvector
 
 @[expose]
+public def Domain.implies {α} [Domain α]
+  (antecedent consequent: α 1) : α 1 :=
+  -- (antecendent implies consequent) can be classically (by material implication)
+  -- replaced by (¬antecedent) ∨ consequent
+  let notAnte := Domain.uniOp antecedent UniOp.Not
+  Domain.biNormal notAnte consequent BiNormalOp.BitOr
+
+@[expose]
 public def Domain.concat {α} [Domain α]
   (wl wr: Nat) (left: α wl) (right: α wr): α (wl+wr) :=
       let width := wl + wr
