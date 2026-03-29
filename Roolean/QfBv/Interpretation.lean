@@ -64,8 +64,13 @@ def interpretVariableSort (sort: SmtSort): Except EInterpretation Nat :=
             Except.error EInterpretation.BitvectorWidthNotNumeral
       else
         Except.error EInterpretation.SortNotBitVec -- expected a bitvector
+    | SmtSort.Ident { name := typename, indices := #[] } =>
+      if let some "Bool" := typename.toString? then
+        pure 1
+      else
+        Except.error EInterpretation.SortNotBitVec -- expected a bool
     | _ =>
-      -- expected a bitvector, which is a sort indexed by width
+      -- expected a bitvector, which is a sort indexed by width, or a Bool
       Except.error EInterpretation.SortNotBitVec
 
 def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
