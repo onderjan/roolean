@@ -108,7 +108,19 @@ public def choice {w} (a: Bitvector3 w) : { c: Bitvector w // γ a c} :=
   Subtype.mk bv h
 
 
-public def fmt {w} (domain: Bitvector3 w) : String := s!"{reprStr domain}"
+public def fmt {w} (domain: Bitvector3 w) : String := Id.run do
+  let mut str := "\""
+  for h: i in (0...w) do
+    let zero := domain.zeros[i]
+    let one := domain.ones[i]
+    let c := match zero, one with
+    | false, false => 'V'
+    | true, false => '0'
+    | false, true => '1'
+    | true, true => 'X'
+    str ← s!"{c}{str}"
+
+  s!"\"{str}"
 
 public def truncate {w m} (a: Bitvector3 w) (h: m ≤ w): Bitvector3 m :=
   let zeros := a.zeros.setWidth m

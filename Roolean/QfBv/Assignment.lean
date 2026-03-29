@@ -18,6 +18,12 @@ public structure Assignment (v: VarWidths) (α : Nat → Type) [Domain α] where
 
 namespace Assignment
 
+public def fmt {v} {α : Nat → Type} [Domain α] (a: Assignment v α): String := Id.run do
+  let mut str := "["
+  for e in a.inner do
+    str ← s!"{str}{Domain.fmt e.domain}, "
+  s!"{str}]"
+
 @[expose]
 public def getElem {v} {α : Nat → Type} [Domain α]
   (a: Assignment v α) (index: (Fin v.size)) : α (v.varWidth index) :=
