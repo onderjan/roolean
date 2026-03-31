@@ -6,6 +6,8 @@ public structure Location where
 deriving Repr
 
 public inductive LexerError
+  | FileOpen
+  | FileRead
   | FractionDigitExpected
   | HexadecimalDigitExpected
   | BinaryDigitExpected

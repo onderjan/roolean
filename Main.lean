@@ -2,28 +2,17 @@ import Roolean.SmtLib2.Executor
 import Roolean.QfBv.Interpretation
 
 def work (problem proof: String): IO Unit := do
-  let problem ← IO.FS.readBinFile problem
-  let proof ← IO.FS.readBinFile proof
+  let proof ← (Proof.parse proof).toIO (λ e => IO.userError s!"Proof parsing error: {reprStr e}")
+  let commands ← (parse problem).toIO (λ e => IO.userError s!"Problem parsing error: {reprStr e}")
 
-  let proof ← match Proof.parse proof.toList with
-  | Except.ok proof => pure proof
-  | Except.error err =>
-    throw (IO.userError s!"Proof parsing error: {reprStr err}")
-
-  let commands := parse problem.toList
-  match commands with
-    | Except.ok commands =>
-      -- IO.println s!"Parsed commands: {reprStr commands}"
-      let executed ← execute Interpretation commands proof
-      match executed with
-        | Except.ok () =>
-          IO.eprintln s!"Execution successful"
-          pure ()
-        | Except.error err =>
-          throw (IO.userError s!"Execution error: {reprStr err}")
-
+  let executed ← execute Interpretation commands proof
+  match executed with
+    | Except.ok () =>
+      IO.eprintln s!"Execution successful"
+      pure ()
     | Except.error err =>
-      throw (IO.userError s!"Problem parsing error: {reprStr err}")
+      throw (IO.userError s!"Execution error: {reprStr err}")
+
 
 def main (args: List String) : IO UInt32 := do
   let startTime ← IO.monoMsNow

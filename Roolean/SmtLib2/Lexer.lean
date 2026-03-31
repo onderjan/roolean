@@ -310,14 +310,21 @@ def Lexer.lexChar (lexer: Lexer) (c: Option CharClass) : Except ELexer Lexer :=
     | .Comment => LexerState.Comment.lex lexer.vars c
 
 
-public def lex (chars: List Char8): Except ELexer (Array Token) := do
-  let chars := chars.map (λ (c: Char8) => some (CharClass.ofChar8 c))
-  let lexer: Lexer := { state := LexerState.Normal, vars := { tokens := #[] } }
+public def lex (filename: String): EIO ELexer (Array Token) := do
+  let handle ← (IO.FS.Handle.mk filename IO.FS.Mode.read).toEIO (λ _ => ELexer.mk LexerError.FileOpen)
 
-  -- fold with chars
-  let lexer : Lexer ← chars.foldlM Lexer.lexChar lexer
+  let mut lexer := { state := LexerState.Normal, vars := { tokens := #[] } }
+
+  -- lex all characters in file
+  repeat
+    let buffer ← (IO.FS.Handle.read handle 1024).toEIO (λ _ => ELexer.mk LexerError.FileRead)
+    if buffer.isEmpty then
+      break
+    for char in buffer do
+      let charClass := CharClass.ofChar8 char
+      lexer ← EIO.ofExcept (Lexer.lexChar lexer (some charClass))
 
   -- lex EOF
-  let lexer ← lexer.lexChar none
+  let endLexer ← EIO.ofExcept (lexer.lexChar none)
 
-  pure lexer.vars.tokens
+  pure endLexer.vars.tokens

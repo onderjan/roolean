@@ -357,11 +357,9 @@ partial def parseCommands (parser: Parser) (commands: Array SmtCommand) : Except
     parseCommands (parser) (commands.push (command))
 
 
-public def parse (chars: List Char8): Except EParser (Array SmtCommand) :=
-  match lex chars with
-    | Except.ok tokens => do
-      let tokens := tokens.toList
-      let parser : Parser := { tokens, initial := tokens }
-      let parsed ← parseCommands parser #[]
-      pure parsed
-    | Except.error err => Except.error (EParser.Lexer err)
+public def parse (filename: String): EIO EParser (Array SmtCommand) := do
+  let tokens ← (lex filename).adapt (λ e => EParser.Lexer e)
+  let tokens := tokens.toList
+  let parser : Parser := { tokens, initial := tokens }
+  let parsed ← EIO.ofExcept (parseCommands parser #[])
+  pure parsed

@@ -82,11 +82,9 @@ partial def parseProof (parser: Parser) : Except EParser SmtProof := do
       pure { result, root }
     | _ => Except.error (parser.error ParserError.ExpectedProof)
 
-public def parse (chars: List Char8): Except EParser SmtProof :=
-  match lex chars with
-    | Except.ok tokens => do
-      let tokens := tokens.toList
-      let parser : Parser := { tokens, initial := tokens }
-      let parsed ← parseProof parser
-      pure parsed
-    | Except.error err => Except.error (EParser.Lexer err)
+public def parse (filename: String): EIO EParser SmtProof := do
+  let tokens ← (lex filename).adapt (λ e => EParser.Lexer e)
+  let tokens := tokens.toList
+  let parser : Parser := { tokens, initial := tokens }
+  let parsed ← EIO.ofExcept (parseProof parser)
+  pure parsed
