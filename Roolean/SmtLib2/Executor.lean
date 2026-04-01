@@ -1,5 +1,5 @@
 module
-public import Roolean.SmtLib2.Parser
+public import Roolean.SmtLib2.Problem
 public import Roolean.SmtLib2.Proof
 
 public class Interpret (α : Type) (ε: outParam Type) where

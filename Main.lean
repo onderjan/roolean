@@ -3,7 +3,7 @@ import Roolean.QfBv.Interpretation
 
 def work (problem proof: String): IO Unit := do
   let proof ← (Proof.parse proof).toIO (λ e => IO.userError s!"Proof parsing error: {reprStr e}")
-  let commands ← (parse problem).toIO (λ e => IO.userError s!"Problem parsing error: {reprStr e}")
+  let commands ← (Problem.parse problem).toIO (λ e => IO.userError s!"Problem parsing error: {reprStr e}")
 
   let executed ← execute Interpretation commands proof
   match executed with
