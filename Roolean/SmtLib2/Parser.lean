@@ -80,6 +80,7 @@ deriving Repr
 public inductive ParserError where
   | ExpectedParenOpen
   | ExpectedParenClose
+  | ExpectedUnderscore
   | ExpectedSymbol
   | ExpectedKeyword
   | EmptyIdentIndices
@@ -88,6 +89,7 @@ public inductive ParserError where
   | EmptyApplication
   | EmptyLetBindings
   | ExpectedTerm
+  | ExpectedCommand
   | UnsupportedCommand
 
 deriving Repr, Nonempty, Inhabited
@@ -109,43 +111,84 @@ def Parser.error (parser: Parser) (err: ParserError) : EParser :=
 def Parser.with (parser: Parser) (tokens: List Token) : Parser :=
   { tokens := tokens, initial := parser.initial }
 
-def consumeParenOpen(parser: Parser): Except EParser (Parser) :=
+def Parser.next (parser: Parser) : Except EParser (Parser × Token) :=
   match parser.tokens with
-  | Token.ParenOpen :: tokens => pure (parser.with tokens)
+  | token :: tokens =>
+    pure (parser.with tokens, token)
+  | [] => pure (parser, Token.End)
+
+def Parser.skip (parser: Parser) : Except EParser Parser := do
+  let (parser, _token) ← parser.next
+  pure parser
+
+def Parser.peek (parser: Parser) : Except EParser Token :=
+  match parser.tokens with
+  | token :: _ =>
+    pure (token)
+  | [] => pure Token.End
+
+def consumeParenOpen(parser: Parser): Except EParser (Parser) := do
+  let (parser, token) ← parser.next
+  match token with
+  | Token.ParenOpen => pure parser
   | _ => Except.error (parser.error ParserError.ExpectedParenOpen)
 
-def consumeParenClose(parser: Parser): Except EParser (Parser) :=
-  match parser.tokens with
-  | Token.ParenClose :: tokens => pure (parser.with tokens)
+def consumeParenClose(parser: Parser): Except EParser (Parser) := do
+  let (parser, token) ← parser.next
+  match token with
+  | Token.ParenClose => pure parser
   | _ => Except.error (parser.error ParserError.ExpectedParenClose)
 
-def consumeSymbol(parser: Parser): Except EParser (Parser × String8) :=
-  match parser.tokens with
-  | Token.Symbol name :: tokens => pure (parser.with tokens, name)
+def consumeUnderscore(parser: Parser): Except EParser (Parser) := do
+  let (parser, token) ← parser.next
+  match token with
+  | Token.Reserved Reserved.Underscore => pure parser
+  | _ => Except.error (parser.error ParserError.ExpectedUnderscore)
+
+def consumeSymbol(parser: Parser): Except EParser (Parser × String8) := do
+  let (parser, token) ← parser.next
+  match token with
+  | Token.Symbol name => pure (parser, name)
   | _ => Except.error (parser.error ParserError.ExpectedSymbol)
 
-def consumeKeyword(parser: Parser): Except EParser (Parser × String8) :=
-  match parser.tokens with
-  | Token.Keyword name :: tokens => pure (parser.with tokens, name)
+def consumeKeyword(parser: Parser): Except EParser (Parser × String8) := do
+  let (parser, token) ← parser.next
+  match token with
+  | Token.Keyword name => pure (parser, name)
   | _ => Except.error (parser.error ParserError.ExpectedKeyword)
 
-partial def parseIndices (parser: Parser) (indices: Array SmtIndex) : (Parser × Array SmtIndex) :=
-  match parser.tokens with
-    | Token.Numeral value length :: tokens => parseIndices (parser.with tokens) (indices.push (SmtIndex.Numeral value length))
-    | Token.Symbol name :: tokens => parseIndices (parser.with tokens) (indices.push (SmtIndex.Symbol name))
-    | _ => (parser, indices)
+partial def parseIndices (parser: Parser) (indices: Array SmtIndex) : Except EParser (Parser × Array SmtIndex) := do
+  let peeked ← parser.peek
+  match peeked with
+    | Token.Numeral value length =>
+      let parser ← parser.skip
+      parseIndices parser (indices.push (SmtIndex.Numeral value length))
+    | Token.Symbol name =>
+      let parser ← parser.skip
+      parseIndices parser (indices.push (SmtIndex.Symbol name))
+    | _ => pure (parser, indices)
 
-def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) :=
-  match parser.tokens with
-  | Token.Symbol name :: tokens => pure ((parser.with tokens), (SmtIdent.simple name))
-  | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: Token.Symbol name :: tokens => do
-    -- indexed identifier, one or more indices
-    let (tokens, indices) := parseIndices (parser.with tokens) #[]
+def parseIndexedIdent (parser: Parser) : Except EParser (Parser × SmtIdent) := do
+  -- indexed identifier has an underscore followed by name and one or more indices
+  let parser ← consumeUnderscore parser
+
+  let (parser, token) ← parser.next
+  match token with
+  | Token.Symbol name =>
+    let (parser, indices) ← parseIndices parser #[]
     if indices.isEmpty then
       Except.error (parser.error ParserError.EmptyIdentIndices)
-    else
-      let tokens ← consumeParenClose tokens
-      pure (tokens, SmtIdent.mk name indices)
+    let parser ← consumeParenClose parser
+    pure (parser, SmtIdent.mk name indices)
+  | _ => Except.error (parser.error ParserError.InvalidIdent)
+
+
+def parseIdent (parser: Parser) : Except EParser (Parser × SmtIdent) := do
+  let (parser, token) ← parser.next
+
+  match token with
+  | Token.Symbol name => pure (parser, (SmtIdent.simple name))
+  | Token.ParenOpen => parseIndexedIdent parser
   | _ => Except.error (parser.error ParserError.InvalidIdent)
 
 def specialConstant? (token: Token) : Option SmtSpecialConstant :=
@@ -158,53 +201,60 @@ def specialConstant? (token: Token) : Option SmtSpecialConstant :=
     | Token.String value => some (SmtSpecialConstant.String value)
     | _ => none
 
--- TODO prove termination
-partial def parseSExprs (parser: Parser) (exprs: Array SmtSExpr) : Except EParser (Parser × (Array SmtSExpr)) :=
-  match parser.tokens with
-    | Token.Symbol name :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Symbol name))
-    | Token.Reserved value :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Reserved value))
-    | Token.Keyword keyword :: tokens => parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Keyword keyword))
-    | Token.ParenOpen :: tokens => do
-      let (parser, innerExprs) ← parseSExprs (parser.with tokens) #[]
+partial def parseSExprs (parser: Parser) (exprs: Array SmtSExpr) : Except EParser (Parser × (Array SmtSExpr)) := do
+  let peeked ← parser.peek
+  match peeked with
+    | Token.Symbol name =>
+      let parser ← parser.skip
+      parseSExprs parser (exprs.push (SmtSExpr.Symbol name))
+    | Token.Reserved value =>
+      let parser ← parser.skip
+      parseSExprs parser (exprs.push (SmtSExpr.Reserved value))
+    | Token.Keyword keyword =>
+      let parser ← parser.skip
+      parseSExprs parser (exprs.push (SmtSExpr.Keyword keyword))
+    | Token.ParenOpen =>
+      let parser ← parser.skip
+      let (parser, innerExprs) ← parseSExprs parser #[]
       let parser ← consumeParenClose parser
-      parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.Exprs innerExprs))
-    | token :: tokens =>
+      parseSExprs parser (exprs.push (SmtSExpr.Exprs innerExprs))
+    | token =>
       if let some constant := specialConstant? token then
-        parseSExprs (parser.with tokens) (exprs.push (SmtSExpr.SpecialConstant constant))
+        let parser ← parser.skip
+        parseSExprs parser (exprs.push (SmtSExpr.SpecialConstant constant))
       else
         pure (parser, exprs)
-    | [] => pure (parser, exprs)
-
 
 def parseAttribute (parser: Parser) : Except EParser (Parser × SmtAttribute) := do
   let (parser, keyword) ← consumeKeyword parser
+  let peeked ← parser.peek
 
-  let (parser, value) ← match parser.tokens with
-    | Token.Symbol name :: tokens =>
+  let (parser, value) ← match peeked with
+    | Token.Symbol name =>
       -- attribute value is a symbol
+      let parser ← parser.skip
       let value := SmtAttributeValue.Symbol name
-      pure (parser.with tokens, some value)
-    | Token.ParenOpen :: tokens =>
+      pure (parser, some value)
+    | Token.ParenOpen =>
       -- attribute value is an S-expression
-      let (parser, exprs) ← parseSExprs (parser.with tokens) #[]
+      let parser ← parser.skip
+      let (parser, exprs) ← parseSExprs parser #[]
       let parser ← consumeParenClose parser
       let value := SmtAttributeValue.Exprs exprs
-      pure (parser.with tokens, some value)
-    | token :: tokens =>
+      pure (parser, some value)
+    | token =>
       if let some constant := specialConstant? token then
+        let parser ← parser.skip
         let value := SmtAttributeValue.SpecialConstant constant
-        pure (parser.with tokens, some value)
+        pure (parser, some value)
       else
         pure (parser, none) -- attribute has no value
-    | _ => pure (parser, none) -- attribute has no value
 
   if let some value := value then
     pure (parser, SmtAttribute.NameValue keyword value)
   else
     pure (parser, SmtAttribute.Name keyword)
 
-
--- TODO prove termination
 mutual
 partial def parseSortApplication (parser: Parser) (ident: SmtIdent) (sorts: Array SmtSort)
   : Except EParser (Parser × SmtSort)  := do
@@ -213,21 +263,25 @@ partial def parseSortApplication (parser: Parser) (ident: SmtIdent) (sorts: Arra
     parseSortApplication parser ident (sorts.push sort)
 
 partial def parseSort (parser: Parser) : Except EParser (Parser × SmtSort) := do
-  match parser.tokens with
-    | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
+  let peeked ← parser.peek
+  match peeked with
+  | Token.ParenOpen =>
+    let parser ← parser.skip
+    let peeked ← parser.peek
+    match peeked with
+    | Token.Reserved Reserved.Underscore =>
       -- sort consists of an indexed ident
-      let (parser, ident) ← parseIdent parser
+      let (parser, ident) ← parseIndexedIdent parser
       pure (parser, SmtSort.Ident ident)
-
-    | Token.ParenOpen :: tokens =>
+    | _ =>
       -- sort consists of an application
-      let (parser, ident) ← parseIdent (parser.with tokens)
+      let (parser, ident) ← parseIdent parser
       let (parser, sort) ← parseSortApplication parser ident #[]
       let parser ← consumeParenClose parser
       pure (parser, sort)
-    | _ => -- sort consists of an ident
-      let (parser, ident) ← parseIdent parser
-      pure (parser, SmtSort.Ident ident)
+  | _ => -- sort consists of an ident
+    let (parser, ident) ← parseIdent parser
+    pure (parser, SmtSort.Ident ident)
 end
 
 def parseQualifiedIdent (parser: Parser) : Except EParser (Parser × SmtQualifiedIdent) := do
@@ -239,122 +293,141 @@ def parseQualifiedIdent (parser: Parser) : Except EParser (Parser × SmtQualifie
 mutual
 partial def parseTermApplication (parser: Parser)
               (ident: SmtQualifiedIdent) (terms: Array SmtTerm): Except EParser (Parser × SmtTerm)  := do
-  match parser.tokens with
-    | Token.ParenClose :: tokens =>
+  let peeked ← parser.peek
+  match peeked with
+    | Token.ParenClose =>
+      let parser ← parser.skip
       if terms.isEmpty then
         Except.error (parser.error ParserError.EmptyApplication)
-      else
-        pure ((parser.with tokens), SmtTerm.Application ident terms)
+      pure (parser, SmtTerm.Application ident terms)
     | _ =>
       let (parser, term) ← parseTerm parser
       parseTermApplication parser ident (terms.push term)
 
 partial def parseLetBindings (parser: Parser) (bindings: Array (String8 × SmtTerm))
-  : Except EParser (Parser × Array (String8 × SmtTerm)) :=
-  match parser.tokens with
-    | Token.ParenOpen :: Token.Symbol name :: tokens => do
-      let (tokens, term) ← parseTerm (parser.with tokens)
-      let tokens ← consumeParenClose tokens
-      parseLetBindings tokens (bindings.push (name, term))
+  : Except EParser (Parser × Array (String8 × SmtTerm)) := do
+  let peeked ← parser.peek
+  match peeked with
+    | Token.ParenOpen =>
+      let parser ← parser.skip
+      let (parser, token) ← parser.next
+      match token with
+      | Token.Symbol name =>
+        let (parser, term) ← parseTerm parser
+        let parser ← consumeParenClose parser
+        parseLetBindings parser (bindings.push (name, term))
+      | _ => Except.error (parser.error ParserError.ExpectedSymbol)
     | _ => pure (parser, bindings)
 
 partial def parseTerm (parser: Parser) : Except EParser (Parser × SmtTerm) := do
-  match parser.tokens with
-    | Token.Numeral value length :: tokens =>
-      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value length))
-    | Token.Decimal value numeratorLength denominatorLength :: tokens =>
-        pure ((parser.with tokens),
-          SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
-    | Token.Hexadecimal value length :: tokens =>
-      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value length))
-    | Token.Binary value length :: tokens =>
-      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value length))
-    | Token.String value :: tokens =>
-      pure ((parser.with tokens), SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
+  let peeked ← parser.peek
+  match peeked with
+    | Token.Numeral value length =>
+      let parser ← parser.skip
+      pure (parser, SmtTerm.SpecialConstant (SmtSpecialConstant.Numeral value length))
+    | Token.Decimal value numeratorLength denominatorLength =>
+      let parser ← parser.skip
+      pure (parser,
+        SmtTerm.SpecialConstant (SmtSpecialConstant.Decimal value numeratorLength denominatorLength))
+    | Token.Hexadecimal value length =>
+      let parser ← parser.skip
+      pure (parser, SmtTerm.SpecialConstant (SmtSpecialConstant.Hexadecimal value length))
+    | Token.Binary value length =>
+      let parser ← parser.skip
+      pure (parser, SmtTerm.SpecialConstant (SmtSpecialConstant.Binary value length))
+    | Token.String value =>
+      let parser ← parser.skip
+      pure (parser, SmtTerm.SpecialConstant (SmtSpecialConstant.String value))
 
-    | Token.Symbol _ :: _ =>
+    | Token.Symbol _ =>
       -- normal identifier
       let (tokens, ident) ← parseIdent parser
       pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
 
-    | Token.ParenOpen :: Token.Reserved Reserved.Underscore :: _ =>
-      -- qualified identifier
-      let (tokens, ident) ← parseIdent parser
-      pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
+    | Token.ParenOpen =>
+      let parser ← parser.skip
+      let peeked ← parser.peek
 
-    | Token.ParenOpen :: Token.Reserved Reserved.Let :: Token.ParenOpen :: tokens =>
-      -- let
-      let (tokens, bindings) ← parseLetBindings (parser.with tokens) #[]
-      if bindings.isEmpty then
-        Except.error (parser.error ParserError.EmptyLetBindings)
-      else
+      match peeked with
+      | Token.Reserved Reserved.Underscore =>
+        -- qualified identifier
+        let parser ← parser.skip
+        let (tokens, ident) ← parseIdent parser
+        pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
+      | Token.Reserved Reserved.Let =>
+        -- let
+        let parser ← parser.skip
+        let parser ← consumeParenOpen parser
+        let (tokens, bindings) ← parseLetBindings parser #[]
+        if bindings.isEmpty then
+          Except.error (parser.error ParserError.EmptyLetBindings)
         let tokens ← consumeParenClose tokens
         let (tokens, term) ← parseTerm tokens
         let tokens ← consumeParenClose tokens
         pure (tokens, SmtTerm.Let bindings term)
-
-    | Token.ParenOpen :: tokens =>
+      | _ =>
       -- application
-      let (tokens, ident) ← parseQualifiedIdent (parser.with tokens)
-      parseTermApplication tokens ident #[]
+      let (parser, ident) ← parseQualifiedIdent parser
+      parseTermApplication parser ident #[]
+      -- unsupported: lambda, forall, exists, match, !
 
-    -- unsupported: lambda, forall, exists, match, !
-
-    | token :: tokens =>
-      if let some constant := specialConstant? token then
-        pure (parser.with tokens, SmtTerm.SpecialConstant constant)
+    | peeked =>
+      if let some constant := specialConstant? peeked then
+        let parser ← parser.skip
+        pure (parser, SmtTerm.SpecialConstant constant)
       else
         Except.error (parser.error ParserError.ExpectedTerm)
-    | _ => Except.error (parser.error ParserError.ExpectedTerm)
 end
 
 -- TODO prove termination
 partial def parseCommands (parser: Parser) (commands: Array SmtCommand) : Except EParser (Array SmtCommand) := do
-  if parser.tokens.isEmpty then
-    return commands
+  let (parser, token) ← parser.next
+  match token with
+  | Token.ParenOpen =>
+    let (parser, commandName) ← consumeSymbol parser
 
-  let parser ← consumeParenOpen parser
-  let (parser, commandName) ← consumeSymbol parser
+    let (parser, command) ← match commandName.toString? with
+      | some "set-logic" =>
+        let (parser, logic) ← consumeSymbol parser
+        pure (parser, SmtCommand.SetLogic logic)
 
-  let (parser, command) ← match commandName.toString? with
-    | some "set-logic" =>
-      let (parser, logic) ← consumeSymbol parser
-      pure (parser, SmtCommand.SetLogic logic)
+      | some "set-info" =>
+        let (parser, attr) ← parseAttribute parser
+        pure (parser, SmtCommand.SetInfo attr)
 
-    | some "set-info" =>
-      let (parser, attr) ← parseAttribute parser
-      pure (parser, SmtCommand.SetInfo attr)
+      | some "declare-fun" =>
+        let (parser, name) ← consumeSymbol parser
 
-    | some "declare-fun" =>
-      let (parser, name) ← consumeSymbol parser
+        let parser ← consumeParenOpen parser
+        -- TODO: support non-constant functions
+        let parser ← consumeParenClose parser
+        let (parser, sort) ← parseSort parser
 
-      let parser ← consumeParenOpen parser
-      -- TODO: support non-constant functions
+        pure (parser, SmtCommand.DeclareConst name sort)
+
+      | some "declare-const" =>
+        let (parser, name) ← consumeSymbol parser
+        let (parser, sort) ← parseSort parser
+        pure (parser, SmtCommand.DeclareConst name sort)
+
+      | some "assert" =>
+        let (parser, term) ← parseTerm (parser.with parser.tokens)
+        pure (parser, SmtCommand.Assert term)
+
+      | some "check-sat" =>
+        pure (parser, SmtCommand.CheckSat)
+
+      | some "exit" =>
+        pure (parser, SmtCommand.Exit)
+
+      | _ => Except.error (parser.error ParserError.UnsupportedCommand)
+
       let parser ← consumeParenClose parser
-      let (parser, sort) ← parseSort parser
 
-      pure (parser, SmtCommand.DeclareConst name sort)
-
-    | some "declare-const" =>
-      let (parser, name) ← consumeSymbol parser
-      let (parser, sort) ← parseSort parser
-      pure (parser, SmtCommand.DeclareConst name sort)
-
-    | some "assert" =>
-      let (parser, term) ← parseTerm (parser.with parser.tokens)
-      pure (parser, SmtCommand.Assert term)
-
-    | some "check-sat" =>
-      pure (parser, SmtCommand.CheckSat)
-
-    | some "exit" =>
-      pure (parser, SmtCommand.Exit)
-
-    | _ => Except.error (parser.error ParserError.UnsupportedCommand)
-
-    let parser ← consumeParenClose parser
-
-    parseCommands (parser) (commands.push (command))
+      parseCommands (parser) (commands.push (command))
+  | Token.End =>
+    return commands
+  | _ => Except.error (parser.error ParserError.ExpectedCommand)
 
 
 public def parse (filename: String): EIO EParser (Array SmtCommand) := do

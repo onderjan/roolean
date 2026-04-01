@@ -40,29 +40,58 @@ def Parser.error (parser: Parser) (err: ParserError) : EParser :=
 def Parser.with (parser: Parser) (tokens: List Token) : Parser :=
   { tokens := tokens, initial := parser.initial }
 
-def consumeParenClose(parser: Parser): Except EParser (Parser) :=
+def Parser.next (parser: Parser) : Except EParser (Parser × Token) :=
   match parser.tokens with
-  | Token.ParenClose :: tokens => pure (parser.with tokens)
+  | token :: tokens =>
+    pure (parser.with tokens, token)
+  | [] => pure (parser, Token.End)
+
+def Parser.skip (parser: Parser) : Except EParser Parser := do
+  let (parser, _token) ← parser.next
+  pure parser
+
+def Parser.peek (parser: Parser) : Except EParser Token :=
+  match parser.tokens with
+  | token :: _ =>
+    pure (token)
+  | [] => pure Token.End
+
+def consumeParenClose(parser: Parser): Except EParser (Parser) := do
+  let (parser, token) ← parser.next
+  match token with
+  | Token.ParenClose => pure parser
   | _ => Except.error (parser.error ParserError.ExpectedParenClose)
 
 partial def parseNode (parser: Parser) : Except EParser (Parser × SmtNode) := do
-  match parser.tokens with
-    | Token.Symbol name :: tokens =>
+  let (parser, token) ← parser.next
+  match token with
+    | Token.Symbol name =>
       match name.toString? with
-      | some "relevant" => pure (parser.with tokens, SmtNode.Relevant)
-      | some "irrelevant" => pure (parser.with tokens, SmtNode.Irrelevant)
+      | some "relevant" => pure (parser, SmtNode.Relevant)
+      | some "irrelevant" => pure (parser, SmtNode.Irrelevant)
       | _ => Except.error (parser.error ParserError.ExpectedNode)
 
-    | Token.ParenOpen :: Token.Symbol name ::
-      Token.Numeral varIndex _ :: Token.Numeral bitIndex _ :: tokens =>
-      match name.toString? with
-      | some "decision" =>
-        let (parser, left) ← parseNode (parser.with tokens)
-        let (parser, right) ← parseNode parser
-        let parser ← consumeParenClose parser
-        pure (parser, SmtNode.Split varIndex bitIndex left right)
+    | Token.ParenOpen =>
+      let (parser, token) ← parser.next
+      if let Token.Symbol name := token then
+        match name.toString? with
+        | some "decision" =>
+          let (parser, token) ← parser.next
+          if let Token.Numeral varIndex _  := token then
+            let (parser, token) ← parser.next
+            if let Token.Numeral bitIndex _  := token then
+              let (parser, left) ← parseNode parser
+              let (parser, right) ← parseNode parser
+              let parser ← consumeParenClose parser
+              pure (parser, SmtNode.Split varIndex bitIndex left right)
+            else
+              Except.error (parser.error ParserError.ExpectedNode)
+          else
+            Except.error (parser.error ParserError.ExpectedNode)
+        | _ => Except.error (parser.error ParserError.ExpectedNode)
+      else
+        Except.error (parser.error ParserError.ExpectedNode)
 
-      | _ => Except.error (parser.error ParserError.ExpectedNode)
     | _ => Except.error (parser.error ParserError.ExpectedNode)
 
 
