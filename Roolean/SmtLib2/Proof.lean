@@ -27,11 +27,11 @@ deriving Repr, Nonempty, Inhabited
 
 public inductive EProof where
   | Lexer (err: ELexer)
-  | Parser (err: ProofParseError)
+  | Parser (err: ProofParseError) (parser: Parser)
 deriving Repr, Nonempty, Inhabited
 
-def error (_parser: Parser) (err: ProofParseError) : EProof :=
-  EProof.Parser err
+def error (parser: Parser) (err: ProofParseError) : EProof :=
+  EProof.Parser err parser
 
 def consumeParenOpen(parser: Parser): Except EProof (Parser) := do
   let (parser, token) ← parser.next

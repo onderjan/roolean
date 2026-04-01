@@ -41,11 +41,11 @@ public structure LexerVars where
 def LexerVars.pushToken (vars: LexerVars) (token: Token) : LexerVars :=
   { tokens := vars.tokens.push token }
 
-public structure Lexer where
+structure LexerDuo where
   state: LexerState
   vars: LexerVars
 
-def LexerState.Normal.lex (vars: LexerVars) (c: Option CharClass): Except ELexer Lexer := do
+def LexerState.Normal.lex (vars: LexerVars) (c: Option CharClass): Except ELexer LexerDuo := do
   let (state, vars) ← match c with
     -- end without problems on EOF
     | none => pure (LexerState.Normal, vars)
@@ -94,16 +94,16 @@ def LexerState.Normal.lex (vars: LexerVars) (c: Option CharClass): Except ELexer
       -- class disallowed here
     | _ => Except.error (ELexer.mk LexerError.UnexpectedCharacter)
 
-  pure (Lexer.mk state vars)
+  pure (LexerDuo.mk state vars)
 
 
 def LexerState.Fraction.lex (vars: LexerVars) (c: Option CharClass)
-  (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat): Except ELexer Lexer :=
+  (value: Nat) (numNumeratorDigits: Nat) (numDenominatorDigits: Nat): Except ELexer LexerDuo :=
   if let some digit := c >>= CharClass.toDecimal? then
     -- compute the new value, add one denominator digit
     let value := (value * 10 + digit)
     let state := LexerState.Fraction value numNumeratorDigits (numDenominatorDigits + 1)
-    pure (Lexer.mk state vars)
+    pure (LexerDuo.mk state vars)
   else if numDenominatorDigits == 0 then
     -- decimals of the form 7. without any digit in fraction part are disallowed
     Except.error (ELexer.mk LexerError.FractionDigitExpected)
@@ -113,19 +113,19 @@ def LexerState.Fraction.lex (vars: LexerVars) (c: Option CharClass)
     LexerState.Normal.lex (vars.pushToken token) c
 
 def LexerState.NumeralOrDecimal.lex (vars: LexerVars) (c: Option CharClass)
-  (value: Nat) (numDigits: Nat): Except ELexer Lexer :=
+  (value: Nat) (numDigits: Nat): Except ELexer LexerDuo :=
   match c with
     | some (CharClass.Digit c) =>
       -- compute the new value, add one digit
       let digit := (c.toNat) - ('0'.toNat)
       let value := (value * 10 + digit)
       let state := LexerState.NumeralOrDecimal value (numDigits + 1)
-      pure (Lexer.mk state vars)
+      pure (LexerDuo.mk state vars)
 
     | some (CharClass.Dot) =>
       -- decimal, the next character will start fraction
       let state := LexerState.Fraction value numDigits 0
-      pure (Lexer.mk state vars)
+      pure (LexerDuo.mk state vars)
 
     | _ =>
       -- this was a numeral
@@ -134,12 +134,12 @@ def LexerState.NumeralOrDecimal.lex (vars: LexerVars) (c: Option CharClass)
       LexerState.Normal.lex (vars.pushToken token) c
 
 def LexerState.Hexadecimal.lex (vars: LexerVars) (c: Option CharClass)
-  (value: Nat) (numDigits: Nat): Except ELexer Lexer :=
+  (value: Nat) (numDigits: Nat): Except ELexer LexerDuo :=
   if let some digit := c >>= CharClass.toHexadecimal? then
     -- hexadecimal digit, multiply value by 16 and add it, increment num digits
     let value := (value * 16 + digit)
     let state := LexerState.Hexadecimal value (numDigits + 1)
-    pure (Lexer.mk state vars)
+    pure (LexerDuo.mk state vars)
   else if numDigits > 0 then
     -- had non-digit, nonzero digits
     -- push new token and lex the new character as token
@@ -150,12 +150,12 @@ def LexerState.Hexadecimal.lex (vars: LexerVars) (c: Option CharClass)
     Except.error (ELexer.mk LexerError.HexadecimalDigitExpected)
 
 def LexerState.Binary.lex (vars: LexerVars) (c: Option CharClass)
-  (value: Nat) (numDigits: Nat): Except ELexer Lexer :=
+  (value: Nat) (numDigits: Nat): Except ELexer LexerDuo :=
   if let some digit := c >>= CharClass.toBinary? then
     -- hexadecimal digit, multiply value by 2 and add it, increment num digits
     let value := (value * 2 + digit)
     let state := LexerState.Binary value (numDigits + 1)
-    pure (Lexer.mk state vars)
+    pure (LexerDuo.mk state vars)
   else if numDigits > 0 then
     -- had non-digit, nonzero digits
     -- push new token and lex the new character as token
@@ -165,19 +165,19 @@ def LexerState.Binary.lex (vars: LexerVars) (c: Option CharClass)
     -- had non-digit, zero digits disallowed
     Except.error (ELexer.mk LexerError.BinaryDigitExpected)
 
-def LexerState.HexadecimalOrBinary.lex (vars: LexerVars) (c: Option CharClass): Except ELexer Lexer :=
+def LexerState.HexadecimalOrBinary.lex (vars: LexerVars) (c: Option CharClass): Except ELexer LexerDuo :=
   -- decide whether to lex hexadecimal or binary from the next character
   match c with
     | some (CharClass.Letter c) =>
       if c == 'x'.toUInt8 then
-        pure (Lexer.mk (LexerState.Hexadecimal 0 0) vars)
+        pure (LexerDuo.mk (LexerState.Hexadecimal 0 0) vars)
       else if c == 'b'.toUInt8 then
-        pure (Lexer.mk (LexerState.Binary 0 0) vars)
+        pure (LexerDuo.mk (LexerState.Binary 0 0) vars)
       else Except.error (ELexer.mk LexerError.BaseSelectionExpected)
     | _ => Except.error (ELexer.mk LexerError.BaseSelectionExpected)
 
 def LexerState.StringLiteral.lex (vars: LexerVars) (c: Option CharClass) (literal: String8)
-  : Except ELexer Lexer :=
+  : Except ELexer LexerDuo :=
   match c with
     | none =>
       -- forbidden as the literal must be totally enclosed by double quotes
@@ -186,25 +186,25 @@ def LexerState.StringLiteral.lex (vars: LexerVars) (c: Option CharClass) (litera
       -- we have a double quote in string literal
       -- it may be followed by another double quote for escaping
       -- otherwise, it will end the string literal
-      -- put the lexer in a special state to handle the next character
-        pure (Lexer.mk (LexerState.StringLiteralDoubleQuote literal) vars)
+      -- put the LexerDuo in a special state to handle the next character
+        pure (LexerDuo.mk (LexerState.StringLiteralDoubleQuote literal) vars)
     | some (c) =>
       if c.isPrintableOrWhitespace then
         -- add to literal
         let state := LexerState.StringLiteral (literal.push c.toChar8)
-        pure (Lexer.mk state vars)
+        pure (LexerDuo.mk state vars)
       else
         -- forbidden as not printable or whitespace
         Except.error (ELexer.mk LexerError.ForbiddenCharInString)
 
 def LexerState.StringLiteralDoubleQuote.lex (vars: LexerVars) (c: Option CharClass) (literal: String8)
-  : Except ELexer Lexer :=
+  : Except ELexer LexerDuo :=
   match c with
     | some (CharClass.DoubleQuote) =>
       -- this has been a double-quote escape
       -- push a double-quote and continue lexing the string literal
         let state := LexerState.StringLiteral (literal.push CharClass.DoubleQuote.toChar8)
-        pure (Lexer.mk state vars)
+        pure (LexerDuo.mk state vars)
     | _ =>
       -- literal has ended by the previous character
       -- push new token and lex the new character as token
@@ -219,10 +219,10 @@ def simpleSymbolChar(c: Option CharClass) : Option Char8 :=
     | _ => none
 
 def LexerState.SimpleSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: String8)
-  : Except ELexer Lexer := do
+  : Except ELexer LexerDuo := do
   if let some c := simpleSymbolChar c then
     -- push character to the symbol name
-    pure (Lexer.mk (LexerState.SimpleSymbol (name.push c)) vars)
+    pure (LexerDuo.mk (LexerState.SimpleSymbol (name.push c)) vars)
   else
     -- simple symbol ended with previous character
     -- process reserved words
@@ -235,10 +235,10 @@ def LexerState.SimpleSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: S
     -- push new token and lex the new character as token
     LexerState.Normal.lex (vars.pushToken token) c
 
-def LexerState.Keyword.lex (vars: LexerVars) (c: Option CharClass) (name: String8) : Except ELexer Lexer :=
+def LexerState.Keyword.lex (vars: LexerVars) (c: Option CharClass) (name: String8) : Except ELexer LexerDuo :=
   if let some c := simpleSymbolChar c then
     -- push character to the symbol name
-    pure (Lexer.mk (LexerState.Keyword (name.push c)) vars)
+    pure (LexerDuo.mk (LexerState.Keyword (name.push c)) vars)
   else
     -- keyword ended with previous character
     if name.isEmpty then
@@ -253,7 +253,7 @@ def LexerState.Keyword.lex (vars: LexerVars) (c: Option CharClass) (name: String
 
 
 def LexerState.QuotedSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: String8)
-  : Except ELexer Lexer :=
+  : Except ELexer LexerDuo :=
   match c with
     | some (CharClass.Backslash) =>
       -- backslash forbidden in quoted symbols
@@ -261,12 +261,12 @@ def LexerState.QuotedSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: S
 
     | some (CharClass.Pipe) =>
       -- end of quoted symbol, push its token, continue normally with next character
-      pure (Lexer.mk LexerState.Normal vars)
+      pure (LexerDuo.mk LexerState.Normal vars)
 
     | some (c) =>
       if c.isPrintableOrWhitespace then
         -- add the character to the quoted symbol and continue it
-        pure (Lexer.mk (LexerState.QuotedSymbol (name.push c.toChar8)) vars)
+        pure (LexerDuo.mk (LexerState.QuotedSymbol (name.push c.toChar8)) vars)
       else
         -- character forbidden as not printable or whitespace
         Except.error (ELexer.mk LexerError.ForbiddenCharInQuotedSymbol)
@@ -275,57 +275,107 @@ def LexerState.QuotedSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: S
       -- EOF forbidden as the symbol must be totally enclosed by pipes
       Except.error (ELexer.mk LexerError.UnclosedQuotedSymbol)
 
-def LexerState.Comment.lex (vars: LexerVars) (c: Option CharClass) : Except ELexer Lexer :=
+def LexerState.Comment.lex (vars: LexerVars) (c: Option CharClass) : Except ELexer LexerDuo :=
   match c with
     | some (CharClass.LineBreak _) =>
       -- end comment, ready for next token
-      pure (Lexer.mk LexerState.Normal vars)
+      pure (LexerDuo.mk LexerState.Normal vars)
     | _ =>
       -- continue comment, no problem ending file on a comment
-      pure (Lexer.mk LexerState.Comment vars)
+      pure (LexerDuo.mk LexerState.Comment vars)
 
 
-def Lexer.lexChar (lexer: Lexer) (c: Option CharClass) : Except ELexer Lexer :=
-  match lexer.state with
-    | .Normal => LexerState.Normal.lex lexer.vars c
+def LexerState.lexChar (state: LexerState) (c: Option CharClass) : Except ELexer LexerDuo :=
+  let vars := { tokens := #[] }
+  match state with
+    | .Normal => LexerState.Normal.lex vars c
     | .Fraction value numNumeratorDigits numDenominatorDigits =>
-        LexerState.Fraction.lex lexer.vars c value numNumeratorDigits numDenominatorDigits
+        LexerState.Fraction.lex vars c value numNumeratorDigits numDenominatorDigits
     | .NumeralOrDecimal value numDigits =>
-        LexerState.NumeralOrDecimal.lex lexer.vars c value numDigits
+        LexerState.NumeralOrDecimal.lex vars c value numDigits
     | .Hexadecimal value numDigits =>
-        LexerState.Hexadecimal.lex lexer.vars c value numDigits
+        LexerState.Hexadecimal.lex vars c value numDigits
     | .Binary value numDigits =>
-        LexerState.Binary.lex lexer.vars c value numDigits
+        LexerState.Binary.lex vars c value numDigits
     | .HexadecimalOrBinary =>
-        LexerState.HexadecimalOrBinary.lex lexer.vars c
+        LexerState.HexadecimalOrBinary.lex vars c
     | .StringLiteral literal =>
-        LexerState.StringLiteral.lex lexer.vars c literal
+        LexerState.StringLiteral.lex vars c literal
     | .StringLiteralDoubleQuote literal =>
-        LexerState.StringLiteralDoubleQuote.lex lexer.vars c literal
+        LexerState.StringLiteralDoubleQuote.lex vars c literal
     | .SimpleSymbol name =>
-        LexerState.SimpleSymbol.lex lexer.vars c name
+        LexerState.SimpleSymbol.lex vars c name
     | .Keyword name =>
-        LexerState.Keyword.lex lexer.vars c name
+        LexerState.Keyword.lex vars c name
     | .QuotedSymbol name =>
-        LexerState.QuotedSymbol.lex lexer.vars c name
-    | .Comment => LexerState.Comment.lex lexer.vars c
+        LexerState.QuotedSymbol.lex vars c name
+    | .Comment => LexerState.Comment.lex vars c
+
+
+public structure Lexer where
+  private tokens: List Token
+  private state: LexerState
+  private handle: Option IO.FS.Handle
+  private buffer: ByteArray
+  private ix: Nat
+
+def Lexer.tryNext (lexer: Lexer) : EIO ELexer (Lexer × Option Token) := do
+  -- if we have a token available, return it
+  if let token :: tokens := lexer.tokens then
+      return ({lexer with tokens}, some token)
+
+  -- if we have reached the end previously, keep returning end
+  let handle ← if let some handle := lexer.handle then
+    pure handle
+  else
+    return (lexer, some Token.End)
+
+  let mut ix := lexer.ix
+  let mut buffer := lexer.buffer
+
+  if ix ≥ buffer.size then
+    -- the index does not fit, fill the buffer again and set index to zero
+    buffer ← (IO.FS.Handle.read handle 1024).toEIO (λ _ => ELexer.mk LexerError.FileRead)
+    ix := 0
+
+  if h: ix < buffer.size then
+    -- process character
+    let c := buffer[ix]
+    let charClass := CharClass.ofChar8 c
+    let duo ← EIO.ofExcept (lexer.state.lexChar (some charClass))
+    let (token, tokens) := match duo.vars.tokens.toList with
+      | token :: tokens => (some token, tokens)
+      | [] => (none, [])
+
+    let lexer := { tokens, state := duo.state, handle := some handle, buffer, ix := ix + 1 }
+    pure (lexer, token)
+
+  else
+  -- the buffer is still empty, we have reached the end
+  -- process none and drop the handle
+    let duo ← EIO.ofExcept (lexer.state.lexChar none)
+    let (token, tokens) := match duo.vars.tokens.toList with
+      | token :: tokens => (some token, tokens)
+      | [] => (none, [])
+
+    let lexer := { tokens, state := duo.state, handle := none, buffer, ix := ix + 1 }
+    pure (lexer, token)
+
 
 
 public def lex (filename: String): EIO ELexer (Array Token) := do
   let handle ← (IO.FS.Handle.mk filename IO.FS.Mode.read).toEIO (λ _ => ELexer.mk LexerError.FileOpen)
 
-  let mut lexer := { state := LexerState.Normal, vars := { tokens := #[] } }
+  let mut lexer: Lexer := { tokens := [], state := LexerState.Normal, handle, buffer := ByteArray.empty, ix := 0 }
 
-  -- lex all characters in file
+  let mut tokens := #[]
+
   repeat
-    let buffer ← (IO.FS.Handle.read handle 1024).toEIO (λ _ => ELexer.mk LexerError.FileRead)
-    if buffer.isEmpty then
-      break
-    for char in buffer do
-      let charClass := CharClass.ofChar8 char
-      lexer ← EIO.ofExcept (Lexer.lexChar lexer (some charClass))
+    let (nextLexer, next) ← lexer.tryNext
+    lexer := nextLexer
+    match next with
+    | some Token.End => break
+    | some token => tokens := tokens.push token
+    | none => pure ()
 
-  -- lex EOF
-  let endLexer ← EIO.ofExcept (lexer.lexChar none)
-
-  pure endLexer.vars.tokens
+  pure tokens
