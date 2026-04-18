@@ -60,6 +60,7 @@ public def push {v w} {α : Nat → Type} [Domain α]
       let hMember := a.membership (Fin.mk i h)
       simp[VarWidths.varWidth,h] at hMember
       simp[pushed, ← hMember, VarWidths.size, h]
+      rfl
     }
     {
       rename_i h
