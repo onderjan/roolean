@@ -254,9 +254,8 @@ partial def parseTerm (parser: Parser) : Except EProblem (Parser × SmtTerm) := 
 
       match peeked with
       | Token.Reserved Reserved.Underscore =>
-        -- qualified identifier
-        let parser ← parser.skip
-        let (tokens, ident) ← parseIdent parser
+        -- indexed identifier
+        let (tokens, ident) ← parseIndexedIdent parser
         pure (tokens, SmtTerm.QualifiedIdent (SmtQualifiedIdent.Ident ident))
       | Token.Reserved Reserved.Let =>
         -- let
