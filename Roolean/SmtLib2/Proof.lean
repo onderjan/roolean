@@ -55,16 +55,18 @@ partial def parseNode (parser: Parser) : Except EProof (Parser × SmtNode) := do
   let (parser, token) ← parser.next
   match token with
     | Token.Symbol name =>
+      -- should be 'r' (relevant) or 'i' (irrelevant)
       match name.toString? with
-      | some "relevant" => pure (parser, SmtNode.Relevant)
-      | some "irrelevant" => pure (parser, SmtNode.Irrelevant)
+      | some "r" => pure (parser, SmtNode.Relevant)
+      | some "i" => pure (parser, SmtNode.Irrelevant)
       | _ => Except.error (error parser ProofParseError.ExpectedNode)
 
     | Token.ParenOpen =>
       let (parser, token) ← parser.next
       if let Token.Symbol name := token then
         match name.toString? with
-        | some "decision" =>
+        | some "d" =>
+          -- decision
           let (parser, token) ← parser.next
           if let Token.Numeral varIndex _  := token then
             let (parser, token) ← parser.next
