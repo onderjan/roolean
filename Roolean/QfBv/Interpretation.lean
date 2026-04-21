@@ -515,12 +515,11 @@ public def Interpretation.checkSat (interpretation: Interpretation) (proof: SmtP
       | Except.ok () => pure ()
       | Except.error err => return (Except.error (EInterpretation.WrongProofCheck err))
 
-    IO.eprintln s!"Checked satisfiable: {proof.result}"
-
-    /-
-      let satisfiable := solve Bitvector3 term
-      IO.println s!"Satisfiable: {reprStr satisfiable}"
-    -/
+    -- print result to standard output as per SMT-LIB2
+    if proof.result then
+      IO.println "sat"
+    else
+      IO.println "unsat"
 
     pure (Except.ok ())
   else
