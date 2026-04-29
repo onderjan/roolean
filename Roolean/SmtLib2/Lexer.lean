@@ -261,7 +261,7 @@ def LexerState.QuotedSymbol.lex (vars: LexerVars) (c: Option CharClass) (name: S
 
     | some (CharClass.Pipe) =>
       -- end of quoted symbol, push its token, continue normally with next character
-      pure (LexerDuo.mk LexerState.Normal vars)
+      pure (LexerDuo.mk LexerState.Normal (vars.pushToken (Token.Symbol name)))
 
     | some (c) =>
       if c.isPrintableOrWhitespace then
