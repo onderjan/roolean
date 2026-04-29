@@ -5,6 +5,7 @@ public import Roolean.SmtLib2.Proof
 public class Interpret (α : Type) (ε: outParam Type) where
   new: α
   declareConst: α → String8 → SmtSort → (Except ε α)
+  defineFun: α → String8 → Array (String8 × SmtSort) → SmtSort → SmtTerm → (Except ε α)
   assert : α → SmtTerm → α
   checkSat : α → SmtProof → IO (Except ε Unit)
 
@@ -30,6 +31,12 @@ public def execute (α: Type) {ε: Type} [Interpret α ε] (commands: Array SmtC
         match Interpret.declareConst interpretation name sort with
           | Except.ok new => interpretation := new
           | Except.error err => return Except.error (EExecutor.Interpretation err)
+
+      | .DefineFun name vars resultSort term =>
+        match Interpret.defineFun interpretation name vars resultSort term with
+          | Except.ok new => interpretation := new
+          | Except.error err => return Except.error (EExecutor.Interpretation err)
+
 
       | .Assert term =>
         interpretation := Interpret.assert interpretation term

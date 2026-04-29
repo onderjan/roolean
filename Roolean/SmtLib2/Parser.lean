@@ -71,6 +71,7 @@ public inductive SmtCommand
   | SetLogic (logic: String8)
   | SetInfo (attr: SmtAttribute)
   | DeclareConst (name: String8) (sort: SmtSort)
+  | DefineFun (name: String8) (vars: Array (String8 × SmtSort)) (resultSort: SmtSort) (term: SmtTerm)
   | Assert (term: SmtTerm)
   | CheckSat
   | Exit

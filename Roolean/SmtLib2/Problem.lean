@@ -223,6 +223,21 @@ partial def parseLetBindings (parser: Parser) (bindings: Array (String8 × SmtTe
       | _ => Except.error (error parser ProblemParseError.ExpectedSymbol)
     | _ => pure (parser, bindings)
 
+partial def parseSortedVars (parser: Parser) (sortedVars: Array (String8 × SmtSort))
+  : Except EProblem (Parser × Array (String8 × SmtSort)) := do
+  let peeked ← parser.peek
+  match peeked with
+    | Token.ParenOpen =>
+      let parser ← parser.skip
+      let (parser, token) ← parser.next
+      match token with
+      | Token.Symbol name =>
+        let (parser, sort) ← parseSort parser
+        let parser ← consumeParenClose parser
+        parseSortedVars parser (sortedVars.push (name, sort))
+      | _ => Except.error (error parser ProblemParseError.ExpectedSymbol)
+    | _ => pure (parser, sortedVars)
+
 partial def parseTerm (parser: Parser) : Except EProblem (Parser × SmtTerm) := do
   let peeked ← parser.peek
   match peeked with
@@ -300,13 +315,21 @@ partial def parseCommands (parser: Parser) (commands: Array SmtCommand) : Except
 
       | some "declare-fun" =>
         let (parser, name) ← consumeSymbol parser
-
         let parser ← consumeParenOpen parser
-        -- TODO: support non-constant functions
+        -- function declarations with parameters not supported
         let parser ← consumeParenClose parser
         let (parser, sort) ← parseSort parser
 
         pure (parser, SmtCommand.DeclareConst name sort)
+
+      | some "define-fun" =>
+        let (parser, name) ← consumeSymbol parser
+        let parser ← consumeParenOpen parser
+        let (parser, vars) ← parseSortedVars parser #[]
+        let parser ← consumeParenClose parser
+        let (parser, resultSort) ← parseSort parser
+        let (parser, term) ← parseTerm parser
+        pure (parser, SmtCommand.DefineFun name vars resultSort term)
 
       | some "declare-const" =>
         let (parser, name) ← consumeSymbol parser

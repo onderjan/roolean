@@ -10,9 +10,14 @@ import Roolean.QfBv.Domain.Bitvector3
 public import Std.Data.HashMap.Basic
 import Roolean.QfBv.BvTerm
 
+public structure Function where
+  varWidths: Array (String8 × Nat)
+  resultWidth: Nat
+  term: SmtTerm
 
 public structure Interpretation where
   variables: Array (String8 × Nat)
+  functions: Std.HashMap String8 Function
   assertions: Array SmtTerm
 
 public inductive EInterpretation
@@ -40,6 +45,11 @@ public inductive EInterpretation
   | CollidingLetBinders
   | BadVariable
 
+  | DuplicateFunction (name: String8)
+  | BadFunctionArgumentWidth
+  | BadFunctionResultWidth
+  | CollidingFunctionParameters
+
   | InvalidProof (err: Proof.EOfSmt)
   | WrongProofCheck (err: ECheckResult)
 deriving Repr
@@ -50,6 +60,7 @@ structure BvTermW (v: VarWidths) where
 deriving Repr, Nonempty
 
 structure Context where
+  interpretation: Interpretation
   scopes: List (Std.HashMap String8 Nat)
 
 def interpretVariableSort (sort: SmtSort): Except EInterpretation Nat :=
@@ -90,7 +101,9 @@ def interpretSpecialConstant {v} (constant: SmtSpecialConstant)
   let bv: Bitvector width := { value := (BitVec.ofNat width value) }
   pure { width, value := BvTerm.Constant bv}
 
-def interpretQualifiedIdent {v} (context: Context) (qualified: SmtQualifiedIdent)
+mutual
+
+partial def interpretQualifiedIdent {v} (context: Context) (qualified: SmtQualifiedIdent)
   : (Except EInterpretation) (BvTermW v) := do
 
   let ident := match qualified with
@@ -130,6 +143,14 @@ def interpretQualifiedIdent {v} (context: Context) (qualified: SmtQualifiedIdent
       else
         Except.error (EInterpretation.BadVariable)
 
+  -- look at functions
+  if let some function := context.interpretation.functions.get? name then
+    -- no arguments
+    if function.varWidths.size > 0 then
+      let () ← (Except.error EInterpretation.TooManyOpArgs)
+    let term ← interpretTerm (v:=v) context function.term
+    return term
+
   -- try out special names
   if let some name := name.toString? then
     if name == "false" then
@@ -140,7 +161,6 @@ def interpretQualifiedIdent {v} (context: Context) (qualified: SmtQualifiedIdent
   -- variable with the given name not found
   Except.error (EInterpretation.VariableNotFound name context.scopes)
 
-mutual
 partial def interpretUniOp {v} (context: Context) (op: UniOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
    -- expecting exactly one term
@@ -335,11 +355,57 @@ partial def interpretExtract {v} (context: Context) (hi lo: Nat) (terms: Array S
   | #[] => Except.error EInterpretation.TooFewOpArgs
   | _ => Except.error EInterpretation.TooManyOpArgs
 
+partial def interpretLetRec {v} (context: Context) (scope: Std.HashMap String8 Nat)
+  (bindings: List (String8 × SmtTerm × Option Nat)) (term: SmtTerm)
+  : Except EInterpretation (BvTermW v) := do
+
+  match bindings with
+  | binding :: bindings =>
+    if scope.contains binding.fst then
+      Except.error EInterpretation.CollidingLetBinders
+    -- compute the bind term
+    let bind: BvTermW v ← interpretTerm context binding.snd.fst
+    -- test against the expected width if it was provided
+    if let some expectedWidth := binding.snd.snd then
+      if bind.width != expectedWidth then
+        Except.error EInterpretation.BadFunctionArgumentWidth
+
+    -- insert bind to scope and push to variables
+    let scope := scope.insert binding.fst v.size
+    let vPush := v.push bind.width
+    -- recurse
+    let innerTerm ← interpretLetRec (v := vPush) context scope bindings term
+    -- construct let term
+    pure { width := innerTerm.width, value := BvTerm.Let bind.value innerTerm.value }
+  | [] =>
+    -- push the scope and interpret the term
+    interpretTerm { context with scopes := scope :: context.scopes } term
+
+partial def interpretLet {v} (context: Context) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
+  : Except EInterpretation (BvTermW v) := do
+  interpretLetRec context {} (bindings.toList.map λ (name, term) => (name, term, none)) term
+
 partial def intepretApplication {v} (context: Context) (qualified: SmtQualifiedIdent) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
 
   let ident := match qualified with
     | SmtQualifiedIdent.Ident ident => ident
+
+  -- look at functions
+  if let some function := context.interpretation.functions.get? ident.name then
+    -- unravel the function
+    if function.varWidths.size > terms.size then
+      Except.error EInterpretation.TooManyOpArgs
+    else if function.varWidths.size < terms.size then
+      Except.error EInterpretation.TooFewOpArgs
+
+    let bindings := (function.varWidths.zip terms).map λ ((name, width), term) => (name, term, width)
+
+    let innerTerm ← interpretLetRec context {} bindings.toList function.term
+    if function.resultWidth != innerTerm.width then
+        Except.error EInterpretation.BadFunctionResultWidth
+    return innerTerm
+
 
   -- all supported application symbols are ASCII
   let nameString ← match ident.name.toString? with
@@ -416,32 +482,6 @@ partial def intepretApplication {v} (context: Context) (qualified: SmtQualifiedI
 
       | _ => Except.error (EInterpretation.BadApplication ident.name)
 
-partial def interpretLetRec {v} (context: Context) (scope: Std.HashMap String8 Nat)
-  (bindings: List (String8 × SmtTerm)) (term: SmtTerm)
-  : Except EInterpretation (BvTermW v) := do
-
-  match bindings with
-  | binding :: bindings =>
-    if scope.contains binding.fst then
-      Except.error EInterpretation.CollidingLetBinders
-    -- compute the bind term
-    let bind: BvTermW v ← interpretTerm context binding.snd
-    -- insert bind to scope and push to variables
-    let scope := scope.insert binding.fst v.size
-    let vPush := v.push bind.width
-    -- recurse
-    let innerTerm ← interpretLetRec (v := vPush) context scope bindings term
-    -- construct let term
-    pure { width := innerTerm.width, value := BvTerm.Let bind.value innerTerm.value }
-  | [] =>
-    -- push the scope and interpret the term
-    interpretTerm { scopes := scope :: context.scopes } term
-
-
-partial def interpretLet {v} (context: Context) (bindings: Array (String8 × SmtTerm)) (term: SmtTerm)
-  : Except EInterpretation (BvTermW v) := do
-  interpretLetRec context {} bindings.toList term
-
 partial def interpretTerm {v} (context: Context) (term: SmtTerm): Except EInterpretation (BvTermW v) :=
   match term with
   | SmtTerm.SpecialConstant constant => interpretSpecialConstant constant
@@ -452,15 +492,42 @@ partial def interpretTerm {v} (context: Context) (term: SmtTerm): Except EInterp
 end
 
 public def Interpretation.new : Interpretation :=
-  { variables := #[], assertions := #[] }
+  { variables := #[], functions := Std.HashMap.emptyWithCapacity, assertions := #[] }
 
 public def Interpretation.declareConst (interpretation: Interpretation)
-  (name: String8) (sort: SmtSort) : Except EInterpretation Interpretation :=
-    match interpretVariableSort sort with
-      | Except.ok type =>
-        let variables := interpretation.variables.push (name, type)
-        pure {interpretation with variables}
-      | Except.error err => Except.error err
+  (name: String8) (sort: SmtSort) : Except EInterpretation Interpretation := do
+    let type ← interpretVariableSort sort
+    let variables := interpretation.variables.push (name, type)
+    pure {interpretation with variables}
+
+def Interpretation.varWidths (interpretation: Interpretation) : VarWidths :=
+  { inner := interpretation.variables.map (λ e => e.snd) }
+
+
+def Interpretation.globalContext (interpretation: Interpretation) : Context :=
+  let varWidths := interpretation.varWidths
+    let variableArray := interpretation.variables.mapFinIdx λ index var h =>
+      let h: index < varWidths.size := by simp[varWidths, Interpretation.varWidths, VarWidths.size, h]
+      (var.fst, index)
+    let globalScope := Std.HashMap.ofArray variableArray
+    { scopes := [globalScope], interpretation }
+
+
+public def Interpretation.defineFun  (interpretation: Interpretation)
+  (name: String8) (vars: Array (String8 × SmtSort)) (resultSort: SmtSort) (term: SmtTerm)
+  : Except EInterpretation Interpretation := do
+  let mut varWidths := #[]
+  for var in vars do
+    let width ← interpretVariableSort var.snd
+    varWidths := varWidths.push (var.fst, width)
+  let resultWidth ← interpretVariableSort resultSort
+  let (duplicate, functions) := interpretation.functions.containsThenInsert name (Function.mk varWidths resultWidth term)
+  let interpretation := { interpretation with functions}
+  if duplicate then
+    Except.error (EInterpretation.DuplicateFunction name)
+  else
+    pure interpretation
+
 
 public def Interpretation.assert (interpretation: Interpretation)
   (term: SmtTerm) : Interpretation :=
@@ -484,16 +551,7 @@ public def Interpretation.checkSat (interpretation: Interpretation) (proof: SmtP
 
   let varWidths: VarWidths := { inner := interpretation.variables.map (λ e => e.snd) }
 
-  let numVariables := interpretation.variables.size
-
-  let variableArray := interpretation.variables.mapFinIdx λ index var h =>
-    let h: index < varWidths.size := by simp[varWidths, VarWidths.size, h]
-    (var.fst, index)
-
-
-  let globalScope := Std.HashMap.ofArray variableArray
-
-  let context := { scopes := [globalScope] }
+  let context := interpretation.globalContext
 
   let term ← match interpretTerm (v := varWidths) context assertion with
     | Except.ok term => pure term
@@ -530,5 +588,6 @@ public def Interpretation.checkSat (interpretation: Interpretation) (proof: SmtP
 instance : Interpret Interpretation EInterpretation where
   new := Interpretation.new
   declareConst := Interpretation.declareConst
+  defineFun := Interpretation.defineFun
   assert := Interpretation.assert
   checkSat := Interpretation.checkSat
