@@ -693,25 +693,48 @@ public def fromUnsignedInterval_γ {w} (umin umax: Bitvector w) (c: Bitvector w)
       simp[hKI]
     }
 
+  let hDiv : umin.value.toNat / 2^k = umax.value.toNat / 2^k := by
+    simp[← Nat.shiftRight_eq_div_pow, ← BitVec.toNat_ushiftRight,hShift]
+
+  let hMinC : umin.value.toNat / 2^k ≤ c.value.toNat / 2^k :=
+    Nat.div_le_div_right hUmin (c:=2^k)
+
+  let hMaxC : c.value.toNat / 2^k ≤ umax.value.toNat / 2^k :=
+    Nat.div_le_div_right hUmax (c:=2^k)
+
+  let hDivC : umin.value.toNat / 2^k = c.value.toNat / 2^k := by
+    simp[← hDiv] at hMaxC
+    exact Nat.le_antisymm hMinC hMaxC
+
+  let hShiftC : umin.value >>> k = c.value >>> k := by
+      simp[← Nat.shiftRight_eq_div_pow] at hDivC
+      simp[← BitVec.toNat_ushiftRight] at hDivC
+      exact BitVec.eq_of_toNat_eq hDivC
+
   by_cases k ≤ i
   {
     rename_i hK
+
     -- the bit is above the first mismatch, is set to the actual value
-    /-let hMinC : umin.value[i] = c.value[i] := by
-      let h := BitVec.le
-      let hMinXorC := umin.value ^^^ c.value
-      let hMaxXorC := umax.value ^^^ c.value
-
-
-      let h := Nat.testBit
+    let hMinC : umin.value[i] = c.value[i] := by
+      simp[BitVec.eq_of_getElem_eq_iff] at hShiftC
+      let hIK : i-k < w := Nat.sub_lt_of_lt i.isLt (b:=k)
+      let hShiftC := hShiftC (i-k) hIK
+      simp[← Nat.add_sub_assoc hK k] at hShiftC
+      exact hShiftC
 
     apply And.intro
-    iterate 2 {
+    {
       intro hC
       simp[hC] at hMinC
       simp[hMinC]
-    }-/
-    sorry
+    }
+    {
+      intro hC
+      simp[hC] at hMinC
+      simp[hMinC]
+
+    }
   }
   {
     -- the bit is at or below the first mismatch, is set to unknown
