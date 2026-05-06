@@ -123,6 +123,7 @@ public theorem udiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
       }
       {
         rename_i hUmaxNonzero
+        simp[Bitvector.biNormal, Bitvector.standardBi]
 
         -- prepare results
 
@@ -174,15 +175,11 @@ public theorem udiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
         let hUmaxResult : ca.value.smtUDiv cb.value ≤ umaxResult := by
           simp[umaxResult, hUminNonzero, BitVec.smtUDiv, hCBNonzero, BitVec.udiv, BitVec.le_def]
           let hDividend : ca.value.toNat ≤ a.umax.value.toNat := by
-
             simp[← BitVec.le_def, γ_le_umax a ca ha]
           let hDivisor :  bUmin.value.toNat ≤ cb.value.toNat := by
             simp[← BitVec.le_def, hUminLeCB]
           simp[BitVec.toNat_ne] at hUminNonzero
           exact Nat.div_le_div hDividend hDivisor hUminNonzero
-
-
-        simp[Bitvector.biNormal, Bitvector.standardBi]
 
         split
         {
