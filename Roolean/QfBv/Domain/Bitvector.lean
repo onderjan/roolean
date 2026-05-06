@@ -13,6 +13,10 @@ public def allZeros (w: Nat): Bitvector w :=
 public def allOnes (w: Nat): Bitvector w :=
   { value := BitVec.allOnes w }
 
+public def one (w: Nat): Bitvector w :=
+  { value := 1#w }
+
+
 public def ofBitvector {w: Nat} (bitvector: Bitvector w) : Bitvector w :=
   bitvector
 

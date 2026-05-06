@@ -135,21 +135,44 @@ public def truncate {w m} (a: Bitvector3 w) (h: m ≤ w): Bitvector3 m :=
   { zeros, ones, zeros_or_ones_set}
 
 public def join {w} (a b: Bitvector3 w): Bitvector3 w :=
-    let zeros := a.zeros ||| b.zeros
-    let ones := a.ones ||| b.ones
-    let zeros_or_ones_set := by
-      ext i hI
-      let hA := a.zeros_or_ones_set
-      simp[BitVec.eq_of_getElem_eq_iff] at hA
-      simp[zeros, ones]
-      let hA := hA i hI
-      rw[Classical.or_iff_not_imp_left]
-      intro h
-      simp at h
-      simp[h] at hA
-      simp[hA]
+  let zeros := a.zeros ||| b.zeros
+  let ones := a.ones ||| b.ones
+  let zeros_or_ones_set := by
+    ext i hI
+    let hA := a.zeros_or_ones_set
+    simp[BitVec.eq_of_getElem_eq_iff] at hA
+    simp[zeros, ones]
+    let hA := hA i hI
+    rw[Classical.or_iff_not_imp_left]
+    intro h
+    simp at h
+    simp[h] at hA
+    simp[hA]
 
-    { zeros, ones, zeros_or_ones_set }
+  { zeros, ones, zeros_or_ones_set }
+
+public def fromUnsignedInterval {w} (umin umax: Bitvector w): Bitvector3 w :=
+  -- XOR umin and umax, find the most significant bit that differs,
+  -- and mask it and bits below
+  let xor := umin.value ^^^ umax.value
+  let leading := xor.clz.toNat
+  let hLeading : leading ≤ w := by
+    let h1 := BitVec.clz_le (w:=w) (x:=xor)
+    simp[BitVec.le_def] at h1
+    simp[leading, h1]
+  let k := w - leading
+  let h: k ≤ w := by simp[k]
+
+  let mask := BitVec.setWidth' h (BitVec.allOnes k)
+
+  let zeros := ~~~umin.value ||| mask
+  let ones := umin.value ||| mask
+  let zeros_or_ones_set := by
+    simp[zeros, ones, BitVec.or_assoc]
+    rw(occs:=[2])[BitVec.or_comm]
+    simp[← BitVec.or_assoc]
+
+  { zeros, ones, zeros_or_ones_set }
 
  --- THEOREMS ---
 
@@ -623,3 +646,74 @@ public def γ_join_right {w} (a b: Bitvector3 w) (c: Bitvector w)
   apply And.intro
   { intro hC; right; exact h.left hC }
   { intro hC; right; exact h.right hC }
+
+public def fromUnsignedInterval_γ {w} (umin umax: Bitvector w) (c: Bitvector w)
+  : umin.value ≤ c.value → c.value ≤ umax.value → γ (fromUnsignedInterval umin umax) c := by
+  simp[fromUnsignedInterval, γ_forall]
+  intro hUmin hUmax i
+  let xor := (umin.value ^^^ umax.value)
+  let k := w - xor.clz.toNat
+
+  let hIFun (i: Fin w) : k ≤ i → umin.value[i] = umax.value[i] := by
+    intro hK
+    let hClz := BitVec.toNat_lt_two_pow_sub_clz (x:=xor)
+    let hXorK :  xor.toNat < (2^k) := by simp[k, hClz]
+    let hPowKI : (2^k) ≤ (2^i.val) := by
+      let hTwo : 1 < 2 := by simp
+      simp[hK, Nat.pow_le_pow_iff_right hTwo (n:=k) (m:=i.val)]
+    let hXorI :  xor.toNat < (2^i.val) := by
+      simp[k] at hPowKI
+      exact Nat.lt_of_lt_of_le hClz hPowKI
+
+    let hXor : xor[i] = false := by
+      simp[BitVec.getElem_eq_testBit_toNat]
+      simp[Nat.testBit_lt_two_pow hXorI]
+
+    let hMinMax : umin.value[i] = umax.value[i] := by
+      simp[xor] at hXor
+      exact hXor
+
+    simp[xor] at hXor
+    exact hXor
+
+  let hShift : umin.value >>> k = umax.value >>> k := by
+    simp[BitVec.eq_of_getElem_eq_iff]
+    intro i hI
+    by_cases k + i < w
+    {
+      rename_i hKI
+      simp[hKI]
+      let h := hIFun (Fin.mk (k+i) hKI)
+      simp at h
+      exact h
+    }
+    {
+      rename_i hKI
+      simp at hKI
+      simp[hKI]
+    }
+
+  by_cases k ≤ i
+  {
+    rename_i hK
+    -- the bit is above the first mismatch, is set to the actual value
+    /-let hMinC : umin.value[i] = c.value[i] := by
+      let h := BitVec.le
+      let hMinXorC := umin.value ^^^ c.value
+      let hMaxXorC := umax.value ^^^ c.value
+
+
+      let h := Nat.testBit
+
+    apply And.intro
+    iterate 2 {
+      intro hC
+      simp[hC] at hMinC
+      simp[hMinC]
+    }-/
+    sorry
+  }
+  {
+    -- the bit is at or below the first mismatch, is set to unknown
+    rename_i hK; simp at hK; simp[xor, k, hK]
+  }
