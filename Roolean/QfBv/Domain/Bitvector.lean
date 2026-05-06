@@ -74,6 +74,7 @@ public def biNormal {w: Nat} (left: Bitvector w) (right: Bitvector w) (op: BiNor
   | .Urem => standardBi left right λ a b => (a.umod b) -- corresponds to 'bvurem'
   | .Sdiv => standardBi left right λ a b => (a.smtSDiv b)  -- corresponds to 'bvsdiv'
   | .Srem => standardBi left right λ a b => (a.srem b) -- corresponds to 'bvsrem'
+  | .Smod => standardBi left right λ a b => (a.smod b) -- corresponds to 'bvsmod'
 
   | .BitAnd => standardBi left right λ a b => (a &&& b)
   | .BitOr => standardBi left right λ a b => (a ||| b)

@@ -17,6 +17,7 @@ public inductive BiNormalOp
   | Urem
   | Sdiv
   | Srem
+  | Smod
 
   | BitAnd
   | BitOr

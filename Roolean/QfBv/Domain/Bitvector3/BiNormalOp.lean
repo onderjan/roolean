@@ -3,8 +3,7 @@ module
 public import Roolean.QfBv.Domain.Bitvector3.Basic
 
 import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Arith
-import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Shift
-import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Shift
+import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Div
 import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Shift
 
 namespace Bitvector3
@@ -17,6 +16,12 @@ public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormal
   | BiNormalOp.Add => add left right
   | BiNormalOp.Sub => sub left right
   | BiNormalOp.Mul => mul left right
+
+  | BiNormalOp.Udiv => udiv left right
+  | BiNormalOp.Urem => urem left right
+  | BiNormalOp.Sdiv => sdiv left right
+  | BiNormalOp.Srem => srem left right
+  | BiNormalOp.Smod => smod left right
 
   | BiNormalOp.BitAnd =>
     let zeros := left.zeros ||| right.zeros -- iff zeros of either are set
@@ -37,15 +42,6 @@ public def biNormal {w} (left: Bitvector3 w) (right: Bitvector3 w) (op: BiNormal
   | BiNormalOp.Lshr => lshr left right
   | BiNormalOp.Ashr => ashr left right
 
-  | _ =>
-    -- TODO: division operations as in Roole
-    match left.toBitvector?, right.toBitvector? with
-    | some left, some right =>
-      let result := Bitvector.biNormal left right op
-      ofBitvector result
-    | _, _ =>
-      allUnknown w
-
  --- THEOREMS ---
 
 public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: Bitvector w)
@@ -59,24 +55,15 @@ public theorem biNormal_sound {w} (a b: Bitvector3 w) (op: BiNormalOp) (ca cb: B
   { exact sub_sound a b ca cb ha hb } -- Sub
   { exact mul_sound a b ca cb ha hb } -- Mul
 
+  { exact udiv_sound a b ca cb ha hb } -- Udiv
+  { exact urem_sound a b ca cb ha hb } -- Urem
+  { exact sdiv_sound a b ca cb ha hb } -- Sdiv
+  { exact srem_sound a b ca cb ha hb } -- Srem
+  { exact smod_sound a b ca cb ha hb } -- Smod
+
   -- BitAnd, BitOr, BitXor
   iterate 3 { simp[Bitvector.biNormal, Bitvector.standardBi]; grind[zeros_or_ones_set, γ] }
 
   { exact shl_sound a b ca cb ha hb } -- Shl
   { exact lshr_sound a b ca cb ha hb } -- Lshr
   { exact ashr_sound a b ca cb ha hb } -- Ashr
-
-  {
-    -- division/remainder placeholders
-    split
-    {
-      rename_i hA hB hAto hBto
-      rw[Eq.comm] at hAto; rw[Eq.comm] at hBto
-      let h5 := Iff.mp (toBitvector?_sound (w:=w) a hA ca hAto) ha
-      let h6 := Iff.mp (toBitvector?_sound (w:=w) b hB cb hBto) hb
-      simp[γ_ofBitvector,h5,h6]
-    }
-    {
-      apply γ_allUnknown
-    }
-  }
