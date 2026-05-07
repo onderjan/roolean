@@ -96,8 +96,12 @@ public def sdiv {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
     signedOp left right init fn0 fn1 fn2 fn3
 
 public def srem {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
-  -- TODO: division as in Roole
-  byConcrete left right BiNormalOp.Srem
+    let init := Bitvector.biNormal left.umin right.umin BiNormalOp.Srem
+    let fn0 := (λ a b => a.urem b)
+    let fn1 := (λ a b => a.urem b.neg)
+    let fn2 := (λ a b => ((a.neg).urem b).neg)
+    let fn3 := (λ a b => ((a.neg).urem (b.neg)).neg)
+    signedOp left right init fn0 fn1 fn2 fn3
 
 public def smod {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
   -- In Roole, smod is also only implemented as in concrete
@@ -662,12 +666,61 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.smtSDiv, hAM, hBM]
     exact h1
 
-  let h := signedOp_sound a b ca cb init fn0 fn1 fn2 fn3 fc h0 h1 h2 h3 ha hb
-  exact h
+  exact signedOp_sound a b ca cb init fn0 fn1 fn2 fn3 fc h0 h1 h2 h3 ha hb
 
 public theorem srem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (srem a b) (Bitvector.biNormal ca cb BiNormalOp.Srem) := by
-    intro ha hb; simp[srem, byConcrete_sound a b ca cb BiNormalOp.Srem ha hb]
+  intro ha hb; simp(zeta:=false)[srem]
+  extract_lets init fn0 fn1 fn2 fn3
+  let fc (a b: Bitvector w) := Bitvector.biNormal a b BiNormalOp.Srem
+
+  let h0 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = false) (hBM: cb.value.msb = false) :
+    γ a ca → γ b cb → γ (fn0 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn0]
+    let h1 := urem_sound a b ca cb ha hb
+    simp[Bitvector.biNormal, Bitvector.standardBi] at h1
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.srem, hAM, hBM]
+    exact h1
+
+  let h1 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = false) (hBM: cb.value.msb = true) :
+    γ a ca → γ b cb → γ (fn1 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn1]
+    let hNegB := neg_sound b cb hb
+    let h1 := urem_sound a (b.neg) ca (cb.uniOp UniOp.Neg) ha hNegB
+    simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h1
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.srem, hAM, hBM]
+    exact h1
+
+  let h2 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = true) (hBM: cb.value.msb = false) :
+    γ a ca → γ b cb → γ (fn2 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn2]
+    let hNegA := neg_sound a ca ha
+    let h1 := urem_sound (a.neg) b (ca.uniOp UniOp.Neg) cb hNegA hb
+    let h2 := neg_sound (a.neg.urem b) ((ca.uniOp UniOp.Neg).biNormal cb BiNormalOp.Urem) h1
+    simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h2
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.srem, hAM, hBM]
+    exact h2
+
+  let h3 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = true) (hBM: cb.value.msb = true) :
+    γ a ca → γ b cb → γ (fn3 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn3]
+    let hNegA := neg_sound a ca ha
+    let hNegB := neg_sound b cb hb
+    let h1 := urem_sound (a.neg) (b.neg) (ca.uniOp UniOp.Neg) (cb.uniOp UniOp.Neg) hNegA hNegB
+    let h2 := neg_sound (a.neg.urem b.neg) ((ca.uniOp UniOp.Neg).biNormal (cb.uniOp UniOp.Neg) BiNormalOp.Urem) h1
+    simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h2
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.srem, hAM, hBM]
+    exact h2
+
+  exact signedOp_sound a b ca cb init fn0 fn1 fn2 fn3 fc h0 h1 h2 h3 ha hb
 
 public theorem smod_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (smod a b) (Bitvector.biNormal ca cb BiNormalOp.Smod) := by
