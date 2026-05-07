@@ -42,6 +42,9 @@ public def sub {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
 public def mul {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
     Bitvector3.ofFn (mulFn left right)
 
+public def neg {w} (a: Bitvector3 w) : Bitvector3 w :=
+    -- compute as 0 - a
+    sub (Bitvector3.allZeros (w:=w)) a
 
 --- THEOREMS ---
 
@@ -282,3 +285,17 @@ public theorem mul_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     intro h1 h2; simp[h2] at hExtremeSound; simp[Bitvector.toNat, hBit] at hExtremeSound
     simp at hExtremeSound; simp[hExtremeSound] at h1
   }
+
+public theorem neg_sound {w} (a: Bitvector3 w) (ca: Bitvector w)
+    : γ a ca → γ (neg a) (Bitvector.uniOp ca UniOp.Neg) := by
+  intro h
+  simp[neg]
+
+  let z := Bitvector3.allZeros w
+  let cz := Bitvector.allZeros w
+
+  let hSound := sub_sound z a cz ca
+  let hSound := hSound (allZeros_contains w) h
+
+  simp[z, cz, Bitvector.biNormal, Bitvector.standardBi, Bitvector.allZeros] at hSound
+  simp[Bitvector.uniOp, hSound]

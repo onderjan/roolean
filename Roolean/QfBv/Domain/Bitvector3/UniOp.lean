@@ -2,6 +2,7 @@ module
 
 public import Roolean.QfBv.Domain.Bitvector3.Basic
 import Roolean.QfBv.Domain.Bitvector3.BiNormalOp
+import Roolean.QfBv.Domain.Bitvector3.BiNormalOp.Arith
 
 namespace Bitvector3
 
@@ -17,8 +18,8 @@ public def uniOp {w} (domain: Bitvector3 w) (op: UniOp)
     let zeros_or_ones_set := by simp[zeros, ones, zeros_or_ones_set, BitVec.or_comm]
     { zeros, ones, zeros_or_ones_set }
   | UniOp.Neg =>
-    -- compute as 0 - domain
-    biNormal (Bitvector3.allZeros (w:=w)) domain BiNormalOp.Sub
+    -- negation is taken from arith
+    domain.neg
 
  --- THEOREMS ---
 
@@ -30,12 +31,5 @@ public theorem uniOp_sound {w} (a: Bitvector3 w) (c: Bitvector w) (op: UniOp)
   { simp[γ] at h; simp[Bitvector.uniOp, γ, h] } -- not
   {
     -- neg
-    let z := Bitvector3.allZeros w
-    let cz := Bitvector.allZeros w
-
-    let hSound := biNormal_sound z a BiNormalOp.Sub cz c
-    let hSound := hSound (allZeros_contains w) h
-
-    simp[z, cz, Bitvector.biNormal, Bitvector.standardBi, Bitvector.allZeros] at hSound
-    simp[Bitvector.uniOp, hSound]
+    exact neg_sound a c h
   }

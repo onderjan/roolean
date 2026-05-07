@@ -174,6 +174,52 @@ public def fromUnsignedInterval {w} (umin umax: Bitvector w): Bitvector3 w :=
 
   { zeros, ones, zeros_or_ones_set }
 
+public def lowerHalf {w} (a: Bitvector3 w) : Option (Bitvector3 w) :=
+  if h: a.zeros.msb then
+    if a.ones.msb then
+      -- create the lower half
+      let zeros := a.zeros
+      let ones := a.ones &&& ~~~(BitVec.twoPow w (w-1))
+      let zeros_or_ones_set := by
+        simp[zeros, ones]
+        simp[BitVec.eq_of_getElem_eq_iff]
+        intro i hI
+        let h1 := a.zeros_or_ones_set
+        simp[BitVec.eq_of_getElem_eq_iff] at h1
+        simp[BitVec.msb_eq_getLsbD_last] at h
+        by_cases i = w - 1
+        { rename_i hIW; simp[hIW,h] }
+        { rename_i hIW; simp[hIW, h1] }
+      some { zeros, ones, zeros_or_ones_set }
+    else
+      -- lower half by itself
+      a
+  else
+    none
+
+public def upperHalf {w} (a: Bitvector3 w) : Option (Bitvector3 w) :=
+  if h: a.ones.msb then
+    if a.zeros.msb then
+      -- create the upper half
+      let zeros := a.zeros &&& ~~~(BitVec.twoPow w (w-1))
+      let ones := a.ones
+      let zeros_or_ones_set := by
+        simp[zeros, ones]
+        simp[BitVec.eq_of_getElem_eq_iff]
+        intro i hI
+        let h1 := a.zeros_or_ones_set
+        simp[BitVec.eq_of_getElem_eq_iff] at h1
+        simp[BitVec.msb_eq_getLsbD_last] at h
+        by_cases i = w - 1
+        { rename_i hIW; simp[hIW,h] }
+        { rename_i hIW; simp[hIW, h1] }
+      some { zeros, ones, zeros_or_ones_set }
+    else
+      -- upper half by itself
+      a
+  else
+    none
+
  --- THEOREMS ---
 
 public theorem γ_forall {w}
@@ -718,3 +764,35 @@ public def fromUnsignedInterval_γ {w} (umin umax: Bitvector w) (c: Bitvector w)
     -- the bit is at or below the first mismatch, it is set to unknown
     rename_i hK; simp at hK; simp[xor, k, hK]
   }
+
+public theorem lowerHalf_or_upperHalf {w} (a: Bitvector3 w)
+  : w ≠ 0 → (lowerHalf a).isSome ∨ (upperHalf a).isSome := by
+  intro hW
+  simp[lowerHalf, upperHalf]
+  split
+  {
+    split
+    { simp }
+    { simp }
+  }
+  {
+    split
+    { simp }
+    {
+      rename_i hZeros hOnes
+      let hMsb : w-1 < w := Nat.sub_one_lt hW
+      simp[BitVec.msb_eq_getLsbD_last, hMsb] at hZeros hOnes
+      let h := a.zeros_or_ones_set
+      simp[BitVec.eq_of_getElem_eq_iff] at h
+      let h := h (w-1) hMsb
+      simp[hZeros, hOnes] at h
+    }
+  }
+
+public theorem lowerHalf_γ {w} (a: Bitvector3 w) (c: Bitvector w)
+  : c.value.msb = false → γ a c → ∃ l, some l = lowerHalf a ∧ γ l c := by
+  sorry
+
+public theorem upperHalf_γ {w} (a: Bitvector3 w) (c: Bitvector w)
+  : c.value.msb = true → γ a c → ∃ l, some l = upperHalf a ∧ γ l c := by
+  sorry
