@@ -228,19 +228,19 @@ public theorem udiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
       }
     }
 
-theorem urem_lemma {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
-  (hUminNonzero : b.umin.value ≠ 0#w) (hUmaxNonzero : b.umax.value ≠ 0#w)
-  (hUDiv : a.umin.value.smtUDiv b.umax.value = a.umax.value.smtUDiv b.umin.value):
+theorem urem_lemma {w} (a b: Bitvector3 w) (bMin: Bitvector w) (ca cb: Bitvector w)
+  (hUminNonzero : bMin.value ≠ 0#w) (hUmaxNonzero : b.umax.value ≠ 0#w)
+  (hBMin: bMin.value ≤ cb.value)
+  (hUDiv : a.umin.value.smtUDiv b.umax.value = a.umax.value.smtUDiv bMin.value):
   γ a ca → γ b cb → a.umin.value % b.umax.value ≤ ca.value % cb.value
-    ∧ ca.value % cb.value ≤ a.umax.value % b.umin.value := by
+    ∧ ca.value % cb.value ≤ a.umax.value % bMin.value := by
   intro ha hb
 
   let hAMin := umin_le_γ a ca ha
   let hAMax := γ_le_umax a ca ha
-  let hBMin := umin_le_γ b cb hb
   let hBMax := γ_le_umax b cb hb
 
-  let hDiv : a.umin.value.toNat / b.umax.value.toNat = a.umax.value.toNat / b.umin.value.toNat := by
+  let hDiv : a.umin.value.toNat / b.umax.value.toNat = a.umax.value.toNat / bMin.value.toNat := by
     simp[BitVec.smtUDiv_eq, hUmaxNonzero, hUminNonzero] at hUDiv
     simp[BitVec.udiv_def, BitVec.toNat_eq] at hUDiv
     simp[Nat.mod_eq_of_lt (Nat.div_lt_of_lt a.umin.value.isLt),
@@ -248,12 +248,13 @@ theorem urem_lemma {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     exact hUDiv
 
   let hDivC : ca.value.toNat / cb.value.toNat = a.umin.value.toNat / b.umax.value.toNat := by
-    let hBMinNonzero : b.umin.value.toNat ≠ 0 := by
+    let hBMinNonzero : bMin.value.toNat ≠ 0 := by
       simp[BitVec.toNat_eq] at hUminNonzero
       simp[hUminNonzero]
     let hCBNonzero : cb.value.toNat ≠ 0 := by
       simp[BitVec.toNat_eq, Nat.ne_zero_iff_zero_lt] at hUminNonzero
       simp[BitVec.le_def] at hBMin
+
       let h := Nat.lt_of_lt_of_le hUminNonzero hBMin
       simp[← Nat.ne_zero_iff_zero_lt] at h
       simp[h]
@@ -282,17 +283,17 @@ theorem urem_lemma {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     simp[Nat.add_sub_assoc hAssoc]
     simp[Nat.le_add_right_of_le hAMin]
 
-  let hUmaxResult : ca.value % cb.value ≤ a.umax.value % b.umin.value := by
+  let hUmaxResult : ca.value % cb.value ≤ a.umax.value % bMin.value := by
     simp[BitVec.umod_def]
     simp[Nat.mod_eq_of_lt (Nat.mod_lt_of_lt a.umax.value.isLt),
       Nat.mod_eq_of_lt (Nat.mod_lt_of_lt ca.value.isLt)]
 
-    let hComm : b.umin.value.toNat * (a.umax.value.toNat / b.umin.value.toNat) ≤ a.umax.value.toNat := by
+    let hComm : bMin.value.toNat * (a.umax.value.toNat / bMin.value.toNat) ≤ a.umax.value.toNat := by
       simp[Nat.mul_div_self_eq_mod_sub_self]
 
-    let hAssoc : b.umin.value.toNat * (a.umax.value.toNat / b.umin.value.toNat)
-      ≤ cb.value.toNat * (a.umax.value.toNat / b.umin.value.toNat) := by
-      simp[Nat.mul_le_mul_right (a.umax.value.toNat / b.umin.value.toNat) hBMin]
+    let hAssoc : bMin.value.toNat * (a.umax.value.toNat / bMin.value.toNat)
+      ≤ cb.value.toNat * (a.umax.value.toNat / bMin.value.toNat) := by
+      simp[Nat.mul_le_mul_right (a.umax.value.toNat / bMin.value.toNat) hBMin]
 
     simp[Nat.mod_eq_sub, hDivC, hDiv]
     simp[← Nat.sub_add_comm hComm]
@@ -308,12 +309,14 @@ public theorem urem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
 
   split
   {
+    -- divisor umax zero, umin must be also zero
     rename_i hUmax
     let hCB := γ_le_umax b cb hb
     simp[hUmax] at hCB
     simp[hCB, ha]
   }
   {
+    -- divisor umax nonzero
     rename_i hUmaxNonzero
 
     let uminResult := a.umin.value % b.umax.value
@@ -339,6 +342,7 @@ public theorem urem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
 
         by_cases cb.value = 0
         {
+          -- zero concrete value
           rename_i hCB
           simp[hCB]
 
@@ -353,13 +357,31 @@ public theorem urem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           }
         }
         {
+          -- nonzero concrete value
           rename_i hCBNonzero
 
-          --let hLemma := urem_lemma a b ca cb hUminNonzero hUmaxNonzero hUDiv ha hb
+          let hW: 0 < w := by
+            false_or_by_contra
+            rename_i h
+            simp at h
+            simp[BitVec.eq_of_zero_length h (y:=0#w)] at hUmaxNonzero
 
-          let hUminResult : a.umin.value % b.umax.value ≤ ca.value % cb.value := by
-            sorry
+          let hWNonzero: w ≠ 0 := by
+            simp[← Nat.ne_zero_iff_zero_lt] at hW
+            simp[hW]
 
+          let hOneNonzero : (Bitvector.one w).value ≠ 0#w := by
+            simp[Bitvector.one]
+            simp[hWNonzero]
+
+          let h2 : (Bitvector.one w).value ≤ cb.value := by
+            simp[BitVec.toNat_ne, Nat.ne_zero_iff_zero_lt] at hCBNonzero
+            simp[Bitvector.one, BitVec.le_def, hW]
+            simp[Nat.lt_iff_add_one_le] at hCBNonzero
+            exact hCBNonzero
+
+          let hLemma := urem_lemma a b (Bitvector.one w) ca cb hOneNonzero hUmaxNonzero h2 hUDiv ha hb
+          let hUminResult := hLemma.left
           let hUmaxResult : cResult ≤ a.umax.value := by
             simp[cResult]
             simp[BitVec.le_def]
@@ -377,7 +399,6 @@ public theorem urem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           }
           {
             rename_i hUmin; simp at hUmin
-
             simp[cResult, uminResult, fromUnsignedInterval_γ
               { value := uminResult } a.umax { value := cResult } hUminResult hUmaxResult]
           }
@@ -388,14 +409,14 @@ public theorem urem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
       { simp[γ_allUnknown] }
     }
     {
+      -- divisor umax nonzero, umin nonzero
       rename_i hUminNonzero
       simp[hUminNonzero]
       split
       {
-        -- divisor umax nonzero, umin nonzero
         rename_i hUDiv
         let umaxResult := a.umax.value % b.umin.value
-        let hLemma := urem_lemma a b ca cb hUminNonzero hUmaxNonzero hUDiv ha hb
+        let hLemma := urem_lemma a b b.umin ca cb hUminNonzero hUmaxNonzero (umin_le_γ b cb hb) hUDiv ha hb
         let hInterval := fromUnsignedInterval_γ
             { value := uminResult } { value := umaxResult } { value := cResult }
         simp[hLemma, uminResult, cResult, umaxResult] at hInterval
