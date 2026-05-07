@@ -174,49 +174,69 @@ public def fromUnsignedInterval {w} (umin umax: Bitvector w): Bitvector3 w :=
 
   { zeros, ones, zeros_or_ones_set }
 
-public def lowerHalf {w} (a: Bitvector3 w) : Option (Bitvector3 w) :=
+public def lowerHalf {w} (a: Bitvector3 w) (h: a.zeros.msb) : Bitvector3 w :=
+  if a.ones.msb then
+    -- create the lower half
+    let zeros := a.zeros
+    let ones := a.ones &&& ~~~(BitVec.twoPow w (w-1))
+    let zeros_or_ones_set := by
+      simp[BitVec.eq_of_getElem_eq_iff]
+      intro i hI
+      let h1 := a.zeros_or_ones_set
+      simp[BitVec.eq_of_getElem_eq_iff] at h1
+      let h1 := h1
+      simp[BitVec.msb_eq_getLsbD_last] at h
+      by_cases i = w - 1
+      {
+        rename_i hIW
+        simp[hIW,ones,zeros,h]
+      }
+      {
+        rename_i hIW
+        simp[hIW,ones,zeros,h1]
+      }
+    { zeros, ones, zeros_or_ones_set }
+  else
+    -- lower half by itself
+    a
+
+@[expose]
+public def lowerHalf? {w} (a: Bitvector3 w) : Option (Bitvector3 w) :=
   if h: a.zeros.msb then
-    if a.ones.msb then
-      -- create the lower half
-      let zeros := a.zeros
-      let ones := a.ones &&& ~~~(BitVec.twoPow w (w-1))
-      let zeros_or_ones_set := by
-        simp[zeros, ones]
-        simp[BitVec.eq_of_getElem_eq_iff]
-        intro i hI
-        let h1 := a.zeros_or_ones_set
-        simp[BitVec.eq_of_getElem_eq_iff] at h1
-        simp[BitVec.msb_eq_getLsbD_last] at h
-        by_cases i = w - 1
-        { rename_i hIW; simp[hIW,h] }
-        { rename_i hIW; simp[hIW, h1] }
-      some { zeros, ones, zeros_or_ones_set }
-    else
-      -- lower half by itself
-      a
+    some (lowerHalf a h)
   else
     none
 
-public def upperHalf {w} (a: Bitvector3 w) : Option (Bitvector3 w) :=
+public def upperHalf {w} (a: Bitvector3 w) (h: a.ones.msb) : Bitvector3 w :=
+  if a.zeros.msb then
+    -- create the upper half
+    let zeros := a.zeros &&& ~~~(BitVec.twoPow w (w-1))
+    let ones := a.ones
+    let zeros_or_ones_set := by
+      simp[BitVec.eq_of_getElem_eq_iff]
+      intro i hI
+      let h1 := a.zeros_or_ones_set
+      simp[BitVec.eq_of_getElem_eq_iff] at h1
+      let h1 := h1
+      simp[BitVec.msb_eq_getLsbD_last] at h
+      by_cases i = w - 1
+      {
+        rename_i hIW
+        simp[hIW,ones,zeros,h]
+      }
+      {
+        rename_i hIW
+        simp[hIW,ones,zeros,h1]
+      }
+    { zeros, ones, zeros_or_ones_set }
+  else
+    -- upper half by itself
+    a
+
+@[expose]
+public def upperHalf? {w} (a: Bitvector3 w) : Option (Bitvector3 w) :=
   if h: a.ones.msb then
-    if a.zeros.msb then
-      -- create the upper half
-      let zeros := a.zeros &&& ~~~(BitVec.twoPow w (w-1))
-      let ones := a.ones
-      let zeros_or_ones_set := by
-        simp[zeros, ones]
-        simp[BitVec.eq_of_getElem_eq_iff]
-        intro i hI
-        let h1 := a.zeros_or_ones_set
-        simp[BitVec.eq_of_getElem_eq_iff] at h1
-        simp[BitVec.msb_eq_getLsbD_last] at h
-        by_cases i = w - 1
-        { rename_i hIW; simp[hIW,h] }
-        { rename_i hIW; simp[hIW, h1] }
-      some { zeros, ones, zeros_or_ones_set }
-    else
-      -- upper half by itself
-      a
+    some (upperHalf a h)
   else
     none
 
@@ -765,34 +785,85 @@ public def fromUnsignedInterval_γ {w} (umin umax: Bitvector w) (c: Bitvector w)
     rename_i hK; simp at hK; simp[xor, k, hK]
   }
 
-public theorem lowerHalf_or_upperHalf {w} (a: Bitvector3 w)
-  : w ≠ 0 → (lowerHalf a).isSome ∨ (upperHalf a).isSome := by
+public theorem lowerHalf?_or_upperHalf? {w} (a: Bitvector3 w)
+  : w ≠ 0 → (lowerHalf? a).isSome ∨ (upperHalf? a).isSome := by
   intro hW
-  simp[lowerHalf, upperHalf]
-  split
-  {
-    split
-    { simp }
-    { simp }
-  }
-  {
-    split
-    { simp }
-    {
-      rename_i hZeros hOnes
-      let hMsb : w-1 < w := Nat.sub_one_lt hW
-      simp[BitVec.msb_eq_getLsbD_last, hMsb] at hZeros hOnes
-      let h := a.zeros_or_ones_set
-      simp[BitVec.eq_of_getElem_eq_iff] at h
-      let h := h (w-1) hMsb
-      simp[hZeros, hOnes] at h
-    }
-  }
+  simp[lowerHalf?, upperHalf?, lowerHalf, upperHalf]
+  let hMsb : w-1 < w := Nat.sub_one_lt hW
+  --simp[BitVec.msb_eq_getLsbD_last, hMsb] at hZeros hOnes
+  let h := a.zeros_or_ones_set
+  simp[BitVec.eq_of_getElem_eq_iff] at h
+  let h := h (w-1) hMsb
+  simp[BitVec.msb_eq_getLsbD_last]
+  simp[← BitVec.getLsbD_eq_getElem] at h
+  exact h
+
+public theorem zeros_msb_γ  {w} (a: Bitvector3 w) (c: Bitvector w)
+  (hCMsb: c.value.msb = false) (hW: w ≠ 0) : γ a c → a.zeros.msb = true := by
+  intro hC
+  simp[BitVec.msb_eq_getLsbD_last]
+  simp[BitVec.msb_eq_getLsbD_last] at hCMsb
+  simp[γ_forall] at hC
+  let hMsb : w-1 < w := Nat.sub_one_lt hW
+  let hC := hC (Fin.mk (w-1) hMsb)
+  simp at hC
+  simp[hMsb] at hCMsb
+  simp[hMsb, hCMsb, hC]
+
+public theorem ones_msb_γ  {w} (a: Bitvector3 w) (c: Bitvector w)
+  (hCMsb: c.value.msb = true) (hW: w ≠ 0) : γ a c → a.ones.msb = true := by
+  intro hC
+  simp[BitVec.msb_eq_getLsbD_last]
+  simp[BitVec.msb_eq_getLsbD_last] at hCMsb
+  simp[γ_forall] at hC
+  let hMsb : w-1 < w := Nat.sub_one_lt hW
+  let hC := hC (Fin.mk (w-1) hMsb)
+  simp at hC
+  simp[hMsb] at hCMsb
+  simp[hMsb, hCMsb, hC]
 
 public theorem lowerHalf_γ {w} (a: Bitvector3 w) (c: Bitvector w)
-  : c.value.msb = false → γ a c → ∃ l, some l = lowerHalf a ∧ γ l c := by
-  sorry
+  (hAMsb: a.zeros.msb) (hCMsb: c.value.msb = false)
+  : γ a c → γ (lowerHalf a hAMsb) c := by
+  intro hC
+  simp[lowerHalf]
+  split
+  {
+    simp[γ_forall] at hC
+    simp[γ_forall]
+    intro i
+    let hC := hC i
+    apply And.intro
+    { exact hC.left }
+    {
+      intro h1
+      simp[h1, hC]
+      false_or_by_contra
+      rename_i hContra
+      simp[BitVec.msb_eq_getLsbD_last, ←hContra, h1] at hCMsb
+    }
+  }
+  { simp[hC] }
 
 public theorem upperHalf_γ {w} (a: Bitvector3 w) (c: Bitvector w)
-  : c.value.msb = true → γ a c → ∃ l, some l = upperHalf a ∧ γ l c := by
-  sorry
+  (hAMsb: a.ones.msb) (hCMsb: c.value.msb = true)
+  : γ a c → γ (upperHalf a hAMsb) c := by
+  intro hC
+  simp[upperHalf]
+  split
+  {
+    simp[γ_forall] at hC
+    simp[γ_forall]
+    intro i
+    let hC := hC i
+    apply And.intro
+    {
+      intro h1
+      simp[h1, hC]
+      false_or_by_contra
+      rename_i hContra
+      simp[BitVec.msb_eq_getLsbD_last, ←hContra, h1] at hCMsb
+    }
+    { exact hC.right }
+  }
+  { simp[hC] }

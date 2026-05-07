@@ -80,13 +80,13 @@ public def sdiv {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
     -- for simplicity, init the bitvector with minimal sdiv
     let initial := Bitvector3.ofBitvector (Bitvector.biNormal left.umin right.umin BiNormalOp.Sdiv)
     let fn0 := (λ a b => a.udiv b)
-    let result0 := joinQuadrant initial left.lowerHalf right.lowerHalf fn0
+    let result0 := joinQuadrant initial left.lowerHalf? right.lowerHalf? fn0
     let fn1 := (λ a b => (a.udiv b.neg).neg)
-    let result1 := joinQuadrant result0 left.lowerHalf right.upperHalf fn1
+    let result1 := joinQuadrant result0 left.lowerHalf? right.upperHalf? fn1
     let fn2 := (λ a b => ((a.neg).udiv b).neg)
-    let result2 := joinQuadrant result1 left.upperHalf right.lowerHalf fn2
+    let result2 := joinQuadrant result1 left.upperHalf? right.lowerHalf? fn2
     let fn3 := (λ a b => (a.neg).udiv (b.neg))
-    let result3 := joinQuadrant result2 left.upperHalf right.upperHalf fn3
+    let result3 := joinQuadrant result2 left.upperHalf? right.upperHalf? fn3
     result3
 
 public def srem {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
@@ -492,25 +492,25 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
 
       by_cases ca.value.msb = false
       {
+        rename_i hA
+        simp at hA
+        let hAZeros := a.zeros_msb_γ ca hA hW ha
+        let hRaEx := a.lowerHalf_γ ca hAZeros hA ha
+        let ra := (a.lowerHalf hAZeros)
+        let hRa : some ra = a.lowerHalf? := by simp[ra,lowerHalf?,hAZeros]
+        let hRaC : γ ra ca := by simp[ra, hRaEx]
+
         by_cases cb.value.msb = false
         {
-          rename_i hA hB
-          simp at hA hB
-          simp(zeta:=false)[hA, hB]
+          rename_i hB
+          simp at hB
+          simp[hA, hB]
 
-          let hRaEx := a.lowerHalf_γ ca hA ha
-          let ra := Classical.choose hRaEx
-          let hRaSpec := Classical.choose_spec hRaEx
-
-          let hRbEx := b.lowerHalf_γ cb hB hb
-          let rb := Classical.choose hRbEx
-          let hRbSpec := Classical.choose_spec hRbEx
-
-          let hRa : some ra = a.lowerHalf := by simp[ra, hRaSpec]
-          let hRb : some rb = b.lowerHalf := by simp[rb, hRbSpec]
-
-          let hRaC : γ ra ca := by simp[ra, hRaSpec]
-          let hRbC : γ rb cb := by simp[rb, hRbSpec]
+          let hBZeros := b.zeros_msb_γ cb hB hW hb
+          let hRbEx := b.lowerHalf_γ cb hBZeros hB hb
+          let rb := (b.lowerHalf hBZeros)
+          let hRb : some rb = b.lowerHalf? := by simp[rb,lowerHalf?,hBZeros]
+          let hRbC : γ rb cb := by simp[rb, hRbEx]
 
           let value: Bitvector w := { value := ca.value.smtUDiv cb.value }
 
@@ -524,9 +524,9 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           simp[hRa, hRb] at hJoin
           let hJoin := hJoin value hR
 
-          let hPreserve1 := joinQuadrant_preserves result0 a.lowerHalf b.upperHalf fn1 value
-          let hPreserve2 := joinQuadrant_preserves result1 a.upperHalf b.lowerHalf fn2 value
-          let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf b.upperHalf fn3 value
+          let hPreserve1 := joinQuadrant_preserves result0 a.lowerHalf? b.upperHalf? fn1 value
+          let hPreserve2 := joinQuadrant_preserves result1 a.upperHalf? b.lowerHalf? fn2 value
+          let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf? b.upperHalf? fn3 value
 
           simp[result0, hJoin] at hPreserve1
           simp[result0, result1, hPreserve1] at hPreserve2
@@ -534,23 +534,15 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           simp[result0, result1, result2, result3, hPreserve3, value]
         }
         {
-          rename_i hA hB
-          simp at hA hB
-          simp(zeta:=false)[hA, hB]
+          rename_i hB
+          simp at hB
+          simp[hA, hB]
 
-          let hRaEx := a.lowerHalf_γ ca hA ha
-          let ra := Classical.choose hRaEx
-          let hRaSpec := Classical.choose_spec hRaEx
-
-          let hRbEx := b.upperHalf_γ cb hB hb
-          let rb := Classical.choose hRbEx
-          let hRbSpec := Classical.choose_spec hRbEx
-
-          let hRa : some ra = a.lowerHalf := by simp[ra, hRaSpec]
-          let hRb : some rb = b.upperHalf := by simp[rb, hRbSpec]
-
-          let hRaC : γ ra ca := by simp[ra, hRaSpec]
-          let hRbC : γ rb cb := by simp[rb, hRbSpec]
+          let hBOnes := b.ones_msb_γ cb hB hW hb
+          let hRbEx := b.upperHalf_γ cb hBOnes hB hb
+          let rb := (b.upperHalf hBOnes)
+          let hRb : some rb = b.upperHalf? := by simp[rb,upperHalf?,hBOnes]
+          let hRbC : γ rb cb := by simp[rb, hRbEx]
 
           let value: Bitvector w := { value := -ca.value.smtUDiv (-cb.value)  }
 
@@ -566,8 +558,8 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           simp[hRa, hRb] at hJoin
           let hJoin := hJoin value hR
 
-          let hPreserve2 := joinQuadrant_preserves result1 a.upperHalf b.lowerHalf fn2 value
-          let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf b.upperHalf fn3 value
+          let hPreserve2 := joinQuadrant_preserves result1 a.upperHalf? b.lowerHalf? fn2 value
+          let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf? b.upperHalf? fn3 value
 
           simp[result1, hJoin] at hPreserve2
           simp[result1, result2, hPreserve2] at hPreserve3
@@ -576,25 +568,25 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
         }
       }
       {
+        rename_i hA
+        simp at hA
+        let hAOnes := a.ones_msb_γ ca hA hW ha
+        let hRaEx := a.upperHalf_γ ca hAOnes hA ha
+        let ra := (a.upperHalf hAOnes)
+        let hRa : some ra = a.upperHalf? := by simp[ra,upperHalf?,hAOnes]
+        let hRaC : γ ra ca := by simp[ra, hRaEx]
+
         by_cases cb.value.msb = false
         {
-          rename_i hA hB
-          simp at hA hB
-          simp(zeta:=false)[hA, hB]
+          rename_i hB
+          simp at hB
+          simp[hA, hB]
 
-          let hRaEx := a.upperHalf_γ ca hA ha
-          let ra := Classical.choose hRaEx
-          let hRaSpec := Classical.choose_spec hRaEx
-
-          let hRbEx := b.lowerHalf_γ cb hB hb
-          let rb := Classical.choose hRbEx
-          let hRbSpec := Classical.choose_spec hRbEx
-
-          let hRa : some ra = a.upperHalf := by simp[ra, hRaSpec]
-          let hRb : some rb = b.lowerHalf := by simp[rb, hRbSpec]
-
-          let hRaC : γ ra ca := by simp[ra, hRaSpec]
-          let hRbC : γ rb cb := by simp[rb, hRbSpec]
+          let hBZeros := b.zeros_msb_γ cb hB hW hb
+          let hRbEx := b.lowerHalf_γ cb hBZeros hB hb
+          let rb := (b.lowerHalf hBZeros)
+          let hRb : some rb = b.lowerHalf? := by simp[rb,lowerHalf?,hBZeros]
+          let hRbC : γ rb cb := by simp[rb, hRbEx]
 
           let value: Bitvector w := { value := -((-ca.value).smtUDiv cb.value) }
 
@@ -607,31 +599,25 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
             exact h2
 
           let hJoin := joinQuadrant_adds result1 ra rb fn2
+
           simp[hRa, hRb] at hJoin
           let hJoin := hJoin value hR
-          let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf b.upperHalf fn3 value
+          let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf? b.upperHalf? fn3 value
           simp[result2, hJoin] at hPreserve3
+
           simp[result3, result2, value, hPreserve3]
 
         }
         {
-          rename_i hA hB
-          simp at hA hB
-          simp(zeta:=false)[hA, hB]
+          rename_i hB
+          simp at hB
+          simp[hA, hB]
 
-          let hRaEx := a.upperHalf_γ ca hA ha
-          let ra := Classical.choose hRaEx
-          let hRaSpec := Classical.choose_spec hRaEx
-
-          let hRbEx := b.upperHalf_γ cb hB hb
-          let rb := Classical.choose hRbEx
-          let hRbSpec := Classical.choose_spec hRbEx
-
-          let hRa : some ra = a.upperHalf := by simp[ra, hRaSpec]
-          let hRb : some rb = b.upperHalf := by simp[rb, hRbSpec]
-
-          let hRaC : γ ra ca := by simp[ra, hRaSpec]
-          let hRbC : γ rb cb := by simp[rb, hRbSpec]
+          let hBOnes := b.ones_msb_γ cb hB hW hb
+          let hRbEx := b.upperHalf_γ cb hBOnes hB hb
+          let rb := (b.upperHalf hBOnes)
+          let hRb : some rb = b.upperHalf? := by simp[rb,upperHalf?,hBOnes]
+          let hRbC : γ rb cb := by simp[rb, hRbEx]
 
           let hR : (fn3 ra rb).γ { value := (-ca.value).smtUDiv (-cb.value) } = true := by
             simp[fn3]
