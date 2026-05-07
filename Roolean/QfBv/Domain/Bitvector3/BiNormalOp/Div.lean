@@ -71,23 +71,29 @@ def joinQuadrant {w} (result: Bitvector3 w) (a b: Option (Bitvector3 w))
     | (some a, some b) => result.join (f a b)
     | _ => result
 
-public def sdiv {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
+def signedOp {w} (left: Bitvector3 w) (right: Bitvector3 w)
+  (init: Bitvector w)
+  (fn0 fn1 fn2 fn3: Bitvector3 w → Bitvector3 w → Bitvector3 w): Bitvector3 w :=
   if w = 0 then
     -- just return
     left
   else
     -- handle division by quadrants
-    -- for simplicity, init the bitvector with minimal sdiv
-    let initial := Bitvector3.ofBitvector (Bitvector.biNormal left.umin right.umin BiNormalOp.Sdiv)
-    let fn0 := (λ a b => a.udiv b)
+    -- for simplicity, init the bitvector a value that will reappear
+    let initial := Bitvector3.ofBitvector init
     let result0 := joinQuadrant initial left.lowerHalf? right.lowerHalf? fn0
-    let fn1 := (λ a b => (a.udiv b.neg).neg)
     let result1 := joinQuadrant result0 left.lowerHalf? right.upperHalf? fn1
-    let fn2 := (λ a b => ((a.neg).udiv b).neg)
     let result2 := joinQuadrant result1 left.upperHalf? right.lowerHalf? fn2
-    let fn3 := (λ a b => (a.neg).udiv (b.neg))
     let result3 := joinQuadrant result2 left.upperHalf? right.upperHalf? fn3
     result3
+
+public def sdiv {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
+    let init := Bitvector.biNormal left.umin right.umin BiNormalOp.Sdiv
+    let fn0 := (λ a b => a.udiv b)
+    let fn1 := (λ a b => (a.udiv b.neg).neg)
+    let fn2 := (λ a b => ((a.neg).udiv b).neg)
+    let fn3 := (λ a b => (a.neg).udiv (b.neg))
+    signedOp left right init fn0 fn1 fn2 fn3
 
 public def srem {w} (left: Bitvector3 w) (right: Bitvector3 w) : Bitvector3 w :=
   -- TODO: division as in Roole
@@ -467,9 +473,16 @@ def joinQuadrant_adds {w} (result: Bitvector3 w) (a b: Bitvector3 w)
   exact γ_join_right result (f a b) c hC
 
 
-public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
-    : γ a ca → γ b cb → γ (sdiv a b) (Bitvector.biNormal ca cb BiNormalOp.Sdiv) := by
-    intro ha hb; simp(zeta:=false)[sdiv]
+theorem signedOp_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
+  (init: Bitvector w)
+  (fn0 fn1 fn2 fn3: Bitvector3 w → Bitvector3 w → Bitvector3 w)
+  (fc: Bitvector w → Bitvector w → Bitvector w)
+  (h0: ∀a b ca cb, (hCM: ca.value.msb = false) → (hCM: cb.value.msb = false) → γ a ca → γ b cb → γ (fn0 a b) (fc ca cb))
+  (h1: ∀a b ca cb, (hCM: ca.value.msb = false) → (hCM: cb.value.msb = true) → γ a ca → γ b cb → γ (fn1 a b) (fc ca cb))
+  (h2: ∀a b ca cb, (hCM: ca.value.msb = true) → (hCM: cb.value.msb = false) → γ a ca → γ b cb → γ (fn2 a b) (fc ca cb))
+  (h3: ∀a b ca cb, (hCM: ca.value.msb = true) → (hCM: cb.value.msb = true) → γ a ca → γ b cb → γ (fn3 a b) (fc ca cb))
+    : γ a ca → γ b cb → γ (signedOp a b init fn0 fn1 fn2 fn3) (fc ca cb) := by
+    intro ha hb; simp(zeta:=false)[signedOp]
     split
     {
       -- zero width
@@ -484,11 +497,10 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     {
       -- nonzero width
       rename_i hW
-      rw[Bitvector.biNormal, Bitvector.standardBi]
-      rw[Bitvector.biNormal, Bitvector.standardBi]
-      rw(occs:=[2])[BitVec.smtSDiv]
 
-      extract_lets initial fn0 result0 fn1 result1 fn2 result2 fn3 result3
+      extract_lets initial result0 result1 result2 result3
+
+      let value: Bitvector w := fc ca cb
 
       by_cases ca.value.msb = false
       {
@@ -504,7 +516,6 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
         {
           rename_i hB
           simp at hB
-          simp[hA, hB]
 
           let hBZeros := b.zeros_msb_γ cb hB hW hb
           let hRbEx := b.lowerHalf_γ cb hBZeros hB hb
@@ -512,17 +523,9 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           let hRb : some rb = b.lowerHalf? := by simp[rb,lowerHalf?,hBZeros]
           let hRbC : γ rb cb := by simp[rb, hRbEx]
 
-          let value: Bitvector w := { value := ca.value.smtUDiv cb.value }
-
-          let hR : (fn0 ra rb).γ value = true := by
-            simp[value,fn0]
-            let h1 := udiv_sound ra rb ca cb hRaC hRbC
-            simp[Bitvector.biNormal, Bitvector.standardBi] at h1
-            exact h1
-
           let hJoin := joinQuadrant_adds initial ra rb fn0
           simp[hRa, hRb] at hJoin
-          let hJoin := hJoin value hR
+          let hJoin := hJoin value (h0 ra rb ca cb hA hB hRaC hRbC)
 
           let hPreserve1 := joinQuadrant_preserves result0 a.lowerHalf? b.upperHalf? fn1 value
           let hPreserve2 := joinQuadrant_preserves result1 a.upperHalf? b.lowerHalf? fn2 value
@@ -536,7 +539,6 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
         {
           rename_i hB
           simp at hB
-          simp[hA, hB]
 
           let hBOnes := b.ones_msb_γ cb hB hW hb
           let hRbEx := b.upperHalf_γ cb hBOnes hB hb
@@ -544,19 +546,10 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           let hRb : some rb = b.upperHalf? := by simp[rb,upperHalf?,hBOnes]
           let hRbC : γ rb cb := by simp[rb, hRbEx]
 
-          let value: Bitvector w := { value := -ca.value.smtUDiv (-cb.value)  }
-
-          let hR : (fn1 ra rb).γ value = true := by
-            simp[value,fn1]
-            let hNegB := neg_sound rb cb hRbC
-            let h1 := udiv_sound ra (rb.neg) ca (cb.uniOp UniOp.Neg) hRaC hNegB
-            let h2 := neg_sound (ra.udiv rb.neg) (ca.biNormal (cb.uniOp UniOp.Neg) BiNormalOp.Udiv) h1
-            simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h2
-            exact h2
 
           let hJoin := joinQuadrant_adds result0 ra rb fn1
           simp[hRa, hRb] at hJoin
-          let hJoin := hJoin value hR
+          let hJoin := hJoin value (h1 ra rb ca cb hA hB hRaC hRbC)
 
           let hPreserve2 := joinQuadrant_preserves result1 a.upperHalf? b.lowerHalf? fn2 value
           let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf? b.upperHalf? fn3 value
@@ -580,7 +573,6 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
         {
           rename_i hB
           simp at hB
-          simp[hA, hB]
 
           let hBZeros := b.zeros_msb_γ cb hB hW hb
           let hRbEx := b.lowerHalf_γ cb hBZeros hB hb
@@ -588,20 +580,10 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           let hRb : some rb = b.lowerHalf? := by simp[rb,lowerHalf?,hBZeros]
           let hRbC : γ rb cb := by simp[rb, hRbEx]
 
-          let value: Bitvector w := { value := -((-ca.value).smtUDiv cb.value) }
-
-          let hR : (fn2 ra rb).γ value = true := by
-            simp[value,fn2]
-            let hNegA := neg_sound ra ca hRaC
-            let h1 := udiv_sound (ra.neg) rb (ca.uniOp UniOp.Neg) cb hNegA hRbC
-            let h2 := neg_sound (ra.neg.udiv rb) ((ca.uniOp UniOp.Neg).biNormal cb BiNormalOp.Udiv) h1
-            simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h2
-            exact h2
-
           let hJoin := joinQuadrant_adds result1 ra rb fn2
 
           simp[hRa, hRb] at hJoin
-          let hJoin := hJoin value hR
+          let hJoin := hJoin value (h2 ra rb ca cb hA hB hRaC hRbC)
           let hPreserve3 := joinQuadrant_preserves result2 a.upperHalf? b.upperHalf? fn3 value
           simp[result2, hJoin] at hPreserve3
 
@@ -611,7 +593,6 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
         {
           rename_i hB
           simp at hB
-          simp[hA, hB]
 
           let hBOnes := b.ones_msb_γ cb hB hW hb
           let hRbEx := b.upperHalf_γ cb hBOnes hB hb
@@ -619,22 +600,70 @@ public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
           let hRb : some rb = b.upperHalf? := by simp[rb,upperHalf?,hBOnes]
           let hRbC : γ rb cb := by simp[rb, hRbEx]
 
-          let hR : (fn3 ra rb).γ { value := (-ca.value).smtUDiv (-cb.value) } = true := by
-            simp[fn3]
-            let hNegA := neg_sound ra ca hRaC
-            let hNegB := neg_sound rb cb hRbC
-            let h1 := udiv_sound (ra.neg) (rb.neg) (ca.uniOp UniOp.Neg) (cb.uniOp UniOp.Neg) hNegA hNegB
-            simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h1
-            exact h1
-
           let hJoin := joinQuadrant_adds result2 ra rb fn3
           simp[hRa, hRb] at hJoin
+          let hJoin := hJoin value (h3 ra rb ca cb hA hB hRaC hRbC)
 
-          simp[result3, hJoin, hR]
+          simp[result3, value, hJoin]
         }
       }
-
     }
+
+
+public theorem sdiv_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
+  : γ a ca → γ b cb → γ (sdiv a b) (Bitvector.biNormal ca cb BiNormalOp.Sdiv) := by
+  intro ha hb; simp(zeta:=false)[sdiv]
+  extract_lets init fn0 fn1 fn2 fn3
+  let fc (a b: Bitvector w) := Bitvector.biNormal a b BiNormalOp.Sdiv
+
+  let h0 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = false) (hBM: cb.value.msb = false) :
+    γ a ca → γ b cb → γ (fn0 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn0]
+    let h1 := udiv_sound a b ca cb ha hb
+    simp[Bitvector.biNormal, Bitvector.standardBi] at h1
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.smtSDiv, hAM, hBM]
+    exact h1
+
+  let h1 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = false) (hBM: cb.value.msb = true) :
+    γ a ca → γ b cb → γ (fn1 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn1]
+    let hNegB := neg_sound b cb hb
+    let h1 := udiv_sound a (b.neg) ca (cb.uniOp UniOp.Neg) ha hNegB
+    let h2 := neg_sound (a.udiv b.neg) (ca.biNormal (cb.uniOp UniOp.Neg) BiNormalOp.Udiv) h1
+    simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h2
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.smtSDiv, hAM, hBM]
+    exact h2
+
+  let h2 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = true) (hBM: cb.value.msb = false) :
+    γ a ca → γ b cb → γ (fn2 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn2]
+    let hNegA := neg_sound a ca ha
+    let h1 := udiv_sound (a.neg) b (ca.uniOp UniOp.Neg) cb hNegA hb
+    let h2 := neg_sound (a.neg.udiv b) ((ca.uniOp UniOp.Neg).biNormal cb BiNormalOp.Udiv) h1
+    simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h2
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.smtSDiv, hAM, hBM]
+    exact h2
+
+  let h3 (a b: Bitvector3 w) (ca cb: Bitvector w)
+    (hAM: ca.value.msb = true) (hBM: cb.value.msb = true) :
+    γ a ca → γ b cb → γ (fn3 a b) (fc ca cb) := by
+    intro ha hb
+    simp[fn3]
+    let hNegA := neg_sound a ca ha
+    let hNegB := neg_sound b cb hb
+    let h1 := udiv_sound (a.neg) (b.neg) (ca.uniOp UniOp.Neg) (cb.uniOp UniOp.Neg) hNegA hNegB
+    simp[Bitvector.uniOp, Bitvector.biNormal, Bitvector.standardBi] at h1
+    simp[fc, Bitvector.biNormal, Bitvector.standardBi, BitVec.smtSDiv, hAM, hBM]
+    exact h1
+
+  let h := signedOp_sound a b ca cb init fn0 fn1 fn2 fn3 fc h0 h1 h2 h3 ha hb
+  exact h
 
 public theorem srem_sound {w} (a b: Bitvector3 w) (ca cb: Bitvector w)
     : γ a ca → γ b cb → γ (srem a b) (Bitvector.biNormal ca cb BiNormalOp.Srem) := by
