@@ -336,6 +336,18 @@ partial def interpretExtOp {v} (context: Context) (op: ExtOp) (addWidth: Nat) (t
     | #[] => Except.error EInterpretation.TooFewOpArgs
     | _ => Except.error EInterpretation.TooManyOpArgs
 
+partial def interpretRepeatOp {v} (context: Context) (times: Nat) (terms: Array SmtTerm)
+  : (Except EInterpretation) (BvTermW v) := do
+   -- expecting exactly one term
+  match terms with
+    | #[inner] =>
+      let inner ← interpretTerm context inner
+      let totalWidth := inner.width * times
+      pure { width := totalWidth, value := BvTerm.Repeat inner.value times }
+    | #[] => Except.error EInterpretation.TooFewOpArgs
+    | _ => Except.error EInterpretation.TooManyOpArgs
+
+
 partial def interpretIte {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   -- expecting exactly three terms: condition, then branch, else branch
@@ -500,6 +512,7 @@ partial def intepretApplication {v} (context: Context) (qualified: SmtQualifiedI
           | "sign_extend" => interpretExtOp context ExtOp.Sext index terms
           -- | "rotate_left"
           -- | "rotate_right"
+          | "repeat" => interpretRepeatOp context index terms
           | _ => Except.error (EInterpretation.BadApplication ident.name)
 
       | #[index1, index2] => -- two indices, should be numerals

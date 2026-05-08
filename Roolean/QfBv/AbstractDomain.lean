@@ -64,8 +64,45 @@ public theorem AbstractDomain.extract_sound {w} {α} [Domain α] [AbstractDomain
   let hShifted := AbstractDomain.biNormal_sound a aShift BiNormalOp.Lshr c cShift h hShiftValue
   exact AbstractDomain.extOp_sound aShifted cShifted m ExtOp.Uext hShifted
 
+
 public theorem AbstractDomain.γ_cast {w m} {α} [Domain α] [AbstractDomain α]
   (a: α w) (c: Bitvector w) (h: w = m)
   : let ha: α w = α m := by grind
   let hc: Bitvector w = Bitvector m := by grind
   AbstractDomain.γ (cast ha a) (cast hc c) = AbstractDomain.γ a c := by grind
+
+
+public theorem AbstractDomain.repeat_sound {α} [Domain α] [AbstractDomain α]
+  {w} (a: α w) (c: Bitvector w) (times: Nat)
+  : γ a c → γ (Domain.repeat a times) (Domain.repeat c times) := by
+  induction times
+  {
+    intro hC
+    simp[Domain.repeat, Domain.ofBitvector, Bitvector.ofBitvector]
+    simp[AbstractDomain.ofBitvector_sound]
+  }
+  {
+    rename_i n n_ih
+    intro hC
+    simp[hC] at n_ih
+    rw[Domain.repeat]
+    split
+    {
+      rw(occs:=[2])[Domain.repeat]
+      simp
+      let aR := (Domain.concat w (w * n) a (Domain.repeat a n))
+      let cR := (Domain.concat w (w * n) c (Domain.repeat c n))
+      let hM : (w + w * (n + 1 - 1)) = (w * (n + 1)) := by grind
+      let hCast := AbstractDomain.γ_cast aR cR hM
+      simp[aR, cR] at hCast
+      simp[hCast]
+      let hConcat := AbstractDomain.concat_sound w (w * n) a
+        (Domain.repeat a n) c (Domain.repeat c n) hC n_ih
+      exact hConcat
+    }
+    {
+      rename_i hN
+      simp at hN
+    }
+
+  }

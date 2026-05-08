@@ -40,6 +40,10 @@ public def eval {v w} {α : Nat → Type} [Domain α]
       let inner := eval inner assignment
       Domain.extOp inner newWidth op
 
+    | BvTerm.Repeat inner times =>
+      let inner := eval inner assignment
+      Domain.repeat inner times
+
     | BvTerm.Ite condition thenBranch elseBranch =>
       let condition := eval condition assignment
       let thenBranch := eval thenBranch assignment
@@ -113,6 +117,12 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     rename_i inner m op h1
     let h1 := h1 a c h
     exact AbstractDomain.extOp_sound (eval inner a) (eval inner c) m op h1
+  }
+  {
+    -- repeat
+    rename_i inner m h1
+    let h1 := h1 a c h
+    exact AbstractDomain.repeat_sound (eval inner a) (eval inner c) m h1
   }
   {
     -- ite

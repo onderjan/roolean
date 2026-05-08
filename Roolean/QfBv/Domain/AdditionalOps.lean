@@ -23,6 +23,7 @@ public def Domain.concat {α} [Domain α]
       -- combine by bit-or
       Domain.biNormal shifted right BiNormalOp.BitOr
 
+
 -- SMT-LIB2 'concat' corresponds to Lean BitVec 'append'
 public theorem Domain.concat_corresponds (wl wr: Nat) (l: Bitvector wl) (r: Bitvector wr)
   : (Domain.concat wl wr l r).value = BitVec.append l.value r.value := by
@@ -57,3 +58,20 @@ public theorem Domain.extract_corresponds {w} (a: Bitvector w) (hi: Nat) (lo: Fi
   simp[Bitvector.biNormal, Bitvector.extOp, Bitvector.standardBi, Bitvector.ofBitvector]
   simp[BitVec.eq_of_getElem_eq_iff]
   simp[Nat.mod_eq_of_lt (Nat.lt_trans lo.isLt (Nat.lt_two_pow_self (n:=w)))]
+
+@[expose]
+public def Domain.repeat {α} [Domain α]
+  {w} (inner: α w) (times: Nat) : α (w*times) :=
+  if h: 0 < times then
+    let prev := Domain.repeat inner (times-1)
+    let current := Domain.concat w (w*(times-1)) inner prev
+    let h0 : 1 ≤ times := by grind
+    let h1 : w+w*(times-1) = w*times := by
+      rw[Nat.mul_sub_one,Nat.add_comm,Nat.sub_add_cancel]
+      let h := Nat.mul_le_mul_left w h0
+      simp at h
+      exact h
+    let h2 : α (w+w*(times-1)) = α (w*times) := by grind
+    cast h2 current
+  else
+    Domain.ofBitvector (Bitvector.allZeros (w*times))
