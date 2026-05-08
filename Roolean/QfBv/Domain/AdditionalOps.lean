@@ -75,3 +75,52 @@ public def Domain.repeat {α} [Domain α]
     cast h2 current
   else
     Domain.ofBitvector (Bitvector.allZeros (w*times))
+
+@[expose]
+public def Domain.rotate {α} [Domain α] {w}
+  (inner: α w) (amount: Nat) (op: RotateOp) : α w :=
+  -- modulo the amount by w
+  let amount := amount % w
+
+  let (shlAmount, shrAmount) := match op with
+    | .Left => (amount, w-amount)
+    | .Right => (w-amount, amount)
+
+    let shl := Domain.ofBitvector {value := BitVec.ofNat w shlAmount}
+    let shr := Domain.ofBitvector {value := BitVec.ofNat w shrAmount}
+
+  -- shift one copy left, one copy right, combine them
+  let left := Domain.biNormal inner shl BiNormalOp.Shl
+  let right := Domain.biNormal inner shr BiNormalOp.Lshr
+
+  Domain.biNormal left right BiNormalOp.BitOr
+
+public theorem Domain.rotate_corresponds {w} (a: Bitvector w) (amount: Nat)
+  : (Domain.rotate a amount RotateOp.Left).value = a.value.rotateLeft amount ∧
+  (Domain.rotate a amount RotateOp.Right).value = a.value.rotateRight amount := by
+  simp[Domain.rotate]
+  simp[Domain.biNormal, Domain.ofBitvector]
+  simp[Bitvector.biNormal, Bitvector.standardBi, Bitvector.ofBitvector]
+  simp[BitVec.rotateLeft_def, BitVec.rotateRight_def]
+
+  by_cases 0 < w
+  {
+    rename_i hW
+    let h1: w = w % 2^w := by simp
+    let h2 {x} (h: x ≤ w): x % (2^w) = x := by
+      let hTwo : 1 < 2 := by simp
+      let hPow := Nat.lt_pow_self hTwo (n:=w)
+      let hX := Nat.lt_of_le_of_lt h hPow
+      exact Nat.mod_eq_of_lt hX
+    let h3: amount % w ≤ w := by
+      simp[Nat.le_of_lt (Nat.mod_lt amount hW)]
+    simp[h2, h3]
+    simp[BitVec.or_comm]
+  }
+  {
+    rename_i hW
+    simp at hW
+    simp[hW]
+    let h: a.value = 0#w := by grind
+    simp[h]
+  }

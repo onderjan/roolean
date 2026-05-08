@@ -41,6 +41,11 @@ public inductive ExtOp
   | Sext
 deriving Repr, Inhabited
 
+public inductive RotateOp
+  | Left
+  | Right
+deriving Repr, Inhabited
+
 public class Domain (α: Nat → Type) where
   ofBitvector {w}: Bitvector w → α w
   toBitvector? {w}: α w → Option (Bitvector w)

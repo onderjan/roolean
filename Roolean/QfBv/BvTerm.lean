@@ -61,4 +61,5 @@ public inductive BvTerm: VarWidths → Nat → Type where
   | Ite: {v: VarWidths} → {w: Nat} → BvTerm v 1 → BvTerm v w → BvTerm v w → BvTerm v w
   | Concat: {v: VarWidths} → (wl wr: Nat) → BvTerm v wl → BvTerm v wr → BvTerm v (wl+wr)
   | Extract: {v: VarWidths} → {w: Nat} → BvTerm v w → (lsb: Fin w) → (m: Nat) → BvTerm v m
+  | Rotate: {v: VarWidths} → {w:Nat} → BvTerm v w → (amount: Nat) → RotateOp → BvTerm v w
 deriving Repr, Nonempty

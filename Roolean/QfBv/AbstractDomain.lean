@@ -106,3 +106,23 @@ public theorem AbstractDomain.repeat_sound {α} [Domain α] [AbstractDomain α]
     }
 
   }
+
+public theorem AbstractDomain.rotate_sound {α} [Domain α] [AbstractDomain α]
+  {w} (a: α w) (c: Bitvector w) (amount: Nat) (op: RotateOp)
+  : γ a c → γ (Domain.rotate a amount op) (Domain.rotate c amount op) := by
+  intro hC
+  simp(zeta:=false)[Domain.rotate]
+  split
+  iterate 2 {
+    rename_i hOp
+    simp(zeta:=false)
+    extract_lets amount aShl aShr aLeft aRight cShl cShr cLeft cRight
+
+    let hShl := AbstractDomain.ofBitvector_sound (α:=α) cShl
+    let hShr := AbstractDomain.ofBitvector_sound (α:=α) cShr
+    let hLeft:= AbstractDomain.biNormal_sound a aShl BiNormalOp.Shl c cShl hC hShl
+    let hRight := AbstractDomain.biNormal_sound a aShr BiNormalOp.Lshr c cShr hC hShr
+    let hResult := AbstractDomain.biNormal_sound aLeft aRight BiNormalOp.BitOr cLeft cRight
+    simp[aLeft, aRight, cLeft, cRight, hLeft, hRight] at hResult
+    simp[aLeft, aRight, cLeft, cRight, hResult]
+  }

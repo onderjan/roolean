@@ -59,7 +59,9 @@ public def eval {v w} {α : Nat → Type} [Domain α]
       let inner := eval inner assignment
       Domain.extract inner lsb newWidth
 
-
+    | BvTerm.Rotate inner amount op =>
+      let inner := eval inner assignment
+      Domain.rotate inner amount op
 
 public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain α]
   (f: BvTerm v w) (a: Assignment v α) (c: Assignment v Bitvector) (h: a.γ c)
@@ -148,6 +150,12 @@ public theorem eval_sound {w v} {α : Nat → Type} [Domain α] [AbstractDomain 
     simp[eval]
     let h1 := h1 a c h
     exact AbstractDomain.extract_sound (eval inner a) (eval inner c) lsb width h1
+  }
+  {
+    -- rotate
+    rename_i inner m op h1
+    let h1 := h1 a c h
+    exact AbstractDomain.rotate_sound (eval inner a) (eval inner c) m op h1
   }
 
 
