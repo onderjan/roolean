@@ -182,7 +182,8 @@ partial def interpretBiNormalPair {v} (left: BvTermW v) (right: BvTermW v) (op: 
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
-partial def interpretBiNormalOp {v} (context: Context) (op: BiNormalOp) (terms: Array SmtTerm)
+partial def interpretBiNormalOp {v} (context: Context) (op: BiNormalOp)
+  (terms: Array SmtTerm) (allowMore: Bool := true)
   : (Except EInterpretation) (BvTermW v) := do
 
   let (left, right) ← if h: terms.size < 2 then
@@ -192,7 +193,7 @@ partial def interpretBiNormalOp {v} (context: Context) (op: BiNormalOp) (terms: 
       let left ← interpretTerm context terms[0]
       let right ← interpretTerm context terms[1]
       pure (left, right)
-  else
+  else if allowMore then
     -- more than two args
     -- handle as syntactic sugar
     match op with
@@ -206,8 +207,19 @@ partial def interpretBiNormalOp {v} (context: Context) (op: BiNormalOp) (terms: 
       | _ =>
         -- cannot process this operation with more than two terms
         Except.error EInterpretation.TooManyOpArgs
+  else
+    -- more than two terms are not allowed here
+    Except.error EInterpretation.TooManyOpArgs
 
   interpretBiNormalPair left right op
+
+partial def interpretBiNormalOpNegated {v} (context: Context) (op: BiNormalOp)
+  (terms: Array SmtTerm) (allowMore: Bool := true)
+  : (Except EInterpretation) (BvTermW v) := do
+  -- interpret normally and negate
+    let result ← interpretBiNormalOp context op terms (allowMore:=allowMore)
+    let value := BvTerm.Unary result.value UniOp.Not
+    pure { width := result.width, value }
 
 partial def interpretBiReductionPair {v} (left: BvTermW v) (right: BvTermW v) (op: BiReductionOp)
   : (Except EInterpretation) (BvTerm v 1) :=
@@ -482,10 +494,14 @@ partial def intepretApplication {v} (context: Context) (qualified: SmtQualifiedI
         | "bvurem" => interpretBiNormalOp context BiNormalOp.Urem terms
         | "bvsdiv" => interpretBiNormalOp context BiNormalOp.Sdiv terms
         | "bvsrem" => interpretBiNormalOp context BiNormalOp.Srem terms
+        | "bvsmod" => interpretBiNormalOp context BiNormalOp.Smod terms
 
         | "and" | "bvand" => interpretBiNormalOp context BiNormalOp.BitAnd terms
         | "or" | "bvor" => interpretBiNormalOp context BiNormalOp.BitOr terms
         | "xor" | "bvxor" => interpretBiNormalOp context BiNormalOp.BitXor terms
+        | "bvnand" => interpretBiNormalOpNegated context BiNormalOp.BitAnd terms
+        | "bvnor" => interpretBiNormalOpNegated context BiNormalOp.BitOr terms
+        | "bvxnor" => interpretBiNormalOpNegated context BiNormalOp.BitXor terms (allowMore := false)
 
         | "=" | "bvcomp" => interpretBiReductionOp context BiReductionOp.Eq terms
         | "distinct" => interpretNeOp context terms
