@@ -194,12 +194,7 @@ partial def interpretBiNormalOp {v} (context: Context) (op: BiNormalOp) (terms: 
       pure (left, right)
   else
     -- more than two args
-    -- handle left-associative and right-associative as syntactic sugar
-    -- left-assoc: 'and', 'or', 'xor' (from Core),
-    --             'bvand', 'bvor', 'bvadd', 'bvmul' (from FixedSizeBitvectors),
-    --             'bvxor' (from QF_BV)
-    -- right-assoc: '=>' (from Core)
-    -- TODO: pairwise, chainable
+    -- handle as syntactic sugar
     match op with
       | .BitAnd | .BitOr | .BitXor | .Add | .Mul =>
         -- left-associative, transform (f s_1 s_2 .. s_n) as (f (f s_1 s_2 ...) s_n)
@@ -224,6 +219,20 @@ partial def interpretBiReductionPair {v} (left: BvTermW v) (right: BvTermW v) (o
   else
     Except.error EInterpretation.BinaryWidthMismatch
 
+partial def andCombine {v} (context: Context) (ops: Array (BvTermW v))
+  : (Except EInterpretation) (BvTermW v) := do
+  if h: ops.size < 2 then
+    Except.error EInterpretation.TooFewOpArgs -- must have at least two args
+  else if ops.size == 2 then
+    -- exactly two args, evaluate normally
+    interpretBiNormalPair ops[0] ops[1] BiNormalOp.BitAnd
+  else
+    -- more than two args, left-associative
+    let right := ops.back
+    let left ← andCombine context ops.pop
+    interpretBiNormalPair left right BiNormalOp.BitAnd
+
+
 partial def interpretBiReductionOp {v} (context: Context) (op: BiReductionOp) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
   if h: terms.size < 2 then
@@ -235,8 +244,22 @@ partial def interpretBiReductionOp {v} (context: Context) (op: BiReductionOp) (t
       let value ← interpretBiReductionPair left right op
       pure { width := 1, value }
   else
-    -- cannot process these operations with more than two terms
-    Except.error EInterpretation.TooManyOpArgs
+    -- more than two args
+    -- handle as syntactic sugar
+    match op with
+      | .Eq =>
+        -- chainable, transform (f t_1 ... t_n) to (and (f t_1 t_2) (f t_2 t_3) ... (f t_n-1 t_n))
+        let mut ops := #[]
+        for h: i in 1...terms.size do
+          let left := terms[i-1]
+          let right := terms[i]
+          let op ← interpretBiReductionOp context op #[left, right]
+          ops := ops.push op
+
+        andCombine context ops
+      | _ =>
+        -- cannot process these operations with more than two terms
+        Except.error EInterpretation.TooManyOpArgs
 
 
 partial def interpretNeOp {v} (context: Context) (terms: Array SmtTerm)
@@ -244,15 +267,27 @@ partial def interpretNeOp {v} (context: Context) (terms: Array SmtTerm)
   if h: terms.size < 2 then
     Except.error EInterpretation.TooFewOpArgs -- must have at least two args
   else if terms.size == 2 then
-      -- evaluate as bit-not of the result of an equality
-      let left ← interpretTerm context terms[0]
-      let right ← interpretTerm context terms[1]
-      let eqResult ← interpretBiReductionPair left right BiReductionOp.Eq
-      let value := BvTerm.Unary eqResult UniOp.Not
-      pure { width := 1, value }
+    -- evaluate as bit-not of the result of an equality
+    let left ← interpretTerm context terms[0]
+    let right ← interpretTerm context terms[1]
+    let eqResult ← interpretBiReductionPair left right BiReductionOp.Eq
+    let value := BvTerm.Unary eqResult UniOp.Not
+    pure { width := 1, value }
   else
-    -- cannot process this operation with more than two terms
-    Except.error EInterpretation.TooManyOpArgs
+    -- pairwise, transform  (f t_1 ... t_n) to (and (f t_1 t_2) (f t_1 t_3) ... (f t_1 t_n) (f t_2 ... t_n))
+    -- take the first operation and combine it with others
+    let first := terms[0]
+    let terms := terms.eraseIdx 0
+    let mut ops := #[]
+    for term in terms do
+      let op ← interpretNeOp context #[first, term]
+      ops := ops.push op
+
+    -- process the other terms and then combine everything using and
+    let lastOp ← interpretNeOp context terms
+    ops := ops.push lastOp
+
+    andCombine context ops
 
 partial def interpretImpliesOp {v} (context: Context) (terms: Array SmtTerm)
   : (Except EInterpretation) (BvTermW v) := do
